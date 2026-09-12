@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nama計算機(プライベート用途)</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nama計算機">
+<link rel="apple-touch-icon" href="./Namake192.png">
 <style>
 :root{
   --bg:#eef1f5;
@@ -51,6 +57,9 @@ header button.back:active{background:rgba(255,255,255,0.15);}
 header h1{
   flex:1;text-align:center;margin:0;
   font-size:16px;font-weight:600;letter-spacing:0.02em;
+}
+header h1 .title-sub{
+  font-size:11px;font-weight:400;opacity:0.8;margin-left:3px;letter-spacing:0;
 }
 header .spacer{width:34px;}
 
@@ -144,12 +153,28 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 
 /* ---------- 電卓 ---------- */
 .calc-display{
-  background:#161b13;color:#f2c14e;
+  background:#161b13;
   border-radius:var(--radius);
-  padding:26px 18px;
+  padding:18px 18px 20px;
+  margin-bottom:12px;
+  display:flex;flex-direction:column;align-items:flex-end;
+}
+.calc-expr{
+  color:#c9b98a;opacity:0.8;
   font-family:var(--mono);font-variant-numeric:tabular-nums;
-  font-size:30px;text-align:right;word-break:break-all;
-  min-height:44px;margin-bottom:12px;letter-spacing:0.02em;
+  font-size:18px;text-align:right;word-break:break-all;
+  min-height:22px;letter-spacing:0.02em;width:100%;
+}
+.calc-live{
+  color:#f2c14e;
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:32px;text-align:right;word-break:break-all;
+  min-height:38px;margin-top:4px;letter-spacing:0.02em;width:100%;
+}
+.calc-memo{display:flex;flex-direction:column;gap:8px;margin-top:16px;}
+.memo-input{
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px;font-size:14px;background:var(--surface);color:var(--ink);
 }
 .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .calc-grid button{
@@ -183,6 +208,16 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .expense-row button{
   background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 8px;
 }
+.expense-amount{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;flex:1;}
+.expense-edit-input{
+  flex:1;border:1px solid var(--primary);border-radius:8px;
+  padding:6px 8px;font-family:var(--mono);font-size:14.5px;font-variant-numeric:tabular-nums;
+}
+.expense-done-btn{
+  background:var(--primary);color:#fff;border:none;border-radius:8px;
+  padding:6px 12px;margin-left:8px;font-size:13px;cursor:pointer;flex-shrink:0;
+}
+.btn-block.danger{background:var(--danger);}
 .budget-summary{display:flex;justify-content:space-between;align-items:baseline;padding-top:4px;}
 .budget-summary .lbl{color:var(--ink-sub);font-size:13px;}
 .balance{font-size:24px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums;}
@@ -262,7 +297,7 @@ select.plain{
 <div id="app">
   <header>
     <button class="back" id="btn-back" type="button" aria-label="戻る">←</button>
-    <h1 id="page-title">Nama計算機</h1>
+    <h1 id="page-title">Nama計算機<span class="title-sub">(プライベート用途)</span></h1>
     <span class="spacer"></span>
   </header>
 
@@ -276,11 +311,14 @@ select.plain{
 
     <!-- (1) 電卓 -->
     <div class="page" id="page-calc">
-      <div class="calc-display" id="calc-display">0</div>
+      <div class="calc-display">
+        <div class="calc-expr" id="calc-expr">0</div>
+        <div class="calc-live" id="calc-live"></div>
+      </div>
       <div class="calc-grid">
         <button class="fn" data-val="C">C</button>
-        <button class="fn" data-val="back">⌫</button>
         <button class="fn" data-val="%">%</button>
+        <button class="fn" data-val="back">⌫</button>
         <button class="op" data-val="÷">÷</button>
 
         <button data-val="7">7</button>
@@ -301,6 +339,11 @@ select.plain{
         <button class="wide" data-val="0">0</button>
         <button data-val=".">.</button>
         <button class="eq" data-val="=">=</button>
+      </div>
+      <div class="calc-memo">
+        <input type="text" class="memo-input" id="calc-memo-1" placeholder="メモ1">
+        <input type="text" class="memo-input" id="calc-memo-2" placeholder="メモ2">
+        <input type="text" class="memo-input" id="calc-memo-3" placeholder="メモ3">
       </div>
     </div>
 
@@ -344,6 +387,7 @@ select.plain{
           <span><span class="lbl">出費合計 </span><span id="expense-total" style="font-family:var(--mono)">0円</span></span>
           <span class="balance plus" id="budget-balance">+0円</span>
         </div>
+        <button type="button" class="btn-block danger" id="expense-clear-btn">出費を全クリア</button>
       </div>
     </div>
 
@@ -474,7 +518,7 @@ function showPage(id){
   var titleEl = document.getElementById('page-title');
   if (id === 'home'){
     backBtn.classList.remove('show');
-    titleEl.textContent = 'Nama計算機';
+    titleEl.innerHTML = 'Nama計算機<span class="title-sub">(プライベート用途)</span>';
   } else {
     backBtn.classList.add('show');
     var item = null;
@@ -592,9 +636,10 @@ function attachDrag(item){
 
 /* ============ (1) 電卓 ============ */
 var calcExpr = '';
-function calcRender(){
-  document.getElementById('calc-display').textContent = calcExpr === '' ? '0' : calcExpr;
-}
+var calcJustEquals = false;
+var calcLastResult = 0;
+var CALC_OPS = ['+','-','×','÷'];
+
 function trimNumber(n){
   return Number(n.toFixed(10)).toString();
 }
@@ -607,43 +652,84 @@ function safeCalcEval(expr){
   if (typeof val !== 'number' || !isFinite(val)) throw new Error('inf');
   return val;
 }
+/* 末尾の演算子・小数点・%を取り除いた上で評価する(途中経過表示・=共通) */
+function calcEvalTrimmed(expr){
+  var e = expr;
+  while (e.length > 0 && ['+','-','×','÷','.','%'].indexOf(e.slice(-1)) !== -1){
+    e = e.slice(0,-1);
+  }
+  if (e === '') return {ok:false};
+  try {
+    return {ok:true, value: safeCalcEval(e)};
+  } catch(err){
+    return {ok:false};
+  }
+}
+function calcHasOperator(expr){
+  for (var i=1; i<expr.length; i++){
+    if (CALC_OPS.indexOf(expr[i]) !== -1) return true;
+  }
+  return expr.indexOf('%') !== -1;
+}
+function calcRender(){
+  document.getElementById('calc-expr').textContent = calcExpr === '' ? '0' : calcExpr;
+  var liveEl = document.getElementById('calc-live');
+  if (calcHasOperator(calcExpr)){
+    var r = calcEvalTrimmed(calcExpr);
+    liveEl.textContent = r.ok ? trimNumber(r.value) : '';
+  } else {
+    liveEl.textContent = '';
+  }
+}
 function calcInput(val){
-  var ops = ['+','-','×','÷'];
   if (val === 'C'){
     calcExpr = '';
+    calcJustEquals = false;
   } else if (val === 'back'){
     calcExpr = calcExpr.slice(0,-1);
+    calcJustEquals = false;
   } else if (val === '='){
-    try {
-      var result = safeCalcEval(calcExpr);
-      calcExpr = trimNumber(result);
-    } catch(e){
-      calcExpr = '';
-      calcRender();
+    var r = calcEvalTrimmed(calcExpr);
+    if (!r.ok){
       showToast('計算できません');
       return;
     }
-  } else if (val === '%'){
-    var last = calcExpr.slice(-1);
-    if (calcExpr !== '' && ops.indexOf(last) === -1 && last !== '%'){
-      calcExpr += '%';
+    calcLastResult = r.value;
+    calcJustEquals = true;
+    /* calcExprはそのまま保持し、上段に式・下段に結果を表示し続ける */
+  } else if (CALC_OPS.indexOf(val) !== -1){
+    if (calcJustEquals){
+      calcExpr = trimNumber(calcLastResult) + val;
+      calcJustEquals = false;
+      calcRender();
+      return;
     }
-  } else if (ops.indexOf(val) !== -1){
     if (calcExpr === ''){
       if (val === '-') calcExpr = '-';
-      return calcRender();
+      calcRender();
+      return;
     }
     var lastCh = calcExpr.slice(-1);
-    if (ops.indexOf(lastCh) !== -1){
+    if (CALC_OPS.indexOf(lastCh) !== -1){
       calcExpr = calcExpr.slice(0,-1) + val;
     } else {
       calcExpr += val;
     }
+  } else if (val === '%'){
+    calcJustEquals = false;
+    if (calcExpr !== ''){
+      var lastCh2 = calcExpr.slice(-1);
+      if (CALC_OPS.indexOf(lastCh2) === -1 && lastCh2 !== '%'){
+        calcExpr += '%';
+      }
+    }
   } else if (val === '.'){
+    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
     var seg = calcExpr.split(/[+\-×÷]/).pop();
-    if (seg.indexOf('.') !== -1) return;
+    if (seg.indexOf('.') !== -1){ calcRender(); return; }
     calcExpr += (seg === '' ? '0.' : '.');
   } else {
+    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
     calcExpr += val;
   }
   calcRender();
@@ -651,6 +737,25 @@ function calcInput(val){
 var calcButtons = document.querySelectorAll('.calc-grid button');
 for (var ci=0; ci<calcButtons.length; ci++){
   calcButtons[ci].addEventListener('click', function(){ calcInput(this.dataset.val); });
+}
+
+/* ---- 電卓メモ欄(3行・ローカル保存) ---- */
+var CALC_MEMO_KEY = 'namacalc_memo_v1';
+function initCalcMemo(){
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(CALC_MEMO_KEY) || 'null'); } catch(e){ saved = null; }
+  if (!Array.isArray(saved)) saved = ['','',''];
+  for (var i=0; i<3; i++){
+    document.getElementById('calc-memo-' + (i+1)).value = saved[i] || '';
+  }
+}
+function saveCalcMemo(){
+  var vals = [];
+  for (var i=0; i<3; i++){ vals.push(document.getElementById('calc-memo-' + (i+1)).value); }
+  localStorage.setItem(CALC_MEMO_KEY, JSON.stringify(vals));
+}
+for (var mi=1; mi<=3; mi++){
+  document.getElementById('calc-memo-' + mi).addEventListener('input', saveCalcMemo);
 }
 
 /* ============ 日付ユーティリティ・和暦 ============ */
@@ -701,9 +806,23 @@ for (var di=0; di<dirRadios.length; di++){
 
 /* ============ (3) 予算収支計算機 ============ */
 var expenses = [];
+var editingExpenseIndex = null;
+var EXPENSES_KEY = 'namacalc_expenses_v1';
+function loadExpenses(){
+  try {
+    var saved = JSON.parse(localStorage.getItem(EXPENSES_KEY) || 'null');
+    if (Array.isArray(saved)){
+      expenses = saved.filter(function(v){ return typeof v === 'number' && isFinite(v); });
+    }
+  } catch(e){ /* ignore */ }
+}
+function saveExpenses(){
+  localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses));
+}
 function initBudget(){
   var saved = localStorage.getItem(BUDGET_KEY);
   document.getElementById('budget-input').value = (saved !== null && saved !== '') ? saved : 20000;
+  loadExpenses();
   renderBudget();
 }
 document.getElementById('budget-input').addEventListener('input', function(e){
@@ -726,8 +845,17 @@ document.getElementById('expense-input').addEventListener('keydown', function(e)
 });
 function removeExpense(idx){
   expenses.splice(idx,1);
+  if (editingExpenseIndex === idx) editingExpenseIndex = null;
   renderBudget();
 }
+document.getElementById('expense-clear-btn').addEventListener('click', function(){
+  if (expenses.length === 0) return;
+  if (window.confirm('出費の入力内容をすべて削除しますか？')){
+    expenses = [];
+    editingExpenseIndex = null;
+    renderBudget();
+  }
+});
 function renderBudget(){
   var budget = parseFloat(document.getElementById('budget-input').value);
   if (isNaN(budget)) budget = 0;
@@ -738,14 +866,57 @@ function renderBudget(){
   expenses.forEach(function(val, i){
     var row = document.createElement('div');
     row.className = 'expense-row';
-    row.innerHTML = '<span>' + val.toLocaleString() + '円</span><button type="button">×</button>';
-    row.querySelector('button').addEventListener('click', function(){ removeExpense(i); });
-    list.appendChild(row);
+    if (i === editingExpenseIndex){
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.inputMode = 'decimal';
+      input.className = 'expense-edit-input';
+      input.value = val;
+      var doneBtn = document.createElement('button');
+      doneBtn.type = 'button';
+      doneBtn.className = 'expense-done-btn';
+      doneBtn.textContent = '確定';
+      var committed = false;
+      function commit(){
+        if (committed) return;
+        committed = true;
+        var nv = parseFloat(input.value);
+        if (!isNaN(nv)) expenses[i] = nv;
+        editingExpenseIndex = null;
+        renderBudget();
+      }
+      doneBtn.addEventListener('click', commit);
+      input.addEventListener('keydown', function(e){
+        if (e.key === 'Enter'){ e.preventDefault(); commit(); }
+      });
+      input.addEventListener('blur', commit);
+      row.appendChild(input);
+      row.appendChild(doneBtn);
+      list.appendChild(row);
+      setTimeout(function(){ input.focus(); input.select(); }, 0);
+    } else {
+      var amountSpan = document.createElement('span');
+      amountSpan.className = 'expense-amount';
+      amountSpan.textContent = val.toLocaleString() + '円';
+      amountSpan.title = 'タップして訂正';
+      amountSpan.addEventListener('click', function(){
+        editingExpenseIndex = i;
+        renderBudget();
+      });
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', function(){ removeExpense(i); });
+      row.appendChild(amountSpan);
+      row.appendChild(delBtn);
+      list.appendChild(row);
+    }
   });
   document.getElementById('expense-total').textContent = total.toLocaleString() + '円';
   var balEl = document.getElementById('budget-balance');
   balEl.textContent = (balance >= 0 ? '+' : '') + balance.toLocaleString() + '円';
   balEl.className = 'balance ' + (balance >= 0 ? 'plus' : 'minus');
+  saveExpenses();
 }
 
 /* ============ (4) LINE外部ブラウザURL ============ */
@@ -932,9 +1103,24 @@ document.getElementById('cal-today-btn').addEventListener('click', function(){
 renderMenu();
 showPage('home');
 initBudget();
+initCalcMemo();
 updateDaysCalc();
 updateAge();
 updateAgeReverse();
+
+/* ============ PWA: Service Worker登録 ============ */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(err){
+      console.warn('SW registration failed', err);
+    });
+  });
+  navigator.serviceWorker.addEventListener('message', function(event){
+    if (event.data && event.data.type === 'sw_updated'){
+      showToast('新しいバージョンを適用しました。再読み込みしてください', 6000);
+    }
+  });
+}
 
 })();
 </script>
