@@ -25,7 +25,6 @@
   --radius:16px;
   --radius-sm:10px;
   --shadow:0 1px 3px rgba(20,30,45,0.08), 0 6px 16px rgba(20,30,45,0.06);
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
 }
 *{box-sizing:border-box;}
@@ -62,6 +61,13 @@ header h1 .title-sub{
   font-size:11px;font-weight:400;opacity:0.8;margin-left:3px;letter-spacing:0;
 }
 header .spacer{width:34px;}
+header button.gear{
+  background:none;border:none;color:#fff;
+  font-size:19px;line-height:1;padding:6px 8px;
+  border-radius:8px;cursor:pointer;visibility:hidden;
+}
+header button.gear.show{visibility:visible;}
+header button.gear:active{background:rgba(255,255,255,0.15);}
 
 main{flex:1;padding:16px;padding-bottom:48px;}
 .page{display:none;}
@@ -125,11 +131,11 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .field-row label{width:76px;flex-shrink:0;color:var(--ink-sub);font-size:13.5px;}
 .field-row input[type=number]{
   flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px;font-size:16px;font-family:var(--mono);
+  padding:10px;font-size:16px;font-family:var(--sans);
   font-variant-numeric:tabular-nums;
 }
 .date-display{
-  flex:1;font-size:14.5px;font-family:var(--mono);
+  flex:1;font-size:14.5px;font-family:var(--sans);
   font-variant-numeric:tabular-nums;
 }
 .cal-btn{
@@ -146,7 +152,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   border-radius:var(--radius);
   padding:18px 16px;text-align:center;
   font-size:17px;font-weight:600;
-  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-family:var(--sans);font-variant-numeric:tabular-nums;
   line-height:1.6;
 }
 .result-box small{display:block;font-size:12.5px;font-weight:400;opacity:0.75;font-family:var(--sans);margin-bottom:2px;}
@@ -161,13 +167,13 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 }
 .calc-expr{
   color:#c9b98a;opacity:0.8;
-  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-family:var(--sans);font-variant-numeric:tabular-nums;
   font-size:18px;text-align:right;word-break:break-all;
   min-height:22px;letter-spacing:0.02em;width:100%;
 }
 .calc-live{
   color:#f2c14e;
-  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-family:var(--sans);font-variant-numeric:tabular-nums;
   font-size:32px;text-align:right;word-break:break-all;
   min-height:38px;margin-top:4px;letter-spacing:0.02em;width:100%;
 }
@@ -180,19 +186,18 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .calc-grid button{
   padding:20px 0;font-size:20px;border:none;border-radius:12px;
   background:var(--surface);box-shadow:var(--shadow);cursor:pointer;
-  font-family:var(--mono);color:var(--ink);
+  font-family:var(--sans);color:var(--ink);
 }
 .calc-grid button:active{filter:brightness(0.94);}
 .calc-grid button.op{background:var(--primary);color:#fff;}
 .calc-grid button.eq{background:var(--accent);color:#fff;}
 .calc-grid button.fn{background:#dfe4ea;color:var(--ink);}
-.calc-grid button.wide{grid-column:span 2;}
 
 /* ---------- 予算収支 ---------- */
 .expense-add{display:flex;gap:8px;margin-bottom:14px;}
 .expense-add input{
   flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px;font-size:16px;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  padding:10px;font-size:16px;font-family:var(--sans);font-variant-numeric:tabular-nums;
 }
 .expense-add button{
   background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);
@@ -202,7 +207,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .expense-row{
   display:flex;justify-content:space-between;align-items:center;
   padding:9px 4px;border-bottom:1px solid var(--border);
-  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14.5px;
+  font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:14.5px;
 }
 .expense-row:last-child{border-bottom:none;}
 .expense-row button{
@@ -211,7 +216,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .expense-amount{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;flex:1;}
 .expense-edit-input{
   flex:1;border:1px solid var(--primary);border-radius:8px;
-  padding:6px 8px;font-family:var(--mono);font-size:14.5px;font-variant-numeric:tabular-nums;
+  padding:6px 8px;font-family:var(--sans);font-size:14.5px;font-variant-numeric:tabular-nums;
 }
 .expense-done-btn{
   background:var(--primary);color:#fff;border:none;border-radius:8px;
@@ -220,7 +225,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .btn-block.danger{background:var(--danger);}
 .budget-summary{display:flex;justify-content:space-between;align-items:baseline;padding-top:4px;}
 .budget-summary .lbl{color:var(--ink-sub);font-size:13px;}
-.balance{font-size:24px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.balance{font-size:24px;font-weight:700;font-family:var(--sans);font-variant-numeric:tabular-nums;}
 .balance.plus{color:var(--success);}
 .balance.minus{color:var(--danger);}
 
@@ -228,13 +233,13 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 #clip-view{
   width:100%;min-height:72px;resize:vertical;
   border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px;font-size:13.5px;font-family:var(--mono);
+  padding:10px;font-size:13.5px;font-family:var(--sans);
   background:#f7f8fa;color:var(--ink);
 }
 #manual-input{
   width:100%;min-height:64px;resize:vertical;
   border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px;font-size:13.5px;font-family:var(--mono);
+  padding:10px;font-size:13.5px;font-family:var(--sans);
 }
 .btn-block{
   width:100%;background:var(--primary);color:#fff;border:none;
@@ -243,9 +248,17 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 }
 .btn-block:active{background:var(--primary-dark);}
 .btn-block.secondary{background:var(--accent);}
+.btn-block.muted{background:#9aa5b1;margin-top:10px;}
+.settings-toggle-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 2px;border-bottom:1px solid var(--border);
+  font-size:14.5px;cursor:pointer;
+}
+.settings-toggle-row:last-child{border-bottom:none;}
+.settings-toggle-row input{width:18px;height:18px;flex-shrink:0;}
 
 /* ---------- 年計算機 ---------- */
-.era-result{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.9;}
+.era-result{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.9;}
 .era-result div{border-bottom:1px dashed var(--border);padding:2px 0;}
 .era-result div:last-child{border-bottom:none;}
 select.plain{
@@ -276,13 +289,13 @@ select.plain{
 .cal-header{display:flex;gap:8px;margin-bottom:14px;}
 .cal-header select{
   flex:1;padding:9px;border-radius:var(--radius-sm);border:1px solid var(--border);
-  font-size:14.5px;font-family:var(--mono);
+  font-size:14.5px;font-family:var(--sans);
 }
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;}
 .cal-wd{font-size:11.5px;color:var(--ink-sub);padding:4px 0;font-weight:600;}
 .cal-day{
   padding:9px 0;border:none;background:#f2f4f7;border-radius:8px;cursor:pointer;
-  font-size:13.5px;font-family:var(--mono);color:var(--ink);
+  font-size:13.5px;font-family:var(--sans);color:var(--ink);
 }
 .cal-day:active{background:#dfe4ea;}
 .cal-day.today{box-shadow:inset 0 0 0 2px var(--accent);}
@@ -298,7 +311,7 @@ select.plain{
   <header>
     <button class="back" id="btn-back" type="button" aria-label="戻る">←</button>
     <h1 id="page-title">Nama計算機<span class="title-sub">(プライベート用途)</span></h1>
-    <span class="spacer"></span>
+    <button class="gear show" id="btn-settings" type="button" aria-label="設定">⚙</button>
   </header>
 
   <main>
@@ -316,9 +329,9 @@ select.plain{
         <div class="calc-live" id="calc-live"></div>
       </div>
       <div class="calc-grid">
-        <button class="fn" data-val="C">C</button>
+        <button class="fn" data-val="AC">AC</button>
+        <button class="fn" data-val="()">( )</button>
         <button class="fn" data-val="%">%</button>
-        <button class="fn" data-val="back">⌫</button>
         <button class="op" data-val="÷">÷</button>
 
         <button data-val="7">7</button>
@@ -336,8 +349,9 @@ select.plain{
         <button data-val="3">3</button>
         <button class="op" data-val="+">+</button>
 
-        <button class="wide" data-val="0">0</button>
+        <button data-val="0">0</button>
         <button data-val=".">.</button>
+        <button class="fn" data-val="back">⌫</button>
         <button class="eq" data-val="=">=</button>
       </div>
       <div class="calc-memo">
@@ -384,7 +398,7 @@ select.plain{
         </div>
         <div id="expense-list"></div>
         <div class="budget-summary">
-          <span><span class="lbl">出費合計 </span><span id="expense-total" style="font-family:var(--mono)">0円</span></span>
+          <span><span class="lbl">出費合計 </span><span id="expense-total" style="font-family:var(--sans)">0円</span></span>
           <span class="balance plus" id="budget-balance">+0円</span>
         </div>
         <button type="button" class="btn-block danger" id="expense-clear-btn">出費を全クリア</button>
@@ -492,13 +506,34 @@ select.plain{
   </div>
 </div>
 
+<div class="modal hidden" id="settings-modal">
+  <div class="modal-overlay" id="settings-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 14px;font-size:17px;">設定</h2>
+    <p class="section-label">表示する機能</p>
+    <div id="settings-menu-toggles"></div>
+    <hr class="section-rule">
+    <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
+    <button type="button" class="btn-block muted" id="settings-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="info-modal">
+  <div class="modal-overlay" id="info-overlay"></div>
+  <div class="modal-box">
+    <h2 id="info-title" style="margin:0 0 12px;font-size:17px;"></h2>
+    <div id="info-body" class="era-result" style="font-family:var(--sans);"></div>
+    <button type="button" class="btn-block" id="info-close-btn">閉じる</button>
+  </div>
+</div>
+
 <script>
 (function(){
 "use strict";
 
 var WEEKDAYS = ['日','月','火','水','木','金','土'];
 
-/* ============ ページ切替 ============ */
+/* ============ ページ切替(戻るボタン対応) ============ */
 var MENU_ITEMS = [
   {id:'calc',   icon:'🧮', label:'単なる電卓',            title:'電卓'},
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
@@ -507,27 +542,46 @@ var MENU_ITEMS = [
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'}
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
+var VISIBLE_KEY = 'namacalc_menu_visible_v1';
 var BUDGET_KEY = 'namacalc_budget_v1';
 
-function showPage(id){
+/* 画面の表示切替のみを行う(履歴操作はしない) */
+function renderPage(id){
   var pages = document.querySelectorAll('.page');
   for (var i=0;i<pages.length;i++){ pages[i].classList.remove('active'); }
-  var target = id === 'home' ? document.getElementById('page-home') : document.getElementById('page-'+id);
-  if (target) target.classList.add('active');
+  var target = document.getElementById('page-' + id);
+  if (!target){ id = 'home'; target = document.getElementById('page-home'); }
+  target.classList.add('active');
   var backBtn = document.getElementById('btn-back');
+  var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
   if (id === 'home'){
     backBtn.classList.remove('show');
+    gearBtn.classList.add('show');
     titleEl.innerHTML = 'Nama計算機<span class="title-sub">(プライベート用途)</span>';
   } else {
     backBtn.classList.add('show');
+    gearBtn.classList.remove('show');
     var item = null;
     for (var j=0;j<MENU_ITEMS.length;j++){ if (MENU_ITEMS[j].id===id) item = MENU_ITEMS[j]; }
     titleEl.textContent = item ? item.title : '';
   }
   window.scrollTo(0,0);
 }
-document.getElementById('btn-back').addEventListener('click', function(){ showPage('home'); });
+/* メニューからの遷移: 履歴に積む → 端末の「戻る」でトップに戻れるようにする */
+function navigateTo(id){
+  if (id === 'home'){ renderPage('home'); return; }
+  history.pushState({page:id}, '', '#' + id);
+  renderPage(id);
+}
+document.getElementById('btn-back').addEventListener('click', function(){
+  history.back();
+});
+window.addEventListener('popstate', function(e){
+  var id = (e.state && e.state.page) || 'home';
+  renderPage(id);
+});
+history.replaceState({page:'home'}, '', location.pathname + location.search);
 
 /* ============ トースト ============ */
 var toastTimer = null;
@@ -540,7 +594,7 @@ function showToast(msg, ms){
   toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms);
 }
 
-/* ============ ホームメニュー(並べ替え) ============ */
+/* ============ ホームメニュー(並べ替え・表示ON/OFF) ============ */
 function loadOrder(){
   var ids = MENU_ITEMS.map(function(m){ return m.id; });
   var saved = null;
@@ -558,11 +612,23 @@ function saveOrder(){
   for (var i=0;i<children.length;i++){ ids.push(children[i].dataset.id); }
   localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
 }
+function loadMenuVisibility(){
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(VISIBLE_KEY) || 'null'); } catch(e){ saved = null; }
+  return (saved && typeof saved === 'object') ? saved : {};
+}
+function setMenuVisible(id, visible){
+  var v = loadMenuVisibility();
+  v[id] = visible;
+  localStorage.setItem(VISIBLE_KEY, JSON.stringify(v));
+}
 function renderMenu(){
   var order = loadOrder();
+  var visibility = loadMenuVisibility();
   var list = document.getElementById('menu-list');
   list.innerHTML = '';
   order.forEach(function(id){
+    if (visibility[id] === false) return;
     var item = null;
     for (var j=0;j<MENU_ITEMS.length;j++){ if (MENU_ITEMS[j].id===id) item = MENU_ITEMS[j]; }
     if (!item) return;
@@ -577,7 +643,7 @@ function renderMenu(){
         '<span class="chev">›</span>' +
       '</button>';
     row.querySelector('.menu-btn').addEventListener('click', function(){
-      showPage(this.parentElement.dataset.id);
+      navigateTo(this.parentElement.dataset.id);
     });
     attachDrag(row);
     list.appendChild(row);
@@ -645,17 +711,17 @@ function trimNumber(n){
 }
 function safeCalcEval(expr){
   if (expr === '') return 0;
-  if (!/^[0-9+\-×÷.%]+$/.test(expr)) throw new Error('invalid');
+  if (!/^[0-9+\-×÷.%()]+$/.test(expr)) throw new Error('invalid');
   var e = expr.replace(/×/g,'*').replace(/÷/g,'/');
   e = e.replace(/(\d+(\.\d+)?)%/g, '($1/100)');
   var val = Function('"use strict";return (' + e + ')')();
   if (typeof val !== 'number' || !isFinite(val)) throw new Error('inf');
   return val;
 }
-/* 末尾の演算子・小数点・%を取り除いた上で評価する(途中経過表示・=共通) */
+/* 末尾の演算子・小数点・%・開きカッコを取り除いた上で評価する(途中経過表示・=共通) */
 function calcEvalTrimmed(expr){
   var e = expr;
-  while (e.length > 0 && ['+','-','×','÷','.','%'].indexOf(e.slice(-1)) !== -1){
+  while (e.length > 0 && ['+','-','×','÷','.','%','('].indexOf(e.slice(-1)) !== -1){
     e = e.slice(0,-1);
   }
   if (e === '') return {ok:false};
@@ -671,6 +737,11 @@ function calcHasOperator(expr){
   }
   return expr.indexOf('%') !== -1;
 }
+function calcOpenParenCount(expr){
+  var open = (expr.match(/\(/g) || []).length;
+  var close = (expr.match(/\)/g) || []).length;
+  return open - close;
+}
 function calcRender(){
   document.getElementById('calc-expr').textContent = calcExpr === '' ? '0' : calcExpr;
   var liveEl = document.getElementById('calc-live');
@@ -682,12 +753,24 @@ function calcRender(){
   }
 }
 function calcInput(val){
-  if (val === 'C'){
+  if (val === 'AC'){
     calcExpr = '';
     calcJustEquals = false;
   } else if (val === 'back'){
     calcExpr = calcExpr.slice(0,-1);
     calcJustEquals = false;
+  } else if (val === '()'){
+    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
+    var openCount = calcOpenParenCount(calcExpr);
+    var lastChP = calcExpr.slice(-1);
+    var canClose = openCount > 0 && lastChP !== '' && CALC_OPS.indexOf(lastChP) === -1 && lastChP !== '(' && lastChP !== '.';
+    if (canClose){
+      calcExpr += ')';
+    } else if (lastChP !== '' && /[0-9)]/.test(lastChP)){
+      calcExpr += '×(';
+    } else {
+      calcExpr += '(';
+    }
   } else if (val === '='){
     var r = calcEvalTrimmed(calcExpr);
     if (!r.ok){
@@ -719,13 +802,13 @@ function calcInput(val){
     calcJustEquals = false;
     if (calcExpr !== ''){
       var lastCh2 = calcExpr.slice(-1);
-      if (CALC_OPS.indexOf(lastCh2) === -1 && lastCh2 !== '%'){
+      if (CALC_OPS.indexOf(lastCh2) === -1 && lastCh2 !== '%' && lastCh2 !== '('){
         calcExpr += '%';
       }
     }
   } else if (val === '.'){
     if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
-    var seg = calcExpr.split(/[+\-×÷]/).pop();
+    var seg = calcExpr.split(/[+\-×÷(]/).pop();
     if (seg.indexOf('.') !== -1){ calcRender(); return; }
     calcExpr += (seg === '' ? '0.' : '.');
   } else {
@@ -923,6 +1006,10 @@ function renderBudget(){
 document.getElementById('clip-check-btn').addEventListener('click', function(){
   navigator.clipboard.readText().then(function(text){
     document.getElementById('clip-view').value = text;
+    var manual = document.getElementById('manual-input');
+    if (manual.value.trim() === ''){
+      manual.value = text;
+    }
   }).catch(function(){
     showToast('クリップボードを読み取れませんでした');
   });
@@ -1099,9 +1186,97 @@ document.getElementById('cal-today-btn').addEventListener('click', function(){
   if (calState.callback) calState.callback(t);
 });
 
+/* ============ 汎用インフォモーダル ============ */
+function showInfoModal(title, bodyHTML){
+  document.getElementById('info-title').textContent = title;
+  document.getElementById('info-body').innerHTML = bodyHTML;
+  document.getElementById('info-modal').classList.remove('hidden');
+}
+function closeInfoModal(){
+  document.getElementById('info-modal').classList.add('hidden');
+}
+document.getElementById('info-close-btn').addEventListener('click', closeInfoModal);
+document.getElementById('info-overlay').addEventListener('click', closeInfoModal);
+
+/* ============ 設定モーダル(表示項目の切替) ============ */
+function renderSettingsToggles(){
+  var box = document.getElementById('settings-menu-toggles');
+  box.innerHTML = '';
+  var visibility = loadMenuVisibility();
+  MENU_ITEMS.forEach(function(item){
+    var checked = visibility[item.id] !== false;
+    var row = document.createElement('label');
+    row.className = 'settings-toggle-row';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    var span = document.createElement('span');
+    span.textContent = item.icon + ' ' + item.label;
+    row.appendChild(cb);
+    row.appendChild(span);
+    cb.addEventListener('change', function(){
+      setMenuVisible(item.id, cb.checked);
+      renderMenu();
+    });
+    box.appendChild(row);
+  });
+}
+function openSettingsModal(){
+  renderSettingsToggles();
+  document.getElementById('settings-modal').classList.remove('hidden');
+}
+function closeSettingsModal(){
+  document.getElementById('settings-modal').classList.add('hidden');
+}
+document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
+document.getElementById('settings-close-btn').addEventListener('click', closeSettingsModal);
+document.getElementById('settings-overlay').addEventListener('click', closeSettingsModal);
+
+/* ============ PWAインストールボタン ============ */
+var deferredInstallPrompt = null;
+var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios/i.test(navigator.userAgent);
+var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+  ('standalone' in navigator && navigator.standalone === true);
+
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+window.addEventListener('appinstalled', function(){
+  deferredInstallPrompt = null;
+  showToast('ホーム画面に追加しました');
+});
+document.getElementById('settings-install-btn').addEventListener('click', function(){
+  if (isStandalone){
+    showInfoModal('インストール済み', '<div>このアプリはすでにホーム画面に追加されています。</div>');
+    return;
+  }
+  if (deferredInstallPrompt){
+    var promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    promptEvent.prompt();
+    promptEvent.userChoice.then(function(){ /* 結果に関わらずイベントは再利用不可のため破棄済み */ });
+    return;
+  }
+  if (isIOS){
+    showInfoModal('iOSへのインストール方法',
+      '<div>Safariでこのページを開いてください。</div>' +
+      '<div>① 画面下部の共有ボタン（□↑）をタップ</div>' +
+      '<div>② 「ホーム画面に追加」を選択</div>' +
+      '<div>③ 右上の「追加」をタップ</div>' +
+      '<div style="opacity:0.7;">※ Chrome・Firefoxでは対応していません。</div>');
+    return;
+  }
+  showInfoModal('インストール方法',
+    '<div>Chrome: アドレスバー右端の「⊕」または「⋮」→「アプリをインストール」</div>' +
+    '<div>Edge: 「…」→「アプリ」→「このサイトをアプリとしてインストール」</div>' +
+    '<div>Safari(Mac): メニューFile→「Dockに追加」</div>' +
+    '<div style="opacity:0.7;">※ Firefoxはインストールに対応していません。</div>');
+});
+
 /* ============ 初期化 ============ */
 renderMenu();
-showPage('home');
+renderPage('home');
 initBudget();
 initCalcMemo();
 updateDaysCalc();
