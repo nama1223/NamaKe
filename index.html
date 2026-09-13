@@ -166,11 +166,15 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   display:flex;flex-direction:column;align-items:flex-end;
 }
 .calc-expr{
-  color:#c9b98a;opacity:0.8;
+  color:#c9b98a;opacity:0.85;
   font-family:var(--sans);font-variant-numeric:tabular-nums;
   font-size:18px;text-align:right;word-break:break-all;
   min-height:22px;letter-spacing:0.02em;width:100%;
+  background:none;border:none;outline:none;padding:0;
+  caret-color:#f2c14e;
 }
+.calc-expr::selection{background:rgba(242,193,78,0.35);}
+.calc-expr::placeholder{color:#c9b98a;opacity:0.55;}
 .calc-live{
   color:#f2c14e;
   font-family:var(--sans);font-variant-numeric:tabular-nums;
@@ -304,6 +308,15 @@ select.plain{
   border:none;background:none;color:var(--primary);font-size:14px;cursor:pointer;padding:6px 4px;
 }
 .cal-footer .close-x{color:var(--ink-sub);font-size:20px;}
+
+.mini-calendar{
+  background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:14px;margin-top:14px;
+}
+.mini-cal-header{text-align:center;font-size:13.5px;color:var(--ink-sub);font-weight:600;margin-bottom:10px;}
+.mini-cal-day{cursor:default;}
+.mini-cal-day.blank{background:none;}
+.mini-cal-day.highlight{background:var(--accent);color:#fff;font-weight:700;}
 </style>
 </head>
 <body>
@@ -325,7 +338,7 @@ select.plain{
     <!-- (1) 電卓 -->
     <div class="page" id="page-calc">
       <div class="calc-display">
-        <div class="calc-expr" id="calc-expr">0</div>
+        <input type="text" class="calc-expr" id="calc-expr" value="" placeholder="0" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="計算式(タップして編集できます)">
         <div class="calc-live" id="calc-live"></div>
       </div>
       <div class="calc-grid">
@@ -379,6 +392,7 @@ select.plain{
         </div>
       </div>
       <div class="result-box"><small>結果</small><span id="days-result">-</span></div>
+      <div class="mini-calendar" id="days-mini-cal"></div>
     </div>
 
     <!-- (3) 予算収支計算機 -->
@@ -405,7 +419,7 @@ select.plain{
       </div>
     </div>
 
-    <!-- (4) LINE外部ブラウザURL -->
+    <!-- (4) LINE用外部ブラウザURL -->
     <div class="page" id="page-line">
       <div class="card">
         <p class="section-label">① クリップボードの中身を確認</p>
@@ -473,6 +487,11 @@ select.plain{
 
         <p class="section-label">現在の年齢 → 誕生日の範囲</p>
         <div class="field-row">
+          <label>現在</label>
+          <span class="date-display" id="age-reverse-ref-display">-</span>
+          <button class="cal-btn" id="age-reverse-ref-cal-btn" type="button">📅</button>
+        </div>
+        <div class="field-row">
           <label>年齢</label>
           <input type="number" id="age-reverse-input" placeholder="例: 30" min="0" inputmode="numeric">
           <span>歳</span>
@@ -533,12 +552,48 @@ select.plain{
 
 var WEEKDAYS = ['日','月','火','水','木','金','土'];
 
+/* 指定した日付をハイライトした月表示のミニカレンダーを描画する(読み取り専用) */
+function renderMiniCalendar(container, dateObj){
+  container.innerHTML = '';
+  var year = dateObj.getFullYear();
+  var month = dateObj.getMonth();
+  var day = dateObj.getDate();
+  var header = document.createElement('div');
+  header.className = 'mini-cal-header';
+  header.textContent = year + '年' + (month+1) + '月';
+  container.appendChild(header);
+  var grid = document.createElement('div');
+  grid.className = 'cal-grid';
+  WEEKDAYS.forEach(function(w){
+    var el = document.createElement('div');
+    el.className = 'cal-wd';
+    el.textContent = w;
+    grid.appendChild(el);
+  });
+  var first = new Date(year, month, 1);
+  var startOffset = first.getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  for (var i=0;i<startOffset;i++){
+    var blank = document.createElement('div');
+    blank.className = 'cal-day mini-cal-day blank';
+    grid.appendChild(blank);
+  }
+  for (var d=1; d<=daysInMonth; d++){
+    var cell = document.createElement('div');
+    cell.className = 'cal-day mini-cal-day';
+    if (d === day) cell.classList.add('highlight');
+    cell.textContent = d;
+    grid.appendChild(cell);
+  }
+  container.appendChild(grid);
+}
+
 /* ============ ページ切替(戻るボタン対応) ============ */
 var MENU_ITEMS = [
   {id:'calc',   icon:'🧮', label:'単なる電卓',            title:'電卓'},
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
   {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
-  {id:'line',   icon:'🔗', label:'LINE外部ブラウザURL',   title:'LINE外部ブラウザURL'},
+  {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'},
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'}
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
@@ -701,7 +756,6 @@ function attachDrag(item){
 }
 
 /* ============ (1) 電卓 ============ */
-var calcExpr = '';
 var calcJustEquals = false;
 var calcLastResult = 0;
 var CALC_OPS = ['+','-','×','÷'];
@@ -709,10 +763,23 @@ var CALC_OPS = ['+','-','×','÷'];
 function trimNumber(n){
   return Number(n.toFixed(10)).toString();
 }
+/* "00"や"007"のような先頭ゼロの並びをJSの評価に渡す前に正規化する
+   (strictモードのFunction評価では 00 が不正な8進数リテラル扱いとなりエラーになるため) */
+function calcNormalizeLeadingZeros(str){
+  return str.replace(/\d+(\.\d+)?/g, function(match){
+    var dotIdx = match.indexOf('.');
+    var intPart = dotIdx === -1 ? match : match.slice(0, dotIdx);
+    var fracPart = dotIdx === -1 ? '' : match.slice(dotIdx);
+    var normalized = intPart.replace(/^0+(?=\d)/, '');
+    if (normalized === '') normalized = '0';
+    return normalized + fracPart;
+  });
+}
 function safeCalcEval(expr){
   if (expr === '') return 0;
   if (!/^[0-9+\-×÷.%()]+$/.test(expr)) throw new Error('invalid');
-  var e = expr.replace(/×/g,'*').replace(/÷/g,'/');
+  var e = calcNormalizeLeadingZeros(expr);
+  e = e.replace(/×/g,'*').replace(/÷/g,'/');
   e = e.replace(/(\d+(\.\d+)?)%/g, '($1/100)');
   var val = Function('"use strict";return (' + e + ')')();
   if (typeof val !== 'number' || !isFinite(val)) throw new Error('inf');
@@ -737,92 +804,154 @@ function calcHasOperator(expr){
   }
   return expr.indexOf('%') !== -1;
 }
-function calcOpenParenCount(expr){
-  var open = (expr.match(/\(/g) || []).length;
-  var close = (expr.match(/\)/g) || []).length;
-  return open - close;
-}
+function calcExprEl(){ return document.getElementById('calc-expr'); }
+function calcGetExpr(){ return calcExprEl().value; }
 function calcRender(){
-  document.getElementById('calc-expr').textContent = calcExpr === '' ? '0' : calcExpr;
+  var val = calcGetExpr();
   var liveEl = document.getElementById('calc-live');
-  if (calcHasOperator(calcExpr)){
-    var r = calcEvalTrimmed(calcExpr);
+  if (calcHasOperator(val)){
+    var r = calcEvalTrimmed(val);
     liveEl.textContent = r.ok ? trimNumber(r.value) : '';
   } else {
     liveEl.textContent = '';
   }
 }
+/* 式欄がフォーカスされていなければカーソルを末尾に置く(タップされていれば途中カーソル位置を尊重する) */
+function calcEnsureFocus(){
+  var el = calcExprEl();
+  if (document.activeElement !== el){
+    el.focus();
+    var len = el.value.length;
+    el.setSelectionRange(len, len);
+  }
+}
+function calcInsertAtCursor(text){
+  var el = calcExprEl();
+  var start = el.selectionStart;
+  var end = el.selectionEnd;
+  var val = el.value;
+  el.value = val.slice(0, start) + text + val.slice(end);
+  var newPos = start + text.length;
+  el.setSelectionRange(newPos, newPos);
+}
+function calcBackspaceAtCursor(){
+  var el = calcExprEl();
+  var start = el.selectionStart;
+  var end = el.selectionEnd;
+  var val = el.value;
+  if (start !== end){
+    el.value = val.slice(0, start) + val.slice(end);
+    el.setSelectionRange(start, start);
+  } else if (start > 0){
+    el.value = val.slice(0, start - 1) + val.slice(start);
+    el.setSelectionRange(start - 1, start - 1);
+  }
+}
+function calcSetWhole(str){
+  var el = calcExprEl();
+  el.value = str;
+  el.setSelectionRange(str.length, str.length);
+}
+function calcSegmentContainsDot(pos, val){
+  var breaker = /[+\-×÷(]/;
+  var s = pos;
+  while (s > 0 && !breaker.test(val[s-1])) s--;
+  var e = pos;
+  while (e < val.length && !breaker.test(val[e]) && val[e] !== ')') e++;
+  return {seg: val.slice(s, e), start: s};
+}
 function calcInput(val){
+  var active = document.activeElement;
+  if (active && active.classList && active.classList.contains('memo-input')){
+    calcMemoInput(active, val);
+    return;
+  }
   if (val === 'AC'){
-    calcExpr = '';
+    calcSetWhole('');
     calcJustEquals = false;
-  } else if (val === 'back'){
-    calcExpr = calcExpr.slice(0,-1);
-    calcJustEquals = false;
-  } else if (val === '()'){
-    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
-    var openCount = calcOpenParenCount(calcExpr);
-    var lastChP = calcExpr.slice(-1);
-    var canClose = openCount > 0 && lastChP !== '' && CALC_OPS.indexOf(lastChP) === -1 && lastChP !== '(' && lastChP !== '.';
-    if (canClose){
-      calcExpr += ')';
-    } else if (lastChP !== '' && /[0-9)]/.test(lastChP)){
-      calcExpr += '×(';
-    } else {
-      calcExpr += '(';
-    }
-  } else if (val === '='){
-    var r = calcEvalTrimmed(calcExpr);
+    calcRender();
+    return;
+  }
+  if (val === '='){
+    var r = calcEvalTrimmed(calcGetExpr());
     if (!r.ok){
       showToast('計算できません');
       return;
     }
     calcLastResult = r.value;
     calcJustEquals = true;
-    /* calcExprはそのまま保持し、上段に式・下段に結果を表示し続ける */
-  } else if (CALC_OPS.indexOf(val) !== -1){
-    if (calcJustEquals){
-      calcExpr = trimNumber(calcLastResult) + val;
-      calcJustEquals = false;
-      calcRender();
-      return;
-    }
-    if (calcExpr === ''){
-      if (val === '-') calcExpr = '-';
-      calcRender();
-      return;
-    }
-    var lastCh = calcExpr.slice(-1);
-    if (CALC_OPS.indexOf(lastCh) !== -1){
-      calcExpr = calcExpr.slice(0,-1) + val;
+    /* 式はそのまま保持し、上段に式・下段に結果を表示し続ける */
+    calcRender();
+    return;
+  }
+  if (calcJustEquals && CALC_OPS.indexOf(val) !== -1){
+    calcSetWhole(trimNumber(calcLastResult) + val);
+    calcJustEquals = false;
+    calcRender();
+    return;
+  }
+  if (calcJustEquals && (val === 'back')){
+    /* =直後のバックスペースはそのまま式を編集対象にする */
+    calcJustEquals = false;
+  } else if (calcJustEquals){
+    calcSetWhole('');
+    calcJustEquals = false;
+  }
+  calcEnsureFocus();
+  var el = calcExprEl();
+  var pos = el.selectionStart;
+  var valStr = el.value;
+  var before = pos > 0 ? valStr[pos-1] : '';
+
+  if (val === 'back'){
+    calcBackspaceAtCursor();
+  } else if (val === '()'){
+    var openCount = (valStr.slice(0,pos).match(/\(/g)||[]).length - (valStr.slice(0,pos).match(/\)/g)||[]).length;
+    var canClose = openCount > 0 && before !== '' && CALC_OPS.indexOf(before) === -1 && before !== '(' && before !== '.';
+    if (canClose){
+      calcInsertAtCursor(')');
+    } else if (before !== '' && /[0-9)]/.test(before)){
+      calcInsertAtCursor('×(');
     } else {
-      calcExpr += val;
+      calcInsertAtCursor('(');
+    }
+  } else if (CALC_OPS.indexOf(val) !== -1){
+    if (CALC_OPS.indexOf(before) !== -1){
+      /* 直前が演算子なら置き換える(連続演算子を防ぐ) */
+      el.value = valStr.slice(0,pos-1) + val + valStr.slice(pos);
+      el.setSelectionRange(pos, pos);
+    } else if (before === '' || before === '('){
+      /* 式の先頭・開きカッコの直後は単項マイナスのみ許可 */
+      if (val === '-') calcInsertAtCursor('-');
+    } else {
+      calcInsertAtCursor(val);
     }
   } else if (val === '%'){
-    calcJustEquals = false;
-    if (calcExpr !== ''){
-      var lastCh2 = calcExpr.slice(-1);
-      if (CALC_OPS.indexOf(lastCh2) === -1 && lastCh2 !== '%' && lastCh2 !== '('){
-        calcExpr += '%';
-      }
+    if (before !== '' && CALC_OPS.indexOf(before) === -1 && before !== '%' && before !== '('){
+      calcInsertAtCursor('%');
     }
   } else if (val === '.'){
-    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
-    var seg = calcExpr.split(/[+\-×÷(]/).pop();
-    if (seg.indexOf('.') !== -1){ calcRender(); return; }
-    calcExpr += (seg === '' ? '0.' : '.');
+    var segInfo = calcSegmentContainsDot(pos, valStr);
+    if (segInfo.seg.indexOf('.') === -1){
+      if (segInfo.seg === ''){
+        calcInsertAtCursor('0.');
+      } else {
+        calcInsertAtCursor('.');
+      }
+    }
   } else {
-    if (calcJustEquals){ calcExpr = ''; calcJustEquals = false; }
-    calcExpr += val;
+    calcInsertAtCursor(val);
   }
   calcRender();
 }
 var calcButtons = document.querySelectorAll('.calc-grid button');
 for (var ci=0; ci<calcButtons.length; ci++){
+  /* pointerdownでフォーカスを奪わないようにし、式欄/メモ欄のカーソル位置を維持する */
+  calcButtons[ci].addEventListener('pointerdown', function(e){ e.preventDefault(); });
   calcButtons[ci].addEventListener('click', function(){ calcInput(this.dataset.val); });
 }
 
-/* ---- 電卓メモ欄(3行・ローカル保存) ---- */
+/* ---- 電卓メモ欄(3行・ローカル保存・数字パッドからも入力可) ---- */
 var CALC_MEMO_KEY = 'namacalc_memo_v1';
 function initCalcMemo(){
   var saved = null;
@@ -839,6 +968,32 @@ function saveCalcMemo(){
 }
 for (var mi=1; mi<=3; mi++){
   document.getElementById('calc-memo-' + mi).addEventListener('input', saveCalcMemo);
+}
+function calcMemoInput(el, val){
+  if (val === 'AC'){
+    el.value = '';
+    saveCalcMemo();
+    return;
+  }
+  var pos = el.selectionStart;
+  var end = el.selectionEnd;
+  var v = el.value;
+  if (val === 'back'){
+    if (pos !== end){
+      el.value = v.slice(0,pos) + v.slice(end);
+      el.setSelectionRange(pos,pos);
+    } else if (pos > 0){
+      el.value = v.slice(0,pos-1) + v.slice(pos);
+      el.setSelectionRange(pos-1,pos-1);
+    }
+    saveCalcMemo();
+    return;
+  }
+  var ch = (val === '()') ? '(' : val;
+  el.value = v.slice(0,pos) + ch + v.slice(end);
+  var newPos = pos + ch.length;
+  el.setSelectionRange(newPos, newPos);
+  saveCalcMemo();
 }
 
 /* ============ 日付ユーティリティ・和暦 ============ */
@@ -877,6 +1032,7 @@ function updateDaysCalc(){
   result.setDate(result.getDate() + (dir === 'after' ? days : -days));
   document.getElementById('days-base-display').textContent = seirekiStr(daysBaseDate);
   document.getElementById('days-result').textContent = seirekiStr(result) + ' / ' + warekiStr(result);
+  renderMiniCalendar(document.getElementById('days-mini-cal'), result);
 }
 document.getElementById('days-cal-btn').addEventListener('click', function(){
   openCalendar(daysBaseDate, function(d){ daysBaseDate = d; updateDaysCalc(); });
@@ -1002,7 +1158,7 @@ function renderBudget(){
   saveExpenses();
 }
 
-/* ============ (4) LINE外部ブラウザURL ============ */
+/* ============ (4) LINE用外部ブラウザURL ============ */
 document.getElementById('clip-check-btn').addEventListener('click', function(){
   navigator.clipboard.readText().then(function(text){
     document.getElementById('clip-view').value = text;
@@ -1102,11 +1258,13 @@ document.getElementById('age-ref-cal-btn').addEventListener('click', function(){
   openCalendar(ageRefDate, function(d){ ageRefDate = d; updateAge(); });
 });
 
+var ageReverseRefDate = new Date();
 function updateAgeReverse(){
   var n = parseInt(document.getElementById('age-reverse-input').value, 10);
+  document.getElementById('age-reverse-ref-display').textContent = seirekiStr(ageReverseRefDate);
   var box = document.getElementById('age-reverse-result');
   if (isNaN(n) || n < 0){ box.innerHTML = ''; return; }
-  var ref = new Date();
+  var ref = ageReverseRefDate;
   var earliest = new Date(ref.getFullYear() - (n+1), ref.getMonth(), ref.getDate());
   earliest.setDate(earliest.getDate() + 1);
   var latest = new Date(ref.getFullYear() - n, ref.getMonth(), ref.getDate());
@@ -1116,6 +1274,9 @@ function updateAgeReverse(){
     '<div>' + seirekiStr(latest) + ' / ' + warekiStr(latest) + '</div>';
 }
 document.getElementById('age-reverse-input').addEventListener('input', updateAgeReverse);
+document.getElementById('age-reverse-ref-cal-btn').addEventListener('click', function(){
+  openCalendar(ageReverseRefDate, function(d){ ageReverseRefDate = d; updateAgeReverse(); });
+});
 
 /* ============ カレンダーモーダル(共通部品) ============ */
 var calState = {year:2026, month:0, callback:null};
