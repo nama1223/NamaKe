@@ -144,6 +144,12 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   cursor:pointer;font-size:16px;flex-shrink:0;
 }
 .cal-btn:active{background:var(--primary-dark);}
+.date-nav{
+  background:#eef1f5;color:var(--primary);border:none;
+  border-radius:var(--radius-sm);padding:8px 9px;font-size:13px;
+  cursor:pointer;flex-shrink:0;
+}
+.date-nav:active{background:#dfe4ea;}
 .radio-group{display:flex;gap:18px;margin:12px 0 14px;padding-left:86px;}
 .radio-group label{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);}
 
@@ -289,20 +295,30 @@ select.plain{
   position:relative;background:#fff;border-radius:18px;
   padding:18px;width:90%;max-width:360px;z-index:1;
   box-shadow:0 20px 50px rgba(0,0,0,0.3);
+  max-height:85vh;overflow-y:auto;
 }
 .cal-header{display:flex;gap:8px;margin-bottom:14px;}
 .cal-header select{
   flex:1;padding:9px;border-radius:var(--radius-sm);border:1px solid var(--border);
   font-size:14.5px;font-family:var(--sans);
 }
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px 4px;text-align:center;}
 .cal-wd{font-size:11.5px;color:var(--ink-sub);padding:4px 0;font-weight:600;}
 .cal-day{
-  padding:9px 0;border:none;background:#f2f4f7;border-radius:8px;cursor:pointer;
+  position:relative;
+  padding:9px 0;border:2px solid transparent;background:#f2f4f7;border-radius:8px;cursor:pointer;
   font-size:13.5px;font-family:var(--sans);color:var(--ink);
 }
 .cal-day:active{background:#dfe4ea;}
-.cal-day.today{box-shadow:inset 0 0 0 2px var(--accent);}
+.cal-day.today{border-color:var(--accent);}
+.cal-day.selected{box-shadow:inset 0 0 0 2px var(--primary);}
+.cal-day-badge{
+  position:absolute;left:50%;transform:translateX(-50%);
+  font-size:8px;line-height:1;padding:0 3px;background:#fff;
+  white-space:nowrap;font-weight:700;letter-spacing:0.02em;z-index:2;
+}
+.cal-day-badge.badge-today{top:-6px;color:var(--accent);}
+.cal-day-badge.badge-selected{bottom:-6px;color:var(--primary);}
 .cal-footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px;}
 .cal-footer button{
   border:none;background:none;color:var(--primary);font-size:14px;cursor:pointer;padding:6px 4px;
@@ -317,6 +333,84 @@ select.plain{
 .mini-cal-day{cursor:default;}
 .mini-cal-day.blank{background:none;}
 .mini-cal-day.highlight{background:var(--accent);color:#fff;font-weight:700;}
+
+/* ---------- 逆算ToDo ---------- */
+.todo-targets-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.todo-target-chip{
+  position:relative;background:var(--primary);color:#fff;border:none;border-radius:20px;
+  padding:10px 18px;font-size:15px;font-family:var(--sans);font-variant-numeric:tabular-nums;
+  cursor:pointer;font-weight:600;
+}
+.todo-target-chip.add-new{background:#dfe4ea;color:var(--ink);font-weight:500;font-size:13.5px;}
+.todo-target-chip .remove-x{
+  position:absolute;top:-7px;right:-7px;background:var(--danger);color:#fff;
+  border-radius:50%;width:19px;height:19px;font-size:11px;line-height:19px;text-align:center;
+}
+.todo-clear-link{background:none;border:none;color:var(--danger);font-size:12.5px;cursor:pointer;padding:4px;}
+.todo-empty-hint{color:var(--ink-sub);font-size:13px;line-height:1.7;padding:10px 2px;}
+.todo-sequence-row{
+  display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border);
+  touch-action:pan-y;
+}
+.todo-sequence-row:last-child{border-bottom:none;}
+.todo-sequence-row.dragging{box-shadow:0 8px 20px rgba(20,30,45,0.2);border-radius:10px;position:relative;z-index:5;background:#fff;}
+.todo-sequence-row .handle{width:22px;text-align:center;color:var(--ink-sub);font-size:16px;cursor:grab;touch-action:none;flex-shrink:0;}
+.todo-sequence-row .name{flex:1;font-size:14.5px;}
+.todo-sequence-row .minutes{color:var(--ink-sub);font-size:12.5px;font-family:var(--sans);flex-shrink:0;}
+.todo-sequence-row button.del{background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;flex-shrink:0;}
+.todo-add-row{display:flex;gap:8px;margin-top:12px;}
+.todo-add-row .btn-block{margin-top:0;}
+
+.todo-schedule-scroll{
+  display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 8px;
+  -webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;margin-bottom:14px;
+}
+.todo-schedule-col{
+  flex:0 0 calc(50% - 5px);scroll-snap-align:start;
+  background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;
+}
+.todo-schedule-col .col-target{
+  text-align:center;font-weight:700;font-size:15.5px;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;margin-bottom:10px;color:var(--primary);
+}
+.todo-schedule-item{padding:8px 6px;border-radius:8px;margin-bottom:6px;font-size:12.5px;line-height:1.5;background:#f2f4f7;}
+.todo-schedule-item:last-child{margin-bottom:0;}
+.todo-schedule-item .t{font-family:var(--sans);font-variant-numeric:tabular-nums;font-weight:700;}
+.todo-schedule-item.now{background:#fdeaea;color:var(--danger);}
+.todo-schedule-item.now .t{color:var(--danger);}
+
+.todo-time-stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.todo-time-stock button{
+  background:#eef1f5;color:var(--primary);border:none;border-radius:16px;
+  padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:var(--sans);
+}
+.todo-time-display{
+  text-align:center;font-size:38px;font-weight:700;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;color:var(--primary);margin-bottom:16px;letter-spacing:0.05em;
+}
+.calc-grid.todo-time-pad{grid-template-columns:repeat(3,1fr);}
+
+.todo-picker-item{
+  display:block;width:100%;text-align:left;background:#f2f4f7;border:none;border-radius:10px;
+  padding:12px 14px;font-size:14.5px;margin-bottom:8px;cursor:pointer;color:var(--ink);
+}
+.todo-picker-item:active{background:#dfe4ea;}
+.todo-picker-empty{color:var(--ink-sub);font-size:13px;text-align:center;padding:16px 4px;}
+
+.todo-manage-row{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--border);font-size:13.5px;}
+.todo-manage-row:last-child{border-bottom:none;}
+.todo-manage-row .n{flex:1;line-height:1.5;}
+.todo-manage-row button.del{background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;flex-shrink:0;}
+.todo-manage-add-row{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.todo-manage-add-row input{flex:1;min-width:64px;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;}
+.todo-manage-add-row button{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer;}
+.todo-set-builder{margin-top:10px;}
+.todo-set-pool-chip{
+  display:inline-block;background:#eef1f5;color:var(--ink);border:none;border-radius:14px;
+  padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0;cursor:pointer;
+}
+.todo-set-current-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:12.5px;}
+.todo-set-current-row:last-child{border-bottom:none;}
 </style>
 </head>
 <body>
@@ -379,7 +473,9 @@ select.plain{
       <div class="card">
         <div class="field-row">
           <label>基準日</label>
+          <button class="date-nav" id="days-base-prev-btn" type="button">◀</button>
           <span class="date-display" id="days-base-display">-</span>
+          <button class="date-nav" id="days-base-next-btn" type="button">▶</button>
           <button class="cal-btn" id="days-cal-btn" type="button">📅</button>
         </div>
         <div class="field-row">
@@ -473,12 +569,16 @@ select.plain{
         <p class="section-label">誕生日 → 年齢</p>
         <div class="field-row">
           <label>誕生日</label>
+          <button class="date-nav" id="age-birth-prev-btn" type="button">◀</button>
           <span class="date-display" id="age-birth-display">未設定</span>
+          <button class="date-nav" id="age-birth-next-btn" type="button">▶</button>
           <button class="cal-btn" id="age-birth-cal-btn" type="button">📅</button>
         </div>
         <div class="field-row">
           <label>現時点</label>
+          <button class="date-nav" id="age-ref-prev-btn" type="button">◀</button>
           <span class="date-display" id="age-ref-display">-</span>
+          <button class="date-nav" id="age-ref-next-btn" type="button">▶</button>
           <button class="cal-btn" id="age-ref-cal-btn" type="button">📅</button>
         </div>
         <div class="result-box" style="margin-top:4px;"><small>年齢</small><span id="age-result">-</span></div>
@@ -488,7 +588,9 @@ select.plain{
         <p class="section-label">現在の年齢 → 誕生日の範囲</p>
         <div class="field-row">
           <label>現在</label>
+          <button class="date-nav" id="age-reverse-ref-prev-btn" type="button">◀</button>
           <span class="date-display" id="age-reverse-ref-display">-</span>
+          <button class="date-nav" id="age-reverse-ref-next-btn" type="button">▶</button>
           <button class="cal-btn" id="age-reverse-ref-cal-btn" type="button">📅</button>
         </div>
         <div class="field-row">
@@ -498,6 +600,27 @@ select.plain{
         </div>
         <div class="era-result" id="age-reverse-result"></div>
       </div>
+    </div>
+
+    <!-- (6) 逆算ToDo -->
+    <div class="page" id="page-todo">
+      <div class="todo-targets-row" id="todo-targets-row"></div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <p class="section-label" style="margin:0;">すること</p>
+          <button type="button" id="todo-sequence-clear-btn" class="todo-clear-link">クリア</button>
+        </div>
+        <div id="todo-sequence-list"></div>
+        <div class="todo-add-row">
+          <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 セットを適用</button>
+          <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動を追加</button>
+        </div>
+      </div>
+
+      <div class="todo-schedule-scroll" id="todo-schedule-scroll"></div>
+
+      <button type="button" class="btn-block muted" id="todo-manage-btn">⚙ 行動・セット・時刻を管理</button>
     </div>
 
   </main>
@@ -543,6 +666,72 @@ select.plain{
     <h2 id="info-title" style="margin:0 0 12px;font-size:17px;"></h2>
     <div id="info-body" class="era-result" style="font-family:var(--sans);"></div>
     <button type="button" class="btn-block" id="info-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="todo-time-modal">
+  <div class="modal-overlay" id="todo-time-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 14px;font-size:17px;">完了予定時刻</h2>
+    <div class="todo-time-stock" id="todo-time-stock"></div>
+    <div class="todo-time-display" id="todo-time-display">--:--</div>
+    <div class="calc-grid todo-time-pad" id="todo-time-pad">
+      <button type="button" data-val="1">1</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
+      <button type="button" data-val="4">4</button><button type="button" data-val="5">5</button><button type="button" data-val="6">6</button>
+      <button type="button" data-val="7">7</button><button type="button" data-val="8">8</button><button type="button" data-val="9">9</button>
+      <button type="button" class="fn" data-val="back">⌫</button><button type="button" data-val="0">0</button><button type="button" class="eq" data-val="ok">確定</button>
+    </div>
+    <button type="button" class="btn-block muted" id="todo-time-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="todo-picker-modal">
+  <div class="modal-overlay" id="todo-picker-overlay"></div>
+  <div class="modal-box">
+    <h2 id="todo-picker-title" style="margin:0 0 14px;font-size:17px;"></h2>
+    <div id="todo-picker-list"></div>
+    <button type="button" class="btn-block muted" id="todo-picker-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="todo-manage-modal">
+  <div class="modal-overlay" id="todo-manage-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 14px;font-size:17px;">行動・セット・完了時刻の管理</h2>
+
+    <p class="section-label">行動</p>
+    <div id="todo-manage-actions-list"></div>
+    <div class="todo-manage-add-row">
+      <input type="text" id="todo-new-action-name" placeholder="行動名(例: 入浴)">
+      <input type="number" id="todo-new-action-minutes" placeholder="分" inputmode="numeric" style="max-width:64px;">
+      <button type="button" id="todo-new-action-add-btn">追加</button>
+    </div>
+
+    <hr class="section-rule">
+
+    <p class="section-label">セット</p>
+    <div id="todo-manage-sets-list"></div>
+    <div class="todo-set-builder">
+      <input type="text" id="todo-new-set-name" placeholder="セット名(例: 外出準備)" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13.5px;">
+      <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">含める行動をタップで追加(タップした順番になります)</p>
+      <div id="todo-set-builder-pool"></div>
+      <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">このセットの内容</p>
+      <div id="todo-set-builder-current"></div>
+      <button type="button" class="btn-block secondary" id="todo-new-set-save-btn">このセットを保存</button>
+    </div>
+
+    <hr class="section-rule">
+
+    <p class="section-label">完了時刻のストック</p>
+    <div id="todo-manage-times-list"></div>
+    <div class="todo-manage-add-row">
+      <input type="text" id="todo-new-time-label" placeholder="ラベル(任意)">
+      <input type="number" id="todo-new-time-hh" placeholder="時" min="0" max="23" inputmode="numeric" style="max-width:52px;">
+      <input type="number" id="todo-new-time-mm" placeholder="分" min="0" max="59" inputmode="numeric" style="max-width:52px;">
+      <button type="button" id="todo-new-time-add-btn">追加</button>
+    </div>
+
+    <button type="button" class="btn-block muted" id="todo-manage-close-btn" style="margin-top:16px;">閉じる</button>
   </div>
 </div>
 
@@ -594,7 +783,8 @@ var MENU_ITEMS = [
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
   {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
   {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'},
-  {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'}
+  {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'},
+  {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'}
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
 var VISIBLE_KEY = 'namacalc_menu_visible_v1';
@@ -1000,6 +1190,11 @@ function calcMemoInput(el, val){
 function seirekiStr(d){
   return d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日(' + WEEKDAYS[d.getDay()] + ')';
 }
+function shiftDate(d, delta){
+  var nd = new Date(d);
+  nd.setDate(nd.getDate() + delta);
+  return nd;
+}
 var ERAS = [
   {name:'令和', start:'2019-05-01'},
   {name:'平成', start:'1989-01-08'},
@@ -1036,6 +1231,12 @@ function updateDaysCalc(){
 }
 document.getElementById('days-cal-btn').addEventListener('click', function(){
   openCalendar(daysBaseDate, function(d){ daysBaseDate = d; updateDaysCalc(); });
+});
+document.getElementById('days-base-prev-btn').addEventListener('click', function(){
+  daysBaseDate = shiftDate(daysBaseDate, -1); updateDaysCalc();
+});
+document.getElementById('days-base-next-btn').addEventListener('click', function(){
+  daysBaseDate = shiftDate(daysBaseDate, 1); updateDaysCalc();
 });
 document.getElementById('days-input').addEventListener('input', updateDaysCalc);
 var dirRadios = document.querySelectorAll('input[name="days-dir"]');
@@ -1254,8 +1455,20 @@ function updateAge(){
 document.getElementById('age-birth-cal-btn').addEventListener('click', function(){
   openCalendar(ageBirthDate || new Date(), function(d){ ageBirthDate = d; updateAge(); });
 });
+document.getElementById('age-birth-prev-btn').addEventListener('click', function(){
+  ageBirthDate = shiftDate(ageBirthDate || new Date(), -1); updateAge();
+});
+document.getElementById('age-birth-next-btn').addEventListener('click', function(){
+  ageBirthDate = shiftDate(ageBirthDate || new Date(), 1); updateAge();
+});
 document.getElementById('age-ref-cal-btn').addEventListener('click', function(){
   openCalendar(ageRefDate, function(d){ ageRefDate = d; updateAge(); });
+});
+document.getElementById('age-ref-prev-btn').addEventListener('click', function(){
+  ageRefDate = shiftDate(ageRefDate, -1); updateAge();
+});
+document.getElementById('age-ref-next-btn').addEventListener('click', function(){
+  ageRefDate = shiftDate(ageRefDate, 1); updateAge();
 });
 
 var ageReverseRefDate = new Date();
@@ -1277,12 +1490,19 @@ document.getElementById('age-reverse-input').addEventListener('input', updateAge
 document.getElementById('age-reverse-ref-cal-btn').addEventListener('click', function(){
   openCalendar(ageReverseRefDate, function(d){ ageReverseRefDate = d; updateAgeReverse(); });
 });
+document.getElementById('age-reverse-ref-prev-btn').addEventListener('click', function(){
+  ageReverseRefDate = shiftDate(ageReverseRefDate, -1); updateAgeReverse();
+});
+document.getElementById('age-reverse-ref-next-btn').addEventListener('click', function(){
+  ageReverseRefDate = shiftDate(ageReverseRefDate, 1); updateAgeReverse();
+});
 
 /* ============ カレンダーモーダル(共通部品) ============ */
-var calState = {year:2026, month:0, callback:null};
+var calState = {year:2026, month:0, callback:null, selected:null};
 function openCalendar(initDate, callback){
   calState.year = initDate.getFullYear();
   calState.month = initDate.getMonth();
+  calState.selected = initDate;
   calState.callback = callback;
   renderCalendar();
   document.getElementById('calendar-modal').classList.remove('hidden');
@@ -1322,10 +1542,16 @@ function renderCalendar(){
       var cell = document.createElement('button');
       cell.type = 'button';
       cell.className = 'cal-day';
-      cell.textContent = dNum;
-      if (calState.year === today.getFullYear() && calState.month === today.getMonth() && dNum === today.getDate()){
-        cell.classList.add('today');
-      }
+      var isToday = (calState.year === today.getFullYear() && calState.month === today.getMonth() && dNum === today.getDate());
+      var isSelected = calState.selected && calState.year === calState.selected.getFullYear() &&
+        calState.month === calState.selected.getMonth() && dNum === calState.selected.getDate();
+      if (isToday) cell.classList.add('today');
+      if (isSelected) cell.classList.add('selected');
+      var html = '';
+      if (isToday) html += '<span class="cal-day-badge badge-today">今日</span>';
+      html += String(dNum);
+      if (isSelected) html += '<span class="cal-day-badge badge-selected">選択</span>';
+      cell.innerHTML = html;
       cell.addEventListener('click', function(){
         var picked = new Date(calState.year, calState.month, dNum);
         closeCalendar();
@@ -1346,6 +1572,525 @@ document.getElementById('cal-today-btn').addEventListener('click', function(){
   closeCalendar();
   if (calState.callback) calState.callback(t);
 });
+
+/* ============ (6) 逆算ToDo ============ */
+var TODO_ACTIONS_KEY = 'namacalc_todo_actions_v1';
+var TODO_SETS_KEY = 'namacalc_todo_sets_v1';
+var TODO_TIMES_KEY = 'namacalc_todo_times_v1';
+var TODO_CURRENT_KEY = 'namacalc_todo_current_v1';
+
+var todoActions = [];
+var todoSets = [];
+var todoTimes = [];
+var todoSequence = [];
+var todoTargets = [];
+var todoSetBuilderItems = [];
+
+function genId(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function pad2(n){ return (n<10?'0':'') + n; }
+function formatHM(d){ return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+function loadJSON(key, fallback){
+  try {
+    var v = JSON.parse(localStorage.getItem(key) || 'null');
+    return v !== null ? v : fallback;
+  } catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+function loadTodoAll(){
+  todoActions = loadJSON(TODO_ACTIONS_KEY, []);
+  todoSets = loadJSON(TODO_SETS_KEY, []);
+  todoTimes = loadJSON(TODO_TIMES_KEY, []);
+  var current = loadJSON(TODO_CURRENT_KEY, {sequence:[], targets:[]});
+  todoSequence = Array.isArray(current.sequence) ? current.sequence : [];
+  todoTargets = Array.isArray(current.targets) ? current.targets.slice().sort() : [];
+}
+function saveTodoCurrent(){
+  saveJSON(TODO_CURRENT_KEY, {sequence: todoSequence, targets: todoTargets});
+}
+function findAction(id){
+  for (var i=0;i<todoActions.length;i++){ if (todoActions[i].id === id) return todoActions[i]; }
+  return null;
+}
+function findSet(id){
+  for (var i=0;i<todoSets.length;i++){ if (todoSets[i].id === id) return todoSets[i]; }
+  return null;
+}
+
+/* ---- 完了予定時刻から逆算してスケジュールを計算する ---- */
+function computeSchedule(sequence, targetStr){
+  var parts = targetStr.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var now = new Date();
+  var endTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+  var results = [];
+  for (var i = sequence.length - 1; i >= 0; i--){
+    var item = sequence[i];
+    var startTime = new Date(endTime.getTime() - item.minutes * 60000);
+    results.unshift({name: item.name, minutes: item.minutes, start: startTime, end: endTime});
+    endTime = startTime;
+  }
+  return results;
+}
+
+/* ---- 「すること」リスト表示(ドラッグ並べ替え対応) ---- */
+function renderTodoSequence(){
+  var list = document.getElementById('todo-sequence-list');
+  list.innerHTML = '';
+  if (todoSequence.length === 0){
+    list.innerHTML = '<div class="todo-empty-hint">「セットを適用」または「行動を追加」で今日の予定を組み立ててください。</div>';
+    return;
+  }
+  todoSequence.forEach(function(item, i){
+    var row = document.createElement('div');
+    row.className = 'todo-sequence-row';
+    row.dataset.index = i;
+    row.innerHTML =
+      '<span class="handle">≡</span>' +
+      '<span class="name">' + item.name + '</span>' +
+      '<span class="minutes">' + item.minutes + '分</span>' +
+      '<button type="button" class="del">×</button>';
+    row.querySelector('.del').addEventListener('click', function(){
+      todoSequence.splice(i, 1);
+      saveTodoCurrent();
+      renderTodoSequence();
+      renderTodoSchedule();
+    });
+    attachTodoSeqDrag(row);
+    list.appendChild(row);
+  });
+}
+function attachTodoSeqDrag(item){
+  var handle = item.querySelector('.handle');
+  handle.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var list = document.getElementById('todo-sequence-list');
+    var dragging = true;
+    item.classList.add('dragging');
+    try { item.setPointerCapture(e.pointerId); } catch(err){}
+    var lastY = e.clientY;
+    function move(ev){
+      if (!dragging) return;
+      var dy = ev.clientY - lastY;
+      item.style.transform = 'translateY(' + dy + 'px)';
+      var rect = item.getBoundingClientRect();
+      var centerY = rect.top + rect.height/2;
+      var children = [].slice.call(list.children);
+      var itemIndex = children.indexOf(item);
+      for (var i=0;i<children.length;i++){
+        var sib = children[i];
+        if (sib === item) continue;
+        var sRect = sib.getBoundingClientRect();
+        var sCenter = sRect.top + sRect.height/2;
+        var sibIndex = children.indexOf(sib);
+        if (sibIndex < itemIndex && centerY < sCenter){
+          list.insertBefore(item, sib);
+          item.style.transform = 'translateY(0px)';
+          lastY = ev.clientY;
+          break;
+        } else if (sibIndex > itemIndex && centerY > sCenter){
+          list.insertBefore(item, sib.nextSibling);
+          item.style.transform = 'translateY(0px)';
+          lastY = ev.clientY;
+          break;
+        }
+      }
+    }
+    function up(){
+      dragging = false;
+      try { item.releasePointerCapture(e.pointerId); } catch(err){}
+      item.classList.remove('dragging');
+      item.style.transform = '';
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      var children = [].slice.call(list.children);
+      var newSeq = children.map(function(c){ return todoSequence[parseInt(c.dataset.index, 10)]; });
+      todoSequence = newSeq;
+      saveTodoCurrent();
+      renderTodoSequence();
+      renderTodoSchedule();
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+document.getElementById('todo-sequence-clear-btn').addEventListener('click', function(){
+  if (todoSequence.length === 0) return;
+  if (window.confirm('「すること」の内容をすべて削除しますか？')){
+    todoSequence = [];
+    saveTodoCurrent();
+    renderTodoSequence();
+    renderTodoSchedule();
+  }
+});
+
+/* ---- 完了予定時刻チップ ---- */
+function renderTodoTargets(){
+  var row = document.getElementById('todo-targets-row');
+  row.innerHTML = '';
+  todoTargets.forEach(function(t, idx){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'todo-target-chip';
+    chip.textContent = t;
+    chip.addEventListener('click', function(){ openTodoTimeModal(idx); });
+    var xBtn = document.createElement('span');
+    xBtn.className = 'remove-x';
+    xBtn.textContent = '×';
+    xBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      todoTargets.splice(idx, 1);
+      saveTodoCurrent();
+      renderTodoTargets();
+      renderTodoSchedule();
+    });
+    chip.appendChild(xBtn);
+    row.appendChild(chip);
+  });
+  if (todoTargets.length < 3){
+    var addChip = document.createElement('button');
+    addChip.type = 'button';
+    addChip.className = 'todo-target-chip add-new';
+    addChip.textContent = '＋ 完了時刻を追加';
+    addChip.addEventListener('click', function(){ openTodoTimeModal(-1); });
+    row.appendChild(addChip);
+  }
+}
+
+/* ---- スケジュール表示(横スクロール・現在時刻ハイライト) ---- */
+function renderTodoSchedule(){
+  var container = document.getElementById('todo-schedule-scroll');
+  container.innerHTML = '';
+  if (todoTargets.length === 0 || todoSequence.length === 0){
+    container.innerHTML = '<div class="todo-empty-hint">完了予定時刻と「すること」の両方を設定すると、ここに逆算スケジュールが表示されます。</div>';
+    return;
+  }
+  var now = new Date();
+  todoTargets.forEach(function(targetStr){
+    var schedule = computeSchedule(todoSequence, targetStr);
+    var col = document.createElement('div');
+    col.className = 'todo-schedule-col';
+    var header = document.createElement('div');
+    header.className = 'col-target';
+    header.textContent = targetStr + ' 完了';
+    col.appendChild(header);
+    schedule.forEach(function(item){
+      var row = document.createElement('div');
+      row.className = 'todo-schedule-item';
+      if (now >= item.start && now < item.end) row.classList.add('now');
+      row.innerHTML = '<span class="t">' + formatHM(item.start) + '〜' + formatHM(item.end) + '</span><br>' + item.name + '（' + item.minutes + '分）';
+      col.appendChild(row);
+    });
+    container.appendChild(col);
+  });
+}
+/* 表示中は1分ごとに現在時刻ハイライトを更新する */
+setInterval(function(){
+  var page = document.getElementById('page-todo');
+  if (page && page.classList.contains('active')) renderTodoSchedule();
+}, 30000);
+
+/* ---- 完了予定時刻クイック入力モーダル(4桁パッド + ストック呼び出し) ---- */
+var todoTimeEditIndex = -1;
+var todoTimeBuffer = '';
+function openTodoTimeModal(idx){
+  todoTimeEditIndex = idx;
+  todoTimeBuffer = '';
+  renderTodoTimeDisplay();
+  renderTodoTimeStock();
+  document.getElementById('todo-time-modal').classList.remove('hidden');
+}
+function closeTodoTimeModal(){
+  document.getElementById('todo-time-modal').classList.add('hidden');
+}
+function renderTodoTimeDisplay(){
+  var padded = (todoTimeBuffer + '____').slice(0, 4);
+  document.getElementById('todo-time-display').textContent = padded.slice(0,2) + ':' + padded.slice(2,4);
+}
+function renderTodoTimeStock(){
+  var box = document.getElementById('todo-time-stock');
+  box.innerHTML = '';
+  todoTimes.forEach(function(t){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = t.label ? (t.label + ' ' + t.time) : t.time;
+    btn.addEventListener('click', function(){ applyTodoTime(t.time); });
+    box.appendChild(btn);
+  });
+}
+function applyTodoTime(timeStr){
+  if (todoTimeEditIndex === -1){
+    if (todoTargets.length >= 3){ closeTodoTimeModal(); return; }
+    todoTargets.push(timeStr);
+  } else {
+    todoTargets[todoTimeEditIndex] = timeStr;
+  }
+  todoTargets.sort();
+  saveTodoCurrent();
+  renderTodoTargets();
+  renderTodoSchedule();
+  closeTodoTimeModal();
+}
+document.getElementById('todo-time-close-btn').addEventListener('click', closeTodoTimeModal);
+document.getElementById('todo-time-overlay').addEventListener('click', closeTodoTimeModal);
+var todoTimePadButtons = document.querySelectorAll('#todo-time-pad button');
+for (var ttp=0; ttp<todoTimePadButtons.length; ttp++){
+  todoTimePadButtons[ttp].addEventListener('click', function(){
+    var v = this.dataset.val;
+    if (v === 'back'){
+      todoTimeBuffer = todoTimeBuffer.slice(0, -1);
+      renderTodoTimeDisplay();
+      return;
+    }
+    if (v === 'ok'){
+      if (todoTimeBuffer.length !== 4){
+        showToast('4桁で入力してください');
+        return;
+      }
+      var hh = parseInt(todoTimeBuffer.slice(0,2), 10);
+      var mm = parseInt(todoTimeBuffer.slice(2,4), 10);
+      if (hh < 0 || hh > 23 || mm < 0 || mm > 59){
+        showToast('時刻が正しくありません(00:00〜23:59)');
+        return;
+      }
+      applyTodoTime(pad2(hh) + ':' + pad2(mm));
+      return;
+    }
+    if (todoTimeBuffer.length < 4){
+      todoTimeBuffer += v;
+      renderTodoTimeDisplay();
+    }
+  });
+}
+
+/* ---- 汎用ピッカーモーダル(セット適用・行動追加で使う) ---- */
+function openTodoPicker(title, items, onSelect){
+  document.getElementById('todo-picker-title').textContent = title;
+  var list = document.getElementById('todo-picker-list');
+  list.innerHTML = '';
+  if (items.length === 0){
+    list.innerHTML = '<div class="todo-picker-empty">まだ登録がありません。「⚙ 管理」から追加してください。</div>';
+  }
+  items.forEach(function(it){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'todo-picker-item';
+    btn.textContent = it.label;
+    btn.addEventListener('click', function(){
+      closeTodoPicker();
+      onSelect(it.value);
+    });
+    list.appendChild(btn);
+  });
+  document.getElementById('todo-picker-modal').classList.remove('hidden');
+}
+function closeTodoPicker(){
+  document.getElementById('todo-picker-modal').classList.add('hidden');
+}
+document.getElementById('todo-picker-close-btn').addEventListener('click', closeTodoPicker);
+document.getElementById('todo-picker-overlay').addEventListener('click', closeTodoPicker);
+
+document.getElementById('todo-apply-set-btn').addEventListener('click', function(){
+  var items = todoSets.map(function(s){
+    var totalMin = s.actionIds.reduce(function(sum, id){
+      var a = findAction(id);
+      return sum + (a ? a.minutes : 0);
+    }, 0);
+    return {label: s.name + '(' + s.actionIds.length + '件・計' + totalMin + '分)', value: s.id};
+  });
+  openTodoPicker('セットを適用', items, function(setId){
+    var set = findSet(setId);
+    if (!set) return;
+    var seq = [];
+    set.actionIds.forEach(function(aid){
+      var a = findAction(aid);
+      if (a) seq.push({name: a.name, minutes: a.minutes});
+    });
+    todoSequence = todoSequence.concat(seq);
+    saveTodoCurrent();
+    renderTodoSequence();
+    renderTodoSchedule();
+  });
+});
+document.getElementById('todo-add-action-btn').addEventListener('click', function(){
+  var items = todoActions.map(function(a){ return {label: a.name + '(' + a.minutes + '分)', value: a.id}; });
+  openTodoPicker('行動を追加', items, function(actionId){
+    var a = findAction(actionId);
+    if (!a) return;
+    todoSequence.push({name: a.name, minutes: a.minutes});
+    saveTodoCurrent();
+    renderTodoSequence();
+    renderTodoSchedule();
+  });
+});
+
+/* ---- 管理モーダル(行動・セット・完了時刻のストック編集) ---- */
+function renderTodoManageActions(){
+  var list = document.getElementById('todo-manage-actions-list');
+  list.innerHTML = '';
+  if (todoActions.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだ行動が登録されていません。</div>'; }
+  todoActions.forEach(function(a){
+    var row = document.createElement('div');
+    row.className = 'todo-manage-row';
+    row.innerHTML = '<span class="n">' + a.name + '(' + a.minutes + '分)</span>';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoActions = todoActions.filter(function(x){ return x.id !== a.id; });
+      saveJSON(TODO_ACTIONS_KEY, todoActions);
+      todoSets.forEach(function(s){ s.actionIds = s.actionIds.filter(function(id){ return id !== a.id; }); });
+      saveJSON(TODO_SETS_KEY, todoSets);
+      renderTodoManageActions();
+      renderTodoManageSets();
+      renderTodoSetBuilderPool();
+    });
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+document.getElementById('todo-new-action-add-btn').addEventListener('click', function(){
+  var nameEl = document.getElementById('todo-new-action-name');
+  var minEl = document.getElementById('todo-new-action-minutes');
+  var name = nameEl.value.trim();
+  var minutes = parseInt(minEl.value, 10);
+  if (name === '' || isNaN(minutes) || minutes <= 0){
+    showToast('行動名と分数(1以上)を入力してください');
+    return;
+  }
+  todoActions.push({id: genId(), name: name, minutes: minutes});
+  saveJSON(TODO_ACTIONS_KEY, todoActions);
+  nameEl.value = ''; minEl.value = '';
+  renderTodoManageActions();
+  renderTodoSetBuilderPool();
+});
+
+function renderTodoManageSets(){
+  var list = document.getElementById('todo-manage-sets-list');
+  list.innerHTML = '';
+  if (todoSets.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだセットが登録されていません。</div>'; }
+  todoSets.forEach(function(s){
+    var names = s.actionIds.map(function(id){
+      var a = findAction(id);
+      return a ? a.name : '(削除済み)';
+    }).join('→');
+    var row = document.createElement('div');
+    row.className = 'todo-manage-row';
+    row.innerHTML = '<span class="n">' + s.name + '<br><span style="color:var(--ink-sub);font-size:12px;">' + names + '</span></span>';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoSets = todoSets.filter(function(x){ return x.id !== s.id; });
+      saveJSON(TODO_SETS_KEY, todoSets);
+      renderTodoManageSets();
+    });
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+function renderTodoSetBuilderPool(){
+  var pool = document.getElementById('todo-set-builder-pool');
+  pool.innerHTML = '';
+  todoActions.forEach(function(a){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'todo-set-pool-chip';
+    chip.textContent = '+ ' + a.name;
+    chip.addEventListener('click', function(){
+      todoSetBuilderItems.push(a.id);
+      renderTodoSetBuilderCurrent();
+    });
+    pool.appendChild(chip);
+  });
+}
+function renderTodoSetBuilderCurrent(){
+  var box = document.getElementById('todo-set-builder-current');
+  box.innerHTML = '';
+  if (todoSetBuilderItems.length === 0){
+    box.innerHTML = '<div class="todo-picker-empty">上の行動をタップして追加してください。</div>';
+    return;
+  }
+  todoSetBuilderItems.forEach(function(id, i){
+    var a = findAction(id);
+    var row = document.createElement('div');
+    row.className = 'todo-set-current-row';
+    row.innerHTML = '<span style="flex:1;">' + (i+1) + '. ' + (a ? a.name : '(削除済み)') + (a ? '(' + a.minutes + '分)' : '') + '</span>';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.style.cssText = 'background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoSetBuilderItems.splice(i, 1);
+      renderTodoSetBuilderCurrent();
+    });
+    row.appendChild(delBtn);
+    box.appendChild(row);
+  });
+}
+document.getElementById('todo-new-set-save-btn').addEventListener('click', function(){
+  var nameEl = document.getElementById('todo-new-set-name');
+  var name = nameEl.value.trim();
+  if (name === '' || todoSetBuilderItems.length === 0){
+    showToast('セット名と、1件以上の行動を指定してください');
+    return;
+  }
+  todoSets.push({id: genId(), name: name, actionIds: todoSetBuilderItems.slice()});
+  saveJSON(TODO_SETS_KEY, todoSets);
+  nameEl.value = '';
+  todoSetBuilderItems = [];
+  renderTodoSetBuilderCurrent();
+  renderTodoManageSets();
+});
+
+function renderTodoManageTimes(){
+  var list = document.getElementById('todo-manage-times-list');
+  list.innerHTML = '';
+  if (todoTimes.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだ完了時刻が登録されていません。</div>'; }
+  todoTimes.forEach(function(t){
+    var row = document.createElement('div');
+    row.className = 'todo-manage-row';
+    row.innerHTML = '<span class="n">' + (t.label ? t.label + ' ' : '') + t.time + '</span>';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoTimes = todoTimes.filter(function(x){ return x.id !== t.id; });
+      saveJSON(TODO_TIMES_KEY, todoTimes);
+      renderTodoManageTimes();
+    });
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+document.getElementById('todo-new-time-add-btn').addEventListener('click', function(){
+  var labelEl = document.getElementById('todo-new-time-label');
+  var hhEl = document.getElementById('todo-new-time-hh');
+  var mmEl = document.getElementById('todo-new-time-mm');
+  var hh = parseInt(hhEl.value, 10);
+  var mm = parseInt(mmEl.value, 10);
+  if (isNaN(hh) || isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59){
+    showToast('時刻を正しく入力してください(0-23時 / 0-59分)');
+    return;
+  }
+  todoTimes.push({id: genId(), time: pad2(hh) + ':' + pad2(mm), label: labelEl.value.trim()});
+  saveJSON(TODO_TIMES_KEY, todoTimes);
+  labelEl.value = ''; hhEl.value = ''; mmEl.value = '';
+  renderTodoManageTimes();
+});
+
+function openTodoManageModal(){
+  renderTodoManageActions();
+  renderTodoManageSets();
+  renderTodoSetBuilderPool();
+  renderTodoSetBuilderCurrent();
+  renderTodoManageTimes();
+  document.getElementById('todo-manage-modal').classList.remove('hidden');
+}
+function closeTodoManageModal(){
+  document.getElementById('todo-manage-modal').classList.add('hidden');
+}
+document.getElementById('todo-manage-btn').addEventListener('click', openTodoManageModal);
+document.getElementById('todo-manage-close-btn').addEventListener('click', closeTodoManageModal);
+document.getElementById('todo-manage-overlay').addEventListener('click', closeTodoManageModal);
 
 /* ============ 汎用インフォモーダル ============ */
 function showInfoModal(title, bodyHTML){
@@ -1443,6 +2188,10 @@ initCalcMemo();
 updateDaysCalc();
 updateAge();
 updateAgeReverse();
+loadTodoAll();
+renderTodoTargets();
+renderTodoSequence();
+renderTodoSchedule();
 
 /* ============ PWA: Service Worker登録 ============ */
 if ('serviceWorker' in navigator){
