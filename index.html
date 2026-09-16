@@ -373,9 +373,9 @@ select.plain{
   flex:0 0 calc(50% - 5px);scroll-snap-align:start;
   background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;
 }
-.todo-schedule-col.tone-blue{background:#e6eefc;}
-.todo-schedule-col.tone-green{background:#e5f7ec;}
-.todo-schedule-col.tone-red{background:#fce9e9;}
+.todo-schedule-col.tone-blue{background:#d2e3fb;}
+.todo-schedule-col.tone-green{background:#d2f2df;}
+.todo-schedule-col.tone-red{background:#f9d6d6;}
 .todo-schedule-col .col-target{
   display:flex;align-items:center;justify-content:center;gap:4px;
   text-align:center;font-weight:700;font-size:23px;font-family:var(--sans);
@@ -386,10 +386,14 @@ select.plain{
   background:none;border:none;color:var(--primary);font-size:14px;cursor:pointer;
   flex-shrink:0;padding:2px 4px;
 }
-.todo-schedule-item{padding:10px 8px;border-radius:8px;margin-bottom:8px;font-size:19px;line-height:1.45;background:#f2f4f7;word-break:break-word;}
+.todo-schedule-item{padding:10px 8px;border-radius:8px;margin-bottom:8px;font-size:19px;line-height:1.45;background:#fffff0;word-break:break-word;}
 .todo-schedule-item:last-child{margin-bottom:0;}
 .todo-schedule-item .t{font-family:var(--sans);font-variant-numeric:tabular-nums;font-weight:700;}
-.todo-schedule-item.now{background:var(--danger);color:#fff;}
+@keyframes todo-now-blink{
+  0%, 100% { background-color: var(--danger); }
+  50% { background-color: #ef8c80; }
+}
+.todo-schedule-item.now{color:#fff;animation:todo-now-blink 1s ease-in-out infinite;}
 .todo-schedule-item.now .t{color:#fff;}
 .todo-schedule-col .col-time-footer{
   text-align:center;font-weight:700;font-size:23px;font-family:var(--sans);
@@ -424,10 +428,12 @@ select.plain{
 .todo-picker-item:active{background:#dfe4ea;}
 .todo-picker-empty{color:var(--ink-sub);font-size:13px;text-align:center;padding:16px 4px;}
 
-.todo-manage-row{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--border);font-size:13.5px;}
+.todo-manage-row{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--border);font-size:13.5px;touch-action:pan-y;}
+.todo-manage-row.dragging{box-shadow:0 8px 20px rgba(20,30,45,0.2);border-radius:10px;position:relative;z-index:5;background:#fff;}
+.todo-manage-row .handle{width:20px;text-align:center;color:var(--ink-sub);font-size:15px;cursor:grab;touch-action:none;flex-shrink:0;}
 .todo-manage-row:last-child{border-bottom:none;}
 .todo-manage-row .n{flex:1;line-height:1.5;}
-.todo-manage-section-title{background:#e7ecf3;padding:8px 10px;border-radius:8px;margin:0 0 10px;}
+.todo-manage-section-title{background:var(--primary);color:#fff;padding:8px 10px;border-radius:8px;margin:0 0 10px;}
 .todo-manage-row.editing{background:#fff6e0;border-radius:8px;padding-left:6px;margin:0 -6px;}
 .todo-manage-row button.cancel{background:none;border:none;color:var(--ink-sub);font-size:13px;cursor:pointer;flex-shrink:0;padding:2px 4px;}
 .todo-manage-row button.edit{background:none;border:none;color:var(--primary);font-size:14px;cursor:pointer;flex-shrink:0;padding:2px 4px;}
@@ -1778,6 +1784,58 @@ function attachTodoSeqDrag(item){
     document.addEventListener('pointerup', up);
   });
 }
+/* ストック一覧(行動/セット/完了時刻)共通の並べ替えドラッグ処理 */
+function attachStockDrag(item, listId, onDrop){
+  var handle = item.querySelector('.handle');
+  handle.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var list = document.getElementById(listId);
+    var dragging = true;
+    item.classList.add('dragging');
+    try { item.setPointerCapture(e.pointerId); } catch(err){}
+    var lastY = e.clientY;
+    function move(ev){
+      if (!dragging) return;
+      var dy = ev.clientY - lastY;
+      item.style.transform = 'translateY(' + dy + 'px)';
+      var rect = item.getBoundingClientRect();
+      var centerY = rect.top + rect.height/2;
+      var children = [].slice.call(list.children);
+      var itemIndex = children.indexOf(item);
+      for (var i=0;i<children.length;i++){
+        var sib = children[i];
+        if (sib === item) continue;
+        var sRect = sib.getBoundingClientRect();
+        var sCenter = sRect.top + sRect.height/2;
+        var sibIndex = children.indexOf(sib);
+        if (sibIndex < itemIndex && centerY < sCenter){
+          list.insertBefore(item, sib);
+          item.style.transform = 'translateY(0px)';
+          lastY = ev.clientY;
+          break;
+        } else if (sibIndex > itemIndex && centerY > sCenter){
+          list.insertBefore(item, sib.nextSibling);
+          item.style.transform = 'translateY(0px)';
+          lastY = ev.clientY;
+          break;
+        }
+      }
+    }
+    function up(){
+      dragging = false;
+      try { item.releasePointerCapture(e.pointerId); } catch(err){}
+      item.classList.remove('dragging');
+      item.style.transform = '';
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      var children = [].slice.call(list.children);
+      var order = children.map(function(c){ return parseInt(c.dataset.index, 10); });
+      onDrop(order);
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
 document.getElementById('todo-sequence-clear-btn').addEventListener('click', function(){
   if (todoSequence.length === 0) return;
   if (window.confirm('「すること」の内容をすべて削除しますか？')){
@@ -1878,7 +1936,7 @@ function renderTodoSchedule(){
     });
     var timeFooter = document.createElement('div');
     timeFooter.className = 'col-time-footer';
-    timeFooter.textContent = target.time;
+    timeFooter.textContent = target.time + ' 完了';
     col.appendChild(timeFooter);
     container.appendChild(col);
   });
@@ -2044,15 +2102,22 @@ document.getElementById('todo-add-action-btn').addEventListener('click', functio
 
 /* ---- 管理モーダル(行動・セット・完了時刻のストック編集) ---- */
 var todoEditingActionId = null;
+function reorderTodoActions(order){
+  todoActions = order.map(function(idx){ return todoActions[idx]; });
+  saveJSON(TODO_ACTIONS_KEY, todoActions);
+  renderTodoManageActions();
+  renderTodoSetBuilderPool();
+}
 function renderTodoManageActions(){
   var list = document.getElementById('todo-manage-actions-list');
   list.innerHTML = '';
   if (todoActions.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだ行動が登録されていません。</div>'; }
-  todoActions.forEach(function(a){
+  todoActions.forEach(function(a, i){
     var row = document.createElement('div');
     var isEditing = (a.id === todoEditingActionId);
     row.className = 'todo-manage-row' + (isEditing ? ' editing' : '');
-    row.innerHTML = '<span class="n">' + a.name + '(' + a.minutes + '分)</span>';
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span class="n">' + a.name + '(' + a.minutes + '分)</span>';
     if (isEditing){
       var cancelBtn = document.createElement('button');
       cancelBtn.type = 'button'; cancelBtn.className = 'cancel'; cancelBtn.textContent = '↩';
@@ -2087,6 +2152,7 @@ function renderTodoManageActions(){
     });
     row.appendChild(editBtn);
     row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-manage-actions-list', reorderTodoActions);
     list.appendChild(row);
   });
 }
@@ -2116,11 +2182,16 @@ document.getElementById('todo-new-action-add-btn').addEventListener('click', fun
 });
 
 var todoEditingSetId = null;
+function reorderTodoSets(order){
+  todoSets = order.map(function(idx){ return todoSets[idx]; });
+  saveJSON(TODO_SETS_KEY, todoSets);
+  renderTodoManageSets();
+}
 function renderTodoManageSets(){
   var list = document.getElementById('todo-manage-sets-list');
   list.innerHTML = '';
   if (todoSets.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだセットが登録されていません。</div>'; }
-  todoSets.forEach(function(s){
+  todoSets.forEach(function(s, i){
     var names = s.actionIds.map(function(id){
       var a = findAction(id);
       return a ? a.name : '(削除済み)';
@@ -2128,7 +2199,8 @@ function renderTodoManageSets(){
     var row = document.createElement('div');
     var isEditing = (s.id === todoEditingSetId);
     row.className = 'todo-manage-row' + (isEditing ? ' editing' : '');
-    row.innerHTML = '<span class="n">' + s.name + '<br><span style="color:var(--ink-sub);font-size:12px;">' + names + '</span></span>';
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span class="n">' + s.name + '<br><span style="color:var(--ink-sub);font-size:12px;">' + names + '</span></span>';
     if (isEditing){
       var cancelBtn = document.createElement('button');
       cancelBtn.type = 'button'; cancelBtn.className = 'cancel'; cancelBtn.textContent = '↩';
@@ -2161,6 +2233,7 @@ function renderTodoManageSets(){
     });
     row.appendChild(editBtn);
     row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-manage-sets-list', reorderTodoSets);
     list.appendChild(row);
   });
 }
@@ -2227,15 +2300,21 @@ document.getElementById('todo-new-set-save-btn').addEventListener('click', funct
 });
 
 var todoEditingTimeId = null;
+function reorderTodoTimes(order){
+  todoTimes = order.map(function(idx){ return todoTimes[idx]; });
+  saveJSON(TODO_TIMES_KEY, todoTimes);
+  renderTodoManageTimes();
+}
 function renderTodoManageTimes(){
   var list = document.getElementById('todo-manage-times-list');
   list.innerHTML = '';
   if (todoTimes.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだ完了時刻が登録されていません。</div>'; }
-  todoTimes.forEach(function(t){
+  todoTimes.forEach(function(t, i){
     var row = document.createElement('div');
     var isEditing = (t.id === todoEditingTimeId);
     row.className = 'todo-manage-row' + (isEditing ? ' editing' : '');
-    row.innerHTML = '<span class="n">' + (t.label ? t.label + ' - ' : '') + t.time + '</span>';
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span class="n">' + (t.label ? t.label + ' - ' : '') + t.time + '</span>';
     if (isEditing){
       var cancelBtn = document.createElement('button');
       cancelBtn.type = 'button'; cancelBtn.className = 'cancel'; cancelBtn.textContent = '↩';
@@ -2269,6 +2348,7 @@ function renderTodoManageTimes(){
     });
     row.appendChild(editBtn);
     row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-manage-times-list', reorderTodoTimes);
     list.appendChild(row);
   });
 }
