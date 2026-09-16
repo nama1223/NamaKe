@@ -258,6 +258,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 }
 .btn-block:active{background:var(--primary-dark);}
 .btn-block.secondary{background:var(--accent);}
+.btn-block.tertiary{background:#3d6a52;}
 .btn-block.muted{background:#9aa5b1;margin-top:10px;}
 .settings-toggle-row{
   display:flex;align-items:center;gap:10px;
@@ -362,8 +363,8 @@ select.plain{
 .todo-sequence-row .name{flex:1;font-size:14.5px;}
 .todo-sequence-row .minutes{color:var(--ink-sub);font-size:12.5px;font-family:var(--sans);flex-shrink:0;}
 .todo-sequence-row button.del{background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;flex-shrink:0;}
-.todo-add-row{display:flex;gap:8px;margin-top:12px;}
-.todo-add-row .btn-block{margin-top:0;}
+.todo-add-row{display:flex;gap:6px;margin-top:12px;}
+.todo-add-row .btn-block{margin-top:0;padding:11px 3px;font-size:12.5px;}
 
 .todo-schedule-scroll{
   display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 8px;
@@ -433,7 +434,6 @@ select.plain{
 .todo-manage-row .handle{width:20px;text-align:center;color:var(--ink-sub);font-size:15px;cursor:grab;touch-action:none;flex-shrink:0;}
 .todo-manage-row:last-child{border-bottom:none;}
 .todo-manage-row .n{flex:1;line-height:1.5;}
-.todo-manage-section-title{background:var(--primary);color:#fff;padding:8px 10px;border-radius:8px;margin:0 0 10px;}
 .todo-manage-row.editing{background:#fff6e0;border-radius:8px;padding-left:6px;margin:0 -6px;}
 .todo-manage-row button.cancel{background:none;border:none;color:var(--ink-sub);font-size:13px;cursor:pointer;flex-shrink:0;padding:2px 4px;}
 .todo-manage-row button.edit{background:none;border:none;color:var(--primary);font-size:14px;cursor:pointer;flex-shrink:0;padding:2px 4px;}
@@ -446,8 +446,16 @@ select.plain{
   display:inline-block;background:#eef1f5;color:var(--ink);border:none;border-radius:14px;
   padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0;cursor:pointer;
 }
+.todo-set-pool-chip.chip-set{background:var(--accent);color:#fff;}
 .todo-set-current-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:12.5px;}
 .todo-set-current-row:last-child{border-bottom:none;}
+.todo-tab-bar{display:flex;gap:3px;margin-bottom:16px;background:#eef1f5;padding:3px;border-radius:10px;}
+.todo-tab{
+  flex:1;background:none;border:none;padding:9px 2px;font-size:11.5px;color:var(--ink-sub);
+  cursor:pointer;border-radius:8px;white-space:nowrap;
+}
+.todo-tab.active{background:var(--primary);color:#fff;font-weight:600;}
+.todo-tab-panel.hidden{display:none;}
 </style>
 </head>
 <body>
@@ -641,7 +649,7 @@ select.plain{
 
     <!-- (6) 逆算ToDo -->
     <div class="page" id="page-todo">
-      <button type="button" class="btn-block muted" id="todo-manage-btn" style="margin-top:0;margin-bottom:14px;">⚙ 行動・セット・時刻を管理</button>
+      <button type="button" class="btn-block muted" id="todo-manage-btn" style="margin-top:0;margin-bottom:14px;">⚙ 行動・完了時刻を管理</button>
 
       <div class="card">
         <div class="todo-collapse-header" id="todo-collapse-header">
@@ -654,8 +662,9 @@ select.plain{
           </div>
           <div id="todo-sequence-list"></div>
           <div class="todo-add-row">
-            <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 セットを適用</button>
-            <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動を追加</button>
+            <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動追加</button>
+            <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 行動セット</button>
+            <button type="button" class="btn-block tertiary" id="todo-apply-fullset-btn">🗂️ フルセット</button>
           </div>
           <hr class="section-rule">
           <div class="todo-targets-line">
@@ -747,38 +756,58 @@ select.plain{
 <div class="modal hidden" id="todo-manage-modal">
   <div class="modal-overlay" id="todo-manage-overlay"></div>
   <div class="modal-box">
-    <h2 style="margin:0 0 14px;font-size:17px;">行動・セット・完了時刻の管理</h2>
+    <h2 style="margin:0 0 14px;font-size:17px;">行動・完了時刻の管理</h2>
 
-    <p class="section-label todo-manage-section-title">行動</p>
-    <div id="todo-manage-actions-list"></div>
-    <div class="todo-manage-add-row">
-      <input type="text" id="todo-new-action-name" placeholder="行動名(例: 入浴)">
-      <input type="number" id="todo-new-action-minutes" placeholder="分" inputmode="numeric" style="max-width:64px;">
-      <button type="button" id="todo-new-action-add-btn">追加</button>
+    <div class="todo-tab-bar" id="todo-tab-bar">
+      <button type="button" class="todo-tab active" data-tab="actions">行動</button>
+      <button type="button" class="todo-tab" data-tab="sets">行動セット</button>
+      <button type="button" class="todo-tab" data-tab="times">完了時刻</button>
+      <button type="button" class="todo-tab" data-tab="fullsets">フルセット</button>
     </div>
 
-    <hr class="section-rule">
-
-    <p class="section-label todo-manage-section-title">セット</p>
-    <div id="todo-manage-sets-list"></div>
-    <div class="todo-set-builder">
-      <input type="text" id="todo-new-set-name" placeholder="セット名(例: 外出準備)" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13.5px;">
-      <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">含める行動をタップで追加(タップした順番になります)</p>
-      <div id="todo-set-builder-pool"></div>
-      <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">このセットの内容</p>
-      <div id="todo-set-builder-current"></div>
-      <button type="button" class="btn-block secondary" id="todo-new-set-save-btn">このセットを保存</button>
+    <div class="todo-tab-panel" id="todo-tab-actions">
+      <div id="todo-manage-actions-list"></div>
+      <div class="todo-manage-add-row">
+        <input type="text" id="todo-new-action-name" placeholder="行動名(例: 入浴)">
+        <input type="number" id="todo-new-action-minutes" placeholder="分" inputmode="numeric" style="max-width:64px;">
+        <button type="button" id="todo-new-action-add-btn">追加</button>
+      </div>
     </div>
 
-    <hr class="section-rule">
+    <div class="todo-tab-panel hidden" id="todo-tab-sets">
+      <div id="todo-manage-sets-list"></div>
+      <div class="todo-set-builder">
+        <input type="text" id="todo-new-set-name" placeholder="行動セット名(例: 外出準備)" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13.5px;">
+        <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">含める行動をタップで追加(タップした順番になります)</p>
+        <div id="todo-set-builder-pool"></div>
+        <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">この行動セットの内容</p>
+        <div id="todo-set-builder-current"></div>
+        <button type="button" class="btn-block secondary" id="todo-new-set-save-btn">この行動セットを保存</button>
+      </div>
+    </div>
 
-    <p class="section-label todo-manage-section-title">完了時刻のストック</p>
-    <div id="todo-manage-times-list"></div>
-    <div class="todo-manage-add-row">
-      <input type="text" id="todo-new-time-label" placeholder="ラベル(任意)">
-      <input type="number" id="todo-new-time-hh" placeholder="時" min="0" max="23" inputmode="numeric" style="max-width:52px;">
-      <input type="number" id="todo-new-time-mm" placeholder="分" min="0" max="59" inputmode="numeric" style="max-width:52px;">
-      <button type="button" id="todo-new-time-add-btn">追加</button>
+    <div class="todo-tab-panel hidden" id="todo-tab-times">
+      <div id="todo-manage-times-list"></div>
+      <div class="todo-manage-add-row">
+        <input type="text" id="todo-new-time-label" placeholder="ラベル(任意)">
+        <input type="number" id="todo-new-time-hh" placeholder="時" min="0" max="23" inputmode="numeric" style="max-width:52px;">
+        <input type="number" id="todo-new-time-mm" placeholder="分" min="0" max="59" inputmode="numeric" style="max-width:52px;">
+        <button type="button" id="todo-new-time-add-btn">追加</button>
+      </div>
+    </div>
+
+    <div class="todo-tab-panel hidden" id="todo-tab-fullsets">
+      <div id="todo-manage-fullsets-list"></div>
+      <div class="todo-set-builder">
+        <input type="text" id="todo-new-fullset-name" placeholder="フルセット名(例: 平日の朝)" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13.5px;">
+        <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">含める行動・行動セットをタップで追加(タップした順番になります)</p>
+        <div id="todo-fullset-builder-pool"></div>
+        <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">このフルセットの内容</p>
+        <div id="todo-fullset-builder-current"></div>
+        <p style="font-size:12.5px;color:var(--ink-sub);margin:10px 0 6px;">完了予定時刻</p>
+        <div class="todo-targets-row" id="todo-fullset-builder-targets"></div>
+        <button type="button" class="btn-block secondary" id="todo-new-fullset-save-btn">このフルセットを保存</button>
+      </div>
     </div>
 
     <button type="button" class="btn-block muted" id="todo-manage-close-btn" style="margin-top:16px;">閉じる</button>
@@ -1627,14 +1656,18 @@ document.getElementById('cal-today-btn').addEventListener('click', function(){
 var TODO_ACTIONS_KEY = 'namacalc_todo_actions_v1';
 var TODO_SETS_KEY = 'namacalc_todo_sets_v1';
 var TODO_TIMES_KEY = 'namacalc_todo_times_v1';
+var TODO_FULLSETS_KEY = 'namacalc_todo_fullsets_v1';
 var TODO_CURRENT_KEY = 'namacalc_todo_current_v1';
 
 var todoActions = [];
 var todoSets = [];
 var todoTimes = [];
+var todoFullsets = [];
 var todoSequence = [];
 var todoTargets = [];
 var todoSetBuilderItems = [];
+var todoFullsetBuilderSeq = [];
+var todoFullsetBuilderTargets = [];
 
 function genId(){ return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function pad2(n){ return (n<10?'0':'') + n; }
@@ -1661,6 +1694,7 @@ function loadTodoAll(){
   todoActions = loadJSON(TODO_ACTIONS_KEY, []);
   todoSets = loadJSON(TODO_SETS_KEY, []);
   todoTimes = loadJSON(TODO_TIMES_KEY, []);
+  todoFullsets = loadJSON(TODO_FULLSETS_KEY, []);
   var current = loadJSON(TODO_CURRENT_KEY, {sequence:[], targets:[]});
   todoSequence = Array.isArray(current.sequence) ? current.sequence : [];
   var rawTargets = Array.isArray(current.targets) ? current.targets : [];
@@ -1784,7 +1818,7 @@ function attachTodoSeqDrag(item){
     document.addEventListener('pointerup', up);
   });
 }
-/* ストック一覧(行動/セット/完了時刻)共通の並べ替えドラッグ処理 */
+/* ストック一覧(行動/行動セット/完了時刻/フルセット)共通の並べ替えドラッグ処理 */
 function attachStockDrag(item, listId, onDrop){
   var handle = item.querySelector('.handle');
   handle.addEventListener('pointerdown', function(e){
@@ -1960,8 +1994,13 @@ setInterval(function(){
 /* ---- 完了予定時刻クイック入力モーダル(4桁パッド + ストック呼び出し) ---- */
 var todoTimeEditIndex = -1;
 var todoTimeBuffer = '';
-function openTodoTimeModal(idx){
+var todoTimeModalContext = 'live';
+function todoActiveTargetsArray(){
+  return todoTimeModalContext === 'fullsetBuilder' ? todoFullsetBuilderTargets : todoTargets;
+}
+function openTodoTimeModal(idx, context){
   todoTimeEditIndex = idx;
+  todoTimeModalContext = context || 'live';
   todoTimeBuffer = '';
   renderTodoTimeDisplay();
   renderTodoTimeStock();
@@ -1977,7 +2016,7 @@ function renderTodoTimeDisplay(){
 function renderTodoTimeStock(){
   var box = document.getElementById('todo-time-stock');
   box.innerHTML = '';
-  var usedTimes = todoTargets
+  var usedTimes = todoActiveTargetsArray()
     .filter(function(t, i){ return i !== todoTimeEditIndex; })
     .map(function(t){ return t.time; });
   todoTimes.forEach(function(t){
@@ -1991,16 +2030,21 @@ function renderTodoTimeStock(){
 }
 function applyTodoTime(timeStr, fromStock){
   var targetObj = makeTodoTarget(timeStr, fromStock);
+  var targetsArr = todoActiveTargetsArray();
   if (todoTimeEditIndex === -1){
-    if (todoTargets.length >= 3){ closeTodoTimeModal(); return; }
-    todoTargets.push(targetObj);
+    if (targetsArr.length >= 3){ closeTodoTimeModal(); return; }
+    targetsArr.push(targetObj);
   } else {
-    todoTargets[todoTimeEditIndex] = targetObj;
+    targetsArr[todoTimeEditIndex] = targetObj;
   }
-  todoTargets.sort(function(a,b){ return a.time.localeCompare(b.time); });
-  saveTodoCurrent();
-  renderTodoTargets();
-  renderTodoSchedule();
+  targetsArr.sort(function(a,b){ return a.time.localeCompare(b.time); });
+  if (todoTimeModalContext === 'fullsetBuilder'){
+    renderTodoFullsetBuilderTargets();
+  } else {
+    saveTodoCurrent();
+    renderTodoTargets();
+    renderTodoSchedule();
+  }
   closeTodoTimeModal();
 }
 document.getElementById('todo-time-close-btn').addEventListener('click', closeTodoTimeModal);
@@ -2039,7 +2083,7 @@ for (var ttp=0; ttp<todoTimePadButtons.length; ttp++){
   });
 }
 
-/* ---- 汎用ピッカーモーダル(セット適用・行動追加で使う) ---- */
+/* ---- 汎用ピッカーモーダル(行動セット適用・行動追加・フルセット適用で使う) ---- */
 function openTodoPicker(title, items, onSelect){
   document.getElementById('todo-picker-title').textContent = title;
   var list = document.getElementById('todo-picker-list');
@@ -2074,7 +2118,7 @@ document.getElementById('todo-apply-set-btn').addEventListener('click', function
     }, 0);
     return {label: s.name + '(' + s.actionIds.length + '件・計' + totalMin + '分)', value: s.id};
   });
-  openTodoPicker('セットを適用', items, function(setId){
+  openTodoPicker('行動セットを適用', items, function(setId){
     var set = findSet(setId);
     if (!set) return;
     var seq = [];
@@ -2099,8 +2143,23 @@ document.getElementById('todo-add-action-btn').addEventListener('click', functio
     renderTodoSchedule();
   });
 });
+document.getElementById('todo-apply-fullset-btn').addEventListener('click', function(){
+  var items = todoFullsets.map(function(fs){
+    return {label: fs.name + '(行動' + fs.sequence.length + '件・完了時刻' + fs.targets.length + '件)', value: fs.id};
+  });
+  openTodoPicker('フルセットを適用', items, function(fsId){
+    var fs = todoFullsets.filter(function(x){ return x.id === fsId; })[0];
+    if (!fs) return;
+    todoSequence = fs.sequence.map(function(x){ return {name: x.name, minutes: x.minutes}; });
+    todoTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock}; });
+    saveTodoCurrent();
+    renderTodoSequence();
+    renderTodoTargets();
+    renderTodoSchedule();
+  });
+});
 
-/* ---- 管理モーダル(行動・セット・完了時刻のストック編集) ---- */
+/* ---- 管理モーダル(行動・行動セット・完了時刻・フルセットのストック編集) ---- */
 var todoEditingActionId = null;
 function reorderTodoActions(order){
   todoActions = order.map(function(idx){ return todoActions[idx]; });
@@ -2209,7 +2268,7 @@ function renderTodoManageSets(){
         document.getElementById('todo-new-set-name').value = '';
         todoSetBuilderItems = [];
         renderTodoSetBuilderCurrent();
-        document.getElementById('todo-new-set-save-btn').textContent = 'このセットを保存';
+        document.getElementById('todo-new-set-save-btn').textContent = 'この行動セットを保存';
         renderTodoManageSets();
       });
       row.appendChild(cancelBtn);
@@ -2221,7 +2280,7 @@ function renderTodoManageSets(){
       document.getElementById('todo-new-set-name').value = s.name;
       todoSetBuilderItems = s.actionIds.slice();
       renderTodoSetBuilderCurrent();
-      document.getElementById('todo-new-set-save-btn').textContent = 'このセットを更新';
+      document.getElementById('todo-new-set-save-btn').textContent = 'この行動セットを更新';
       renderTodoManageSets();
     });
     var delBtn = document.createElement('button');
@@ -2280,7 +2339,7 @@ document.getElementById('todo-new-set-save-btn').addEventListener('click', funct
   var nameEl = document.getElementById('todo-new-set-name');
   var name = nameEl.value.trim();
   if (name === '' || todoSetBuilderItems.length === 0){
-    showToast('セット名と、1件以上の行動を指定してください');
+    showToast('行動セット名と、1件以上の行動を指定してください');
     return;
   }
   if (todoEditingSetId){
@@ -2288,7 +2347,7 @@ document.getElementById('todo-new-set-save-btn').addEventListener('click', funct
     if (s){ s.name = name; s.actionIds = todoSetBuilderItems.slice(); }
     saveJSON(TODO_SETS_KEY, todoSets);
     todoEditingSetId = null;
-    document.getElementById('todo-new-set-save-btn').textContent = 'このセットを保存';
+    document.getElementById('todo-new-set-save-btn').textContent = 'この行動セットを保存';
   } else {
     todoSets.push({id: genId(), name: name, actionIds: todoSetBuilderItems.slice()});
     saveJSON(TODO_SETS_KEY, todoSets);
@@ -2376,12 +2435,195 @@ document.getElementById('todo-new-time-add-btn').addEventListener('click', funct
   renderTodoManageTimes();
 });
 
+/* ---- フルセット(行動セット+完了時刻をまとめて保存) ---- */
+var todoEditingFullsetId = null;
+function reorderTodoFullsets(order){
+  todoFullsets = order.map(function(idx){ return todoFullsets[idx]; });
+  saveJSON(TODO_FULLSETS_KEY, todoFullsets);
+  renderTodoManageFullsets();
+}
+function renderTodoManageFullsets(){
+  var list = document.getElementById('todo-manage-fullsets-list');
+  list.innerHTML = '';
+  if (todoFullsets.length === 0){ list.innerHTML = '<div class="todo-picker-empty">まだフルセットが登録されていません。</div>'; }
+  todoFullsets.forEach(function(fs, i){
+    var seqNames = fs.sequence.map(function(x){ return x.name; }).join('→');
+    var timeList = fs.targets.map(function(t){ return t.time; }).join('、');
+    var row = document.createElement('div');
+    var isEditing = (fs.id === todoEditingFullsetId);
+    row.className = 'todo-manage-row' + (isEditing ? ' editing' : '');
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span class="n">' + fs.name +
+      '<br><span style="color:var(--ink-sub);font-size:12px;">' + seqNames + ' / ' + timeList + '</span></span>';
+    if (isEditing){
+      var cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'cancel'; cancelBtn.textContent = '↩';
+      cancelBtn.addEventListener('click', function(){
+        todoEditingFullsetId = null;
+        resetTodoFullsetBuilder();
+        renderTodoManageFullsets();
+      });
+      row.appendChild(cancelBtn);
+    }
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button'; editBtn.className = 'edit'; editBtn.textContent = '✎';
+    editBtn.addEventListener('click', function(){
+      todoEditingFullsetId = fs.id;
+      document.getElementById('todo-new-fullset-name').value = fs.name;
+      todoFullsetBuilderSeq = fs.sequence.map(function(x){ return {name: x.name, minutes: x.minutes}; });
+      todoFullsetBuilderTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock}; });
+      renderTodoFullsetBuilderCurrent();
+      renderTodoFullsetBuilderTargets();
+      document.getElementById('todo-new-fullset-save-btn').textContent = 'このフルセットを更新';
+      renderTodoManageFullsets();
+    });
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoFullsets = todoFullsets.filter(function(x){ return x.id !== fs.id; });
+      saveJSON(TODO_FULLSETS_KEY, todoFullsets);
+      renderTodoManageFullsets();
+    });
+    row.appendChild(editBtn);
+    row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-manage-fullsets-list', reorderTodoFullsets);
+    list.appendChild(row);
+  });
+}
+function renderTodoFullsetBuilderPool(){
+  var pool = document.getElementById('todo-fullset-builder-pool');
+  pool.innerHTML = '';
+  todoActions.forEach(function(a){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'todo-set-pool-chip';
+    chip.textContent = '+ ' + a.name;
+    chip.addEventListener('click', function(){
+      todoFullsetBuilderSeq.push({name: a.name, minutes: a.minutes});
+      renderTodoFullsetBuilderCurrent();
+    });
+    pool.appendChild(chip);
+  });
+  todoSets.forEach(function(s){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'todo-set-pool-chip chip-set';
+    chip.textContent = '📦 ' + s.name;
+    chip.addEventListener('click', function(){
+      s.actionIds.forEach(function(aid){
+        var a = findAction(aid);
+        if (a) todoFullsetBuilderSeq.push({name: a.name, minutes: a.minutes});
+      });
+      renderTodoFullsetBuilderCurrent();
+    });
+    pool.appendChild(chip);
+  });
+}
+function renderTodoFullsetBuilderCurrent(){
+  var box = document.getElementById('todo-fullset-builder-current');
+  box.innerHTML = '';
+  if (todoFullsetBuilderSeq.length === 0){
+    box.innerHTML = '<div class="todo-picker-empty">上の行動・行動セットをタップして追加してください。</div>';
+    return;
+  }
+  todoFullsetBuilderSeq.forEach(function(item, i){
+    var row = document.createElement('div');
+    row.className = 'todo-set-current-row';
+    row.innerHTML = '<span style="flex:1;">' + (i+1) + '. ' + item.name + '(' + item.minutes + '分)</span>';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.style.cssText = 'background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      todoFullsetBuilderSeq.splice(i, 1);
+      renderTodoFullsetBuilderCurrent();
+    });
+    row.appendChild(delBtn);
+    box.appendChild(row);
+  });
+}
+function renderTodoFullsetBuilderTargets(){
+  var row = document.getElementById('todo-fullset-builder-targets');
+  row.innerHTML = '';
+  todoFullsetBuilderTargets.forEach(function(t, idx){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'todo-target-chip';
+    chip.textContent = t.time;
+    chip.addEventListener('click', function(){ openTodoTimeModal(idx, 'fullsetBuilder'); });
+    var xBtn = document.createElement('span');
+    xBtn.className = 'remove-x';
+    xBtn.textContent = '×';
+    xBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      todoFullsetBuilderTargets.splice(idx, 1);
+      renderTodoFullsetBuilderTargets();
+    });
+    chip.appendChild(xBtn);
+    row.appendChild(chip);
+  });
+  if (todoFullsetBuilderTargets.length < 3){
+    var addChip = document.createElement('button');
+    addChip.type = 'button';
+    addChip.className = 'todo-target-chip add-new';
+    addChip.textContent = '＋ 完了時刻を追加';
+    addChip.addEventListener('click', function(){ openTodoTimeModal(-1, 'fullsetBuilder'); });
+    row.appendChild(addChip);
+  }
+}
+function resetTodoFullsetBuilder(){
+  document.getElementById('todo-new-fullset-name').value = '';
+  todoFullsetBuilderSeq = [];
+  todoFullsetBuilderTargets = [];
+  renderTodoFullsetBuilderCurrent();
+  renderTodoFullsetBuilderTargets();
+  document.getElementById('todo-new-fullset-save-btn').textContent = 'このフルセットを保存';
+}
+document.getElementById('todo-new-fullset-save-btn').addEventListener('click', function(){
+  var nameEl = document.getElementById('todo-new-fullset-name');
+  var name = nameEl.value.trim();
+  if (name === '' || todoFullsetBuilderSeq.length === 0 || todoFullsetBuilderTargets.length === 0){
+    showToast('名前・行動(1件以上)・完了予定時刻(1件以上)を指定してください');
+    return;
+  }
+  if (todoEditingFullsetId){
+    var fs = todoFullsets.filter(function(x){ return x.id === todoEditingFullsetId; })[0];
+    if (fs){
+      fs.name = name;
+      fs.sequence = todoFullsetBuilderSeq.slice();
+      fs.targets = todoFullsetBuilderTargets.slice();
+    }
+    saveJSON(TODO_FULLSETS_KEY, todoFullsets);
+    todoEditingFullsetId = null;
+  } else {
+    todoFullsets.push({id: genId(), name: name, sequence: todoFullsetBuilderSeq.slice(), targets: todoFullsetBuilderTargets.slice()});
+    saveJSON(TODO_FULLSETS_KEY, todoFullsets);
+  }
+  resetTodoFullsetBuilder();
+  renderTodoManageFullsets();
+});
+
+function switchTodoManageTab(tabId){
+  var tabs = document.querySelectorAll('.todo-tab');
+  for (var i=0;i<tabs.length;i++){ tabs[i].classList.toggle('active', tabs[i].dataset.tab === tabId); }
+  var panels = document.querySelectorAll('.todo-tab-panel');
+  for (var j=0;j<panels.length;j++){ panels[j].classList.toggle('hidden', panels[j].id !== 'todo-tab-' + tabId); }
+}
+var todoTabButtons = document.querySelectorAll('.todo-tab');
+for (var tbi=0; tbi<todoTabButtons.length; tbi++){
+  todoTabButtons[tbi].addEventListener('click', function(){ switchTodoManageTab(this.dataset.tab); });
+}
 function openTodoManageModal(){
   renderTodoManageActions();
   renderTodoManageSets();
   renderTodoSetBuilderPool();
   renderTodoSetBuilderCurrent();
   renderTodoManageTimes();
+  renderTodoManageFullsets();
+  renderTodoFullsetBuilderPool();
+  renderTodoFullsetBuilderCurrent();
+  renderTodoFullsetBuilderTargets();
+  switchTodoManageTab('actions');
   document.getElementById('todo-manage-modal').classList.remove('hidden');
 }
 function closeTodoManageModal(){
@@ -2389,9 +2631,11 @@ function closeTodoManageModal(){
   todoEditingActionId = null;
   todoEditingSetId = null;
   todoEditingTimeId = null;
+  todoEditingFullsetId = null;
   document.getElementById('todo-new-action-add-btn').textContent = '追加';
-  document.getElementById('todo-new-set-save-btn').textContent = 'このセットを保存';
+  document.getElementById('todo-new-set-save-btn').textContent = 'この行動セットを保存';
   document.getElementById('todo-new-time-add-btn').textContent = '追加';
+  document.getElementById('todo-new-fullset-save-btn').textContent = 'このフルセットを保存';
   document.getElementById('todo-new-action-name').value = '';
   document.getElementById('todo-new-action-minutes').value = '';
   document.getElementById('todo-new-set-name').value = '';
@@ -2399,6 +2643,9 @@ function closeTodoManageModal(){
   document.getElementById('todo-new-time-label').value = '';
   document.getElementById('todo-new-time-hh').value = '';
   document.getElementById('todo-new-time-mm').value = '';
+  document.getElementById('todo-new-fullset-name').value = '';
+  todoFullsetBuilderSeq = [];
+  todoFullsetBuilderTargets = [];
 }
 document.getElementById('todo-manage-btn').addEventListener('click', openTodoManageModal);
 document.getElementById('todo-manage-close-btn').addEventListener('click', closeTodoManageModal);
