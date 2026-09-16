@@ -283,13 +283,14 @@ select.plain{
   background:#161b13;color:#fdf3d7;padding:13px 18px;border-radius:12px;
   font-size:13.5px;line-height:1.5;opacity:0;pointer-events:none;
   transition:opacity .22s ease,transform .22s ease;
-  max-width:88%;word-break:break-all;z-index:500;
+  max-width:88%;word-break:break-all;z-index:700;
   box-shadow:0 8px 24px rgba(0,0,0,0.3);
 }
 #toast.show{opacity:1;transform:translate(-50%,0);}
 
 /* ---------- カレンダーモーダル ---------- */
 .modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;}
+.modal.modal-top{z-index:650;}
 .modal.hidden{display:none;}
 .modal-overlay{position:absolute;inset:0;background:rgba(15,20,30,0.5);}
 .modal-box{
@@ -447,8 +448,10 @@ select.plain{
   padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0;cursor:pointer;
 }
 .todo-set-pool-chip.chip-set{background:var(--accent);color:#fff;}
-.todo-set-current-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:12.5px;}
+.todo-set-current-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:12.5px;touch-action:pan-y;}
 .todo-set-current-row:last-child{border-bottom:none;}
+.todo-set-current-row .handle{width:18px;text-align:center;color:var(--ink-sub);font-size:14px;cursor:grab;touch-action:none;flex-shrink:0;}
+.todo-set-current-row.dragging{box-shadow:0 8px 20px rgba(20,30,45,0.2);border-radius:8px;position:relative;z-index:5;background:#fff;}
 .todo-tab-bar{display:flex;gap:3px;margin-bottom:16px;background:#eef1f5;padding:3px;border-radius:10px;}
 .todo-tab{
   flex:1;background:none;border:none;padding:9px 2px;font-size:11.5px;color:var(--ink-sub);
@@ -716,7 +719,7 @@ select.plain{
   </div>
 </div>
 
-<div class="modal hidden" id="info-modal">
+<div class="modal hidden modal-top" id="info-modal">
   <div class="modal-overlay" id="info-overlay"></div>
   <div class="modal-box">
     <h2 id="info-title" style="margin:0 0 12px;font-size:17px;"></h2>
@@ -725,7 +728,7 @@ select.plain{
   </div>
 </div>
 
-<div class="modal hidden" id="todo-time-modal">
+<div class="modal hidden modal-top" id="todo-time-modal">
   <div class="modal-overlay" id="todo-time-overlay"></div>
   <div class="modal-box">
     <h2 style="margin:0 0 14px;font-size:17px;">完了予定時刻</h2>
@@ -744,7 +747,7 @@ select.plain{
   </div>
 </div>
 
-<div class="modal hidden" id="todo-picker-modal">
+<div class="modal hidden modal-top" id="todo-picker-modal">
   <div class="modal-overlay" id="todo-picker-overlay"></div>
   <div class="modal-box">
     <h2 id="todo-picker-title" style="margin:0 0 14px;font-size:17px;"></h2>
@@ -2311,6 +2314,10 @@ function renderTodoSetBuilderPool(){
     pool.appendChild(chip);
   });
 }
+function reorderTodoSetBuilderItems(order){
+  todoSetBuilderItems = order.map(function(idx){ return todoSetBuilderItems[idx]; });
+  renderTodoSetBuilderCurrent();
+}
 function renderTodoSetBuilderCurrent(){
   var box = document.getElementById('todo-set-builder-current');
   box.innerHTML = '';
@@ -2322,7 +2329,8 @@ function renderTodoSetBuilderCurrent(){
     var a = findAction(id);
     var row = document.createElement('div');
     row.className = 'todo-set-current-row';
-    row.innerHTML = '<span style="flex:1;">' + (i+1) + '. ' + (a ? a.name : '(削除済み)') + (a ? '(' + a.minutes + '分)' : '') + '</span>';
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span style="flex:1;">' + (i+1) + '. ' + (a ? a.name : '(削除済み)') + (a ? '(' + a.minutes + '分)' : '') + '</span>';
     var delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.style.cssText = 'background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;';
@@ -2332,6 +2340,7 @@ function renderTodoSetBuilderCurrent(){
       renderTodoSetBuilderCurrent();
     });
     row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-set-builder-current', reorderTodoSetBuilderItems);
     box.appendChild(row);
   });
 }
@@ -2519,6 +2528,10 @@ function renderTodoFullsetBuilderPool(){
     pool.appendChild(chip);
   });
 }
+function reorderTodoFullsetBuilderSeq(order){
+  todoFullsetBuilderSeq = order.map(function(idx){ return todoFullsetBuilderSeq[idx]; });
+  renderTodoFullsetBuilderCurrent();
+}
 function renderTodoFullsetBuilderCurrent(){
   var box = document.getElementById('todo-fullset-builder-current');
   box.innerHTML = '';
@@ -2529,7 +2542,8 @@ function renderTodoFullsetBuilderCurrent(){
   todoFullsetBuilderSeq.forEach(function(item, i){
     var row = document.createElement('div');
     row.className = 'todo-set-current-row';
-    row.innerHTML = '<span style="flex:1;">' + (i+1) + '. ' + item.name + '(' + item.minutes + '分)</span>';
+    row.dataset.index = i;
+    row.innerHTML = '<span class="handle">≡</span><span style="flex:1;">' + (i+1) + '. ' + item.name + '(' + item.minutes + '分)</span>';
     var delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.style.cssText = 'background:none;border:none;color:var(--danger);font-size:14px;cursor:pointer;';
@@ -2539,6 +2553,7 @@ function renderTodoFullsetBuilderCurrent(){
       renderTodoFullsetBuilderCurrent();
     });
     row.appendChild(delBtn);
+    attachStockDrag(row, 'todo-fullset-builder-current', reorderTodoFullsetBuilderSeq);
     box.appendChild(row);
   });
 }
