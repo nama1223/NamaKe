@@ -370,14 +370,19 @@ select.plain{
   background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;
 }
 .todo-schedule-col .col-target{
-  text-align:center;font-weight:700;font-size:15.5px;font-family:var(--sans);
-  font-variant-numeric:tabular-nums;margin-bottom:10px;color:var(--primary);
+  text-align:center;font-weight:700;font-size:23px;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;margin-bottom:12px;color:var(--primary);
+  word-break:break-word;
 }
-.todo-schedule-item{padding:8px 6px;border-radius:8px;margin-bottom:6px;font-size:12.5px;line-height:1.5;background:#f2f4f7;}
+.todo-schedule-item{padding:10px 8px;border-radius:8px;margin-bottom:8px;font-size:19px;line-height:1.45;background:#f2f4f7;word-break:break-word;}
 .todo-schedule-item:last-child{margin-bottom:0;}
 .todo-schedule-item .t{font-family:var(--sans);font-variant-numeric:tabular-nums;font-weight:700;}
 .todo-schedule-item.now{background:#fdeaea;color:var(--danger);}
 .todo-schedule-item.now .t{color:var(--danger);}
+.todo-clock{
+  text-align:center;font-size:40px;font-weight:700;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;color:var(--primary);margin:6px 0 4px;letter-spacing:0.04em;
+}
 
 .todo-time-stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 .todo-time-stock button{
@@ -400,6 +405,7 @@ select.plain{
 .todo-manage-row{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--border);font-size:13.5px;}
 .todo-manage-row:last-child{border-bottom:none;}
 .todo-manage-row .n{flex:1;line-height:1.5;}
+.todo-manage-row button.edit{background:none;border:none;color:var(--primary);font-size:14px;cursor:pointer;flex-shrink:0;padding:2px 4px;}
 .todo-manage-row button.del{background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;flex-shrink:0;}
 .todo-manage-add-row{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
 .todo-manage-add-row input{flex:1;min-width:64px;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;}
@@ -604,7 +610,7 @@ select.plain{
 
     <!-- (6) 逆算ToDo -->
     <div class="page" id="page-todo">
-      <div class="todo-targets-row" id="todo-targets-row"></div>
+      <button type="button" class="btn-block muted" id="todo-manage-btn" style="margin-top:0;margin-bottom:14px;">⚙ 行動・セット・時刻を管理</button>
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -616,11 +622,14 @@ select.plain{
           <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 セットを適用</button>
           <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動を追加</button>
         </div>
+        <hr class="section-rule">
+        <p class="section-label">完了予定時刻</p>
+        <div class="todo-targets-row" id="todo-targets-row"></div>
       </div>
 
       <div class="todo-schedule-scroll" id="todo-schedule-scroll"></div>
 
-      <button type="button" class="btn-block muted" id="todo-manage-btn">⚙ 行動・セット・時刻を管理</button>
+      <div class="todo-clock" id="todo-clock">--:--:--</div>
     </div>
 
   </main>
@@ -1759,9 +1768,14 @@ function renderTodoTargets(){
 }
 
 /* ---- スケジュール表示(横スクロール・現在時刻ハイライト) ---- */
+function findTimeLabel(timeStr){
+  var t = todoTimes.filter(function(x){ return x.time === timeStr; })[0];
+  return (t && t.label) ? t.label : '';
+}
 function renderTodoSchedule(){
   var container = document.getElementById('todo-schedule-scroll');
   container.innerHTML = '';
+  updateTodoClock();
   if (todoTargets.length === 0 || todoSequence.length === 0){
     container.innerHTML = '<div class="todo-empty-hint">完了予定時刻と「すること」の両方を設定すると、ここに逆算スケジュールが表示されます。</div>';
     return;
@@ -1773,7 +1787,8 @@ function renderTodoSchedule(){
     col.className = 'todo-schedule-col';
     var header = document.createElement('div');
     header.className = 'col-target';
-    header.textContent = targetStr + ' 完了';
+    var label = findTimeLabel(targetStr);
+    header.textContent = label ? (label + ' ' + targetStr) : targetStr;
     col.appendChild(header);
     schedule.forEach(function(item){
       var row = document.createElement('div');
@@ -1785,11 +1800,21 @@ function renderTodoSchedule(){
     container.appendChild(col);
   });
 }
-/* 表示中は1分ごとに現在時刻ハイライトを更新する */
+function updateTodoClock(){
+  var el = document.getElementById('todo-clock');
+  if (!el) return;
+  var now = new Date();
+  el.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' + pad2(now.getSeconds());
+}
+/* 表示中は1分ごとにハイライトを再計算し、時計は1秒ごとに更新する */
 setInterval(function(){
   var page = document.getElementById('page-todo');
   if (page && page.classList.contains('active')) renderTodoSchedule();
 }, 30000);
+setInterval(function(){
+  var page = document.getElementById('page-todo');
+  if (page && page.classList.contains('active')) updateTodoClock();
+}, 1000);
 
 /* ---- 完了予定時刻クイック入力モーダル(4桁パッド + ストック呼び出し) ---- */
 var todoTimeEditIndex = -1;
@@ -1814,7 +1839,7 @@ function renderTodoTimeStock(){
   todoTimes.forEach(function(t){
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = t.label ? (t.label + ' ' + t.time) : t.time;
+    btn.textContent = t.label ? (t.label + ' - ' + t.time) : t.time;
     btn.addEventListener('click', function(){ applyTodoTime(t.time); });
     box.appendChild(btn);
   });
@@ -1926,6 +1951,7 @@ document.getElementById('todo-add-action-btn').addEventListener('click', functio
 });
 
 /* ---- 管理モーダル(行動・セット・完了時刻のストック編集) ---- */
+var todoEditingActionId = null;
 function renderTodoManageActions(){
   var list = document.getElementById('todo-manage-actions-list');
   list.innerHTML = '';
@@ -1934,6 +1960,14 @@ function renderTodoManageActions(){
     var row = document.createElement('div');
     row.className = 'todo-manage-row';
     row.innerHTML = '<span class="n">' + a.name + '(' + a.minutes + '分)</span>';
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button'; editBtn.className = 'edit'; editBtn.textContent = '✎';
+    editBtn.addEventListener('click', function(){
+      todoEditingActionId = a.id;
+      document.getElementById('todo-new-action-name').value = a.name;
+      document.getElementById('todo-new-action-minutes').value = a.minutes;
+      document.getElementById('todo-new-action-add-btn').textContent = '更新';
+    });
     var delBtn = document.createElement('button');
     delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
     delBtn.addEventListener('click', function(){
@@ -1945,6 +1979,7 @@ function renderTodoManageActions(){
       renderTodoManageSets();
       renderTodoSetBuilderPool();
     });
+    row.appendChild(editBtn);
     row.appendChild(delBtn);
     list.appendChild(row);
   });
@@ -1958,13 +1993,23 @@ document.getElementById('todo-new-action-add-btn').addEventListener('click', fun
     showToast('行動名と分数(1以上)を入力してください');
     return;
   }
-  todoActions.push({id: genId(), name: name, minutes: minutes});
-  saveJSON(TODO_ACTIONS_KEY, todoActions);
+  if (todoEditingActionId){
+    var a = findAction(todoEditingActionId);
+    if (a){ a.name = name; a.minutes = minutes; }
+    saveJSON(TODO_ACTIONS_KEY, todoActions);
+    todoEditingActionId = null;
+    document.getElementById('todo-new-action-add-btn').textContent = '追加';
+  } else {
+    todoActions.push({id: genId(), name: name, minutes: minutes});
+    saveJSON(TODO_ACTIONS_KEY, todoActions);
+  }
   nameEl.value = ''; minEl.value = '';
   renderTodoManageActions();
   renderTodoSetBuilderPool();
+  renderTodoManageSets();
 });
 
+var todoEditingSetId = null;
 function renderTodoManageSets(){
   var list = document.getElementById('todo-manage-sets-list');
   list.innerHTML = '';
@@ -1977,6 +2022,15 @@ function renderTodoManageSets(){
     var row = document.createElement('div');
     row.className = 'todo-manage-row';
     row.innerHTML = '<span class="n">' + s.name + '<br><span style="color:var(--ink-sub);font-size:12px;">' + names + '</span></span>';
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button'; editBtn.className = 'edit'; editBtn.textContent = '✎';
+    editBtn.addEventListener('click', function(){
+      todoEditingSetId = s.id;
+      document.getElementById('todo-new-set-name').value = s.name;
+      todoSetBuilderItems = s.actionIds.slice();
+      renderTodoSetBuilderCurrent();
+      document.getElementById('todo-new-set-save-btn').textContent = 'このセットを更新';
+    });
     var delBtn = document.createElement('button');
     delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
     delBtn.addEventListener('click', function(){
@@ -1984,6 +2038,7 @@ function renderTodoManageSets(){
       saveJSON(TODO_SETS_KEY, todoSets);
       renderTodoManageSets();
     });
+    row.appendChild(editBtn);
     row.appendChild(delBtn);
     list.appendChild(row);
   });
@@ -2034,14 +2089,23 @@ document.getElementById('todo-new-set-save-btn').addEventListener('click', funct
     showToast('セット名と、1件以上の行動を指定してください');
     return;
   }
-  todoSets.push({id: genId(), name: name, actionIds: todoSetBuilderItems.slice()});
-  saveJSON(TODO_SETS_KEY, todoSets);
+  if (todoEditingSetId){
+    var s = findSet(todoEditingSetId);
+    if (s){ s.name = name; s.actionIds = todoSetBuilderItems.slice(); }
+    saveJSON(TODO_SETS_KEY, todoSets);
+    todoEditingSetId = null;
+    document.getElementById('todo-new-set-save-btn').textContent = 'このセットを保存';
+  } else {
+    todoSets.push({id: genId(), name: name, actionIds: todoSetBuilderItems.slice()});
+    saveJSON(TODO_SETS_KEY, todoSets);
+  }
   nameEl.value = '';
   todoSetBuilderItems = [];
   renderTodoSetBuilderCurrent();
   renderTodoManageSets();
 });
 
+var todoEditingTimeId = null;
 function renderTodoManageTimes(){
   var list = document.getElementById('todo-manage-times-list');
   list.innerHTML = '';
@@ -2049,7 +2113,17 @@ function renderTodoManageTimes(){
   todoTimes.forEach(function(t){
     var row = document.createElement('div');
     row.className = 'todo-manage-row';
-    row.innerHTML = '<span class="n">' + (t.label ? t.label + ' ' : '') + t.time + '</span>';
+    row.innerHTML = '<span class="n">' + (t.label ? t.label + ' - ' : '') + t.time + '</span>';
+    var editBtn = document.createElement('button');
+    editBtn.type = 'button'; editBtn.className = 'edit'; editBtn.textContent = '✎';
+    editBtn.addEventListener('click', function(){
+      todoEditingTimeId = t.id;
+      document.getElementById('todo-new-time-label').value = t.label || '';
+      var parts = t.time.split(':');
+      document.getElementById('todo-new-time-hh').value = parseInt(parts[0], 10);
+      document.getElementById('todo-new-time-mm').value = parseInt(parts[1], 10);
+      document.getElementById('todo-new-time-add-btn').textContent = '更新';
+    });
     var delBtn = document.createElement('button');
     delBtn.type = 'button'; delBtn.className = 'del'; delBtn.textContent = '×';
     delBtn.addEventListener('click', function(){
@@ -2057,6 +2131,7 @@ function renderTodoManageTimes(){
       saveJSON(TODO_TIMES_KEY, todoTimes);
       renderTodoManageTimes();
     });
+    row.appendChild(editBtn);
     row.appendChild(delBtn);
     list.appendChild(row);
   });
@@ -2071,8 +2146,16 @@ document.getElementById('todo-new-time-add-btn').addEventListener('click', funct
     showToast('時刻を正しく入力してください(0-23時 / 0-59分)');
     return;
   }
-  todoTimes.push({id: genId(), time: pad2(hh) + ':' + pad2(mm), label: labelEl.value.trim()});
-  saveJSON(TODO_TIMES_KEY, todoTimes);
+  if (todoEditingTimeId){
+    var t = todoTimes.filter(function(x){ return x.id === todoEditingTimeId; })[0];
+    if (t){ t.time = pad2(hh) + ':' + pad2(mm); t.label = labelEl.value.trim(); }
+    saveJSON(TODO_TIMES_KEY, todoTimes);
+    todoEditingTimeId = null;
+    document.getElementById('todo-new-time-add-btn').textContent = '追加';
+  } else {
+    todoTimes.push({id: genId(), time: pad2(hh) + ':' + pad2(mm), label: labelEl.value.trim()});
+    saveJSON(TODO_TIMES_KEY, todoTimes);
+  }
   labelEl.value = ''; hhEl.value = ''; mmEl.value = '';
   renderTodoManageTimes();
 });
@@ -2087,6 +2170,19 @@ function openTodoManageModal(){
 }
 function closeTodoManageModal(){
   document.getElementById('todo-manage-modal').classList.add('hidden');
+  todoEditingActionId = null;
+  todoEditingSetId = null;
+  todoEditingTimeId = null;
+  document.getElementById('todo-new-action-add-btn').textContent = '追加';
+  document.getElementById('todo-new-set-save-btn').textContent = 'このセットを保存';
+  document.getElementById('todo-new-time-add-btn').textContent = '追加';
+  document.getElementById('todo-new-action-name').value = '';
+  document.getElementById('todo-new-action-minutes').value = '';
+  document.getElementById('todo-new-set-name').value = '';
+  todoSetBuilderItems = [];
+  document.getElementById('todo-new-time-label').value = '';
+  document.getElementById('todo-new-time-hh').value = '';
+  document.getElementById('todo-new-time-mm').value = '';
 }
 document.getElementById('todo-manage-btn').addEventListener('click', openTodoManageModal);
 document.getElementById('todo-manage-close-btn').addEventListener('click', closeTodoManageModal);
