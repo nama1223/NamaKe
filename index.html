@@ -1686,29 +1686,43 @@ function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
 function findStockTimeEntry(timeStr){
   return todoTimes.filter(function(x){ return x.time === timeStr; })[0] || null;
 }
-function makeTodoTarget(timeStr, fromStock){
-  if (fromStock){
-    var entry = findStockTimeEntry(timeStr);
-    return {time: timeStr, label: (entry && entry.label) ? entry.label : '', fromStock: true};
+function findStockTimeEntryById(id){
+  return todoTimes.filter(function(x){ return x.id === id; })[0] || null;
+}
+/* fromStockの場合はstockId(ストック側の一意ID)で紐付ける。時刻の値だけでは
+   同じ時刻の別ストック項目(例: 10:12が複数ある場合)を区別できないため。 */
+function makeTodoTarget(timeStr, fromStock, stockId){
+  if (fromStock && stockId){
+    var entry = findStockTimeEntryById(stockId);
+    return {time: timeStr, label: (entry && entry.label) ? entry.label : '', fromStock: true, stockId: stockId};
   }
-  return {time: timeStr, label: '無題', fromStock: false};
+  return {time: timeStr, label: '無題', fromStock: false, stockId: null};
+}
+/* 旧データ(文字列のみ、またはstockId未保存のオブジェクト)をstockId付きに移行する */
+function migrateTodoTarget(t){
+  if (typeof t === 'string'){
+    var entry = findStockTimeEntry(t);
+    return entry ? {time: t, label: (entry.label || ''), fromStock: true, stockId: entry.id} : {time: t, label: '無題', fromStock: false, stockId: null};
+  }
+  if (t.fromStock && !t.stockId){
+    var candidates = todoTimes.filter(function(x){ return x.time === t.time && (x.label || '') === (t.label || ''); });
+    t.stockId = (candidates.length === 1) ? candidates[0].id : null;
+  }
+  if (t.stockId === undefined) t.stockId = null;
+  return t;
 }
 function loadTodoAll(){
   todoActions = loadJSON(TODO_ACTIONS_KEY, []);
   todoSets = loadJSON(TODO_SETS_KEY, []);
   todoTimes = loadJSON(TODO_TIMES_KEY, []);
   todoFullsets = loadJSON(TODO_FULLSETS_KEY, []);
+  todoFullsets.forEach(function(fs){
+    fs.targets = (fs.targets || []).map(migrateTodoTarget);
+  });
   var current = loadJSON(TODO_CURRENT_KEY, {sequence:[], targets:[]});
   todoSequence = Array.isArray(current.sequence) ? current.sequence : [];
   var rawTargets = Array.isArray(current.targets) ? current.targets : [];
-  todoTargets = rawTargets.map(function(t){
-    /* 旧バージョン(文字列のみ)からの移行 */
-    if (typeof t === 'string'){
-      var entry = findStockTimeEntry(t);
-      return entry ? {time: t, label: (entry.label || ''), fromStock: true} : {time: t, label: '無題', fromStock: false};
-    }
-    return t;
-  });
+  todoTargets = rawTargets.map(migrateTodoTarget);
   todoTargets.sort(function(a,b){ return a.time.localeCompare(b.time); });
 }
 function saveTodoCurrent(){
@@ -2019,20 +2033,21 @@ function renderTodoTimeDisplay(){
 function renderTodoTimeStock(){
   var box = document.getElementById('todo-time-stock');
   box.innerHTML = '';
-  var usedTimes = todoActiveTargetsArray()
+  var usedStockIds = todoActiveTargetsArray()
     .filter(function(t, i){ return i !== todoTimeEditIndex; })
-    .map(function(t){ return t.time; });
+    .map(function(t){ return t.stockId; })
+    .filter(function(id){ return !!id; });
   todoTimes.forEach(function(t){
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = t.label ? (t.label + ' - ' + t.time) : t.time;
-    if (usedTimes.indexOf(t.time) !== -1) btn.classList.add('used');
-    btn.addEventListener('click', function(){ applyTodoTime(t.time, true); });
+    if (usedStockIds.indexOf(t.id) !== -1) btn.classList.add('used');
+    btn.addEventListener('click', function(){ applyTodoTime(t.time, true, t.id); });
     box.appendChild(btn);
   });
 }
-function applyTodoTime(timeStr, fromStock){
-  var targetObj = makeTodoTarget(timeStr, fromStock);
+function applyTodoTime(timeStr, fromStock, stockId){
+  var targetObj = makeTodoTarget(timeStr, fromStock, stockId);
   var targetsArr = todoActiveTargetsArray();
   if (todoTimeEditIndex === -1){
     if (targetsArr.length >= 3){ closeTodoTimeModal(); return; }
@@ -2154,7 +2169,7 @@ document.getElementById('todo-apply-fullset-btn').addEventListener('click', func
     var fs = todoFullsets.filter(function(x){ return x.id === fsId; })[0];
     if (!fs) return;
     todoSequence = fs.sequence.map(function(x){ return {name: x.name, minutes: x.minutes}; });
-    todoTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock}; });
+    todoTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock, stockId: t.stockId || null}; });
     saveTodoCurrent();
     renderTodoSequence();
     renderTodoTargets();
@@ -2480,7 +2495,7 @@ function renderTodoManageFullsets(){
       todoEditingFullsetId = fs.id;
       document.getElementById('todo-new-fullset-name').value = fs.name;
       todoFullsetBuilderSeq = fs.sequence.map(function(x){ return {name: x.name, minutes: x.minutes}; });
-      todoFullsetBuilderTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock}; });
+      todoFullsetBuilderTargets = fs.targets.map(function(t){ return {time: t.time, label: t.label, fromStock: t.fromStock, stockId: t.stockId || null}; });
       renderTodoFullsetBuilderCurrent();
       renderTodoFullsetBuilderTargets();
       document.getElementById('todo-new-fullset-save-btn').textContent = 'このフルセットを更新';
