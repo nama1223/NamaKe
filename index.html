@@ -418,6 +418,26 @@ select.plain{
   text-shadow:0 0 8px rgba(57,240,168,0.45);
 }
 
+/* ---------- 時間差計算 ---------- */
+.td-slot-row{display:flex;align-items:center;gap:14px;}
+.td-slot-row + .td-arrow{margin-top:2px;}
+.td-slot-label{width:44px;flex-shrink:0;color:var(--ink-sub);font-size:13.5px;font-weight:600;}
+.td-slot-display{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:2px;
+  background:#0a1710;border-radius:var(--radius);padding:14px 10px;
+}
+.td-unit{
+  font-size:34px;font-weight:700;font-family:var(--sans);color:#39f0a8;
+  font-variant-numeric:tabular-nums;
+  cursor:ns-resize;touch-action:none;user-select:none;
+  padding:2px 8px;border-radius:8px;
+  text-shadow:0 0 8px rgba(57,240,168,0.4);
+}
+.td-unit:active{background:rgba(57,240,168,0.18);}
+.td-colon{font-size:34px;font-weight:700;color:#39f0a8;opacity:0.7;}
+.td-arrow{text-align:center;color:var(--ink-sub);font-size:20px;margin:6px 0;}
+.td-result-sub{font-size:14px;font-weight:400;opacity:0.8;margin-top:4px;font-family:var(--sans);font-variant-numeric:tabular-nums;}
+
 .todo-time-stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 .todo-time-stock button{
   background:#eef1f5;color:var(--primary);border:none;border-radius:16px;
@@ -695,6 +715,31 @@ select.plain{
       <div class="todo-clock" id="todo-clock"><span class="todo-clock-date" id="todo-clock-date">--月--日(-)</span><span class="todo-clock-time" id="todo-clock-time">--:--:--</span></div>
     </div>
 
+    <!-- (7) 時間差計算 -->
+    <div class="page" id="page-timediff">
+      <div class="card">
+        <div class="td-slot-row">
+          <div class="td-slot-label">開始</div>
+          <div class="td-slot-display">
+            <span class="td-unit" id="td-start-h">--</span><span class="td-colon">:</span><span class="td-unit" id="td-start-m">--</span>
+          </div>
+        </div>
+        <div class="td-arrow">↓</div>
+        <div class="td-slot-row">
+          <div class="td-slot-label">終了</div>
+          <div class="td-slot-display">
+            <span class="td-unit" id="td-end-h">--</span><span class="td-colon">:</span><span class="td-unit" id="td-end-m">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="result-box">
+        <small>時間差</small>
+        <span id="td-result-main">-</span>
+        <div class="td-result-sub" id="td-result-sub"></div>
+      </div>
+      <p class="sub">数字をタップで直接入力、上下にドラッグでダイヤルのように調整できます。</p>
+    </div>
+
   </main>
 </div>
 
@@ -830,6 +875,24 @@ select.plain{
   </div>
 </div>
 
+<div class="modal hidden" id="timediff-pad-modal">
+  <div class="modal-overlay" id="timediff-pad-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 14px;font-size:17px;" id="timediff-pad-title">時刻を入力</h2>
+    <div class="todo-time-display-row">
+      <div class="todo-time-display" id="timediff-pad-display">--:--</div>
+      <button type="button" class="todo-time-confirm-btn" id="timediff-pad-confirm-btn">確定</button>
+    </div>
+    <div class="calc-grid todo-time-pad" id="timediff-pad">
+      <button type="button" data-val="1">1</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
+      <button type="button" data-val="4">4</button><button type="button" data-val="5">5</button><button type="button" data-val="6">6</button>
+      <button type="button" data-val="7">7</button><button type="button" data-val="8">8</button><button type="button" data-val="9">9</button>
+      <button type="button" class="fn" data-val="back">⌫</button><button type="button" data-val="0">0</button><button type="button" class="fn" data-val="clear">クリア</button>
+    </div>
+    <button type="button" class="btn-block muted" id="timediff-pad-close-btn">閉じる</button>
+  </div>
+</div>
+
 <script>
 (function(){
 "use strict";
@@ -879,7 +942,8 @@ var MENU_ITEMS = [
   {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
   {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'},
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'},
-  {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'}
+  {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'},
+  {id:'timediff', icon:'⏳', label:'時間差計算',          title:'時間差計算'}
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
 var VISIBLE_KEY = 'namacalc_menu_visible_v1';
@@ -1592,6 +1656,117 @@ document.getElementById('age-reverse-ref-prev-btn').addEventListener('click', fu
 document.getElementById('age-reverse-ref-next-btn').addEventListener('click', function(){
   ageReverseRefDate = shiftDate(ageReverseRefDate, 1); updateAgeReverse();
 });
+
+/* ============ (7) 時間差計算 ============ */
+var timeDiffStartMin = 0;
+var timeDiffEndMin = 0;
+function normalizeMinutes(m){
+  return ((m % 1440) + 1440) % 1440;
+}
+function initTimeDiffDefaults(){
+  var now = new Date();
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  timeDiffStartMin = nowMin;
+  timeDiffEndMin = nowMin;
+}
+function renderTimeDiffSlot(slot){
+  var min = (slot === 'start') ? timeDiffStartMin : timeDiffEndMin;
+  var h = Math.floor(min / 60);
+  var m = min % 60;
+  document.getElementById('td-' + slot + '-h').textContent = pad2(h);
+  document.getElementById('td-' + slot + '-m').textContent = pad2(m);
+}
+function renderTimeDiffResult(){
+  var diff = timeDiffEndMin - timeDiffStartMin;
+  if (diff < 0) diff += 1440;
+  var h = Math.floor(diff / 60);
+  var m = diff % 60;
+  document.getElementById('td-result-main').textContent = h + '時間' + m + '分';
+  document.getElementById('td-result-sub').textContent = '(' + diff + '分)';
+}
+function renderTimeDiffAll(){
+  renderTimeDiffSlot('start');
+  renderTimeDiffSlot('end');
+  renderTimeDiffResult();
+}
+/* 縦ドラッグでダイヤルのように値を増減させる。動きがごく小さければタップとみなし数字入力モーダルを開く */
+function attachTimeDiffDrag(el, slot, stepMinutes){
+  el.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    var startY = e.clientY;
+    var startVal = (slot === 'start') ? timeDiffStartMin : timeDiffEndMin;
+    var moved = false;
+    var PX_PER_STEP = 20;
+    try { el.setPointerCapture(e.pointerId); } catch(err){}
+    function move(ev){
+      var deltaY = startY - ev.clientY;
+      if (Math.abs(deltaY) > 6) moved = true;
+      var steps = Math.round(deltaY / PX_PER_STEP);
+      var newVal = normalizeMinutes(startVal + steps * stepMinutes);
+      if (slot === 'start') timeDiffStartMin = newVal; else timeDiffEndMin = newVal;
+      renderTimeDiffAll();
+    }
+    function up(){
+      try { el.releasePointerCapture(e.pointerId); } catch(err){}
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if (!moved){
+        openTimeDiffPad(slot);
+      }
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+attachTimeDiffDrag(document.getElementById('td-start-h'), 'start', 60);
+attachTimeDiffDrag(document.getElementById('td-start-m'), 'start', 1);
+attachTimeDiffDrag(document.getElementById('td-end-h'), 'end', 60);
+attachTimeDiffDrag(document.getElementById('td-end-m'), 'end', 1);
+
+/* ---- 直接入力モーダル(4桁パッド) ---- */
+var timeDiffPadSlot = null;
+var timeDiffPadBuffer = '';
+function openTimeDiffPad(slot){
+  timeDiffPadSlot = slot;
+  timeDiffPadBuffer = '';
+  document.getElementById('timediff-pad-title').textContent = (slot === 'start' ? '開始時刻' : '終了時刻') + 'を入力';
+  renderTimeDiffPadDisplay();
+  document.getElementById('timediff-pad-modal').classList.remove('hidden');
+}
+function closeTimeDiffPad(){
+  document.getElementById('timediff-pad-modal').classList.add('hidden');
+}
+function renderTimeDiffPadDisplay(){
+  var padded = (timeDiffPadBuffer + '____').slice(0, 4);
+  document.getElementById('timediff-pad-display').textContent = padded.slice(0,2) + ':' + padded.slice(2,4);
+}
+document.getElementById('timediff-pad-close-btn').addEventListener('click', closeTimeDiffPad);
+document.getElementById('timediff-pad-overlay').addEventListener('click', closeTimeDiffPad);
+document.getElementById('timediff-pad-confirm-btn').addEventListener('click', function(){
+  if (timeDiffPadBuffer.length !== 4){
+    showToast('4桁で入力してください');
+    return;
+  }
+  var hh = parseInt(timeDiffPadBuffer.slice(0,2), 10);
+  var mm = parseInt(timeDiffPadBuffer.slice(2,4), 10);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59){
+    showToast('時刻が正しくありません(00:00〜23:59)');
+    return;
+  }
+  var totalMin = hh * 60 + mm;
+  if (timeDiffPadSlot === 'start') timeDiffStartMin = totalMin; else timeDiffEndMin = totalMin;
+  renderTimeDiffAll();
+  closeTimeDiffPad();
+});
+var timeDiffPadButtons = document.querySelectorAll('#timediff-pad button');
+for (var tdp=0; tdp<timeDiffPadButtons.length; tdp++){
+  timeDiffPadButtons[tdp].addEventListener('click', function(){
+    var v = this.dataset.val;
+    if (v === 'clear'){ timeDiffPadBuffer = ''; renderTimeDiffPadDisplay(); return; }
+    if (v === 'back'){ timeDiffPadBuffer = timeDiffPadBuffer.slice(0, -1); renderTimeDiffPadDisplay(); return; }
+    if (timeDiffPadBuffer.length < 4){ timeDiffPadBuffer += v; renderTimeDiffPadDisplay(); }
+  });
+}
 
 /* ============ カレンダーモーダル(共通部品) ============ */
 var calState = {year:2026, month:0, callback:null, selected:null};
@@ -2873,6 +3048,8 @@ loadTodoAll();
 renderTodoTargets();
 renderTodoSequence();
 renderTodoSchedule();
+initTimeDiffDefaults();
+renderTimeDiffAll();
 
 /* ============ PWA: Service Worker登録 ============ */
 if ('serviceWorker' in navigator){
