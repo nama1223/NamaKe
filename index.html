@@ -402,8 +402,20 @@ select.plain{
   font-variant-numeric:tabular-nums;margin-top:10px;color:var(--primary);
 }
 .todo-clock{
-  text-align:center;font-size:40px;font-weight:700;font-family:var(--sans);
-  font-variant-numeric:tabular-nums;color:var(--primary);margin:6px 0 4px;letter-spacing:0.04em;
+  display:flex;align-items:baseline;justify-content:center;gap:0.35em;
+  background:#0a1710;border-radius:var(--radius);
+  padding:10px 12px;margin:6px 0 4px;
+  white-space:nowrap;overflow:hidden;
+  font-size:40px;
+}
+.todo-clock-date{
+  font-size:0.42em;font-weight:600;color:#4dd8a0;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;opacity:0.85;
+}
+.todo-clock-time{
+  font-size:1em;font-weight:700;color:#39f0a8;font-family:var(--sans);
+  font-variant-numeric:tabular-nums;letter-spacing:0.02em;
+  text-shadow:0 0 8px rgba(57,240,168,0.45);
 }
 
 .todo-time-stock{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -412,10 +424,9 @@ select.plain{
   padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:var(--sans);
 }
 .todo-time-stock button.selected{background:var(--accent);color:#fff;}
-.todo-time-stock button.used{background:var(--primary);color:#fff;opacity:0.55;cursor:not-allowed;}
 .todo-time-display-row{display:flex;align-items:center;justify-content:flex-start;gap:10px;margin-bottom:16px;}
 .todo-time-display{
-  flex:1;text-align:left;font-size:34px;font-weight:700;font-family:var(--sans);
+  flex:1;text-align:center;font-size:34px;font-weight:700;font-family:var(--sans);
   font-variant-numeric:tabular-nums;color:var(--primary);letter-spacing:0.04em;
 }
 .todo-time-confirm-btn{
@@ -681,7 +692,7 @@ select.plain{
 
       <div class="todo-schedule-scroll" id="todo-schedule-scroll"></div>
 
-      <div class="todo-clock" id="todo-clock">--:--:--</div>
+      <div class="todo-clock" id="todo-clock"><span class="todo-clock-date" id="todo-clock-date">--月--日(-)</span><span class="todo-clock-time" id="todo-clock-time">--:--:--</span></div>
     </div>
 
   </main>
@@ -881,6 +892,7 @@ function renderPage(id){
   var target = document.getElementById('page-' + id);
   if (!target){ id = 'home'; target = document.getElementById('page-home'); }
   target.classList.add('active');
+  if (id === 'todo') fitTodoClock();
   var backBtn = document.getElementById('btn-back');
   var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
@@ -1995,11 +2007,34 @@ function renderTodoSchedule(){
   });
 }
 function updateTodoClock(){
-  var el = document.getElementById('todo-clock');
-  if (!el) return;
+  var dateEl = document.getElementById('todo-clock-date');
+  var timeEl = document.getElementById('todo-clock-time');
+  if (!dateEl || !timeEl) return;
   var now = new Date();
-  el.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' + pad2(now.getSeconds());
+  dateEl.textContent = (now.getMonth()+1) + '月' + now.getDate() + '日(' + WEEKDAYS[now.getDay()] + ')';
+  timeEl.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' + pad2(now.getSeconds());
 }
+/* 端末の横幅に合わせて、1行に収まる範囲でできるだけ大きく表示する(二分探索) */
+function fitTodoClock(){
+  var el = document.getElementById('todo-clock');
+  if (!el || !el.parentElement) return;
+  var maxWidth = el.parentElement.clientWidth;
+  if (maxWidth <= 0) return;
+  var lo = 14, hi = 80;
+  el.style.fontSize = hi + 'px';
+  if (el.scrollWidth > maxWidth){
+    while (lo < hi){
+      var mid = Math.ceil((lo + hi) / 2);
+      el.style.fontSize = mid + 'px';
+      if (el.scrollWidth <= maxWidth){ lo = mid; } else { hi = mid - 1; }
+    }
+    el.style.fontSize = lo + 'px';
+  }
+}
+window.addEventListener('resize', function(){
+  var page = document.getElementById('page-todo');
+  if (page && page.classList.contains('active')) fitTodoClock();
+});
 /* 表示中は1分ごとにハイライトを再計算し、時計は1秒ごとに更新する */
 setInterval(function(){
   var page = document.getElementById('page-todo');
@@ -2022,13 +2057,11 @@ function openTodoTimeModal(idx, context){
   todoTimeEditIndex = idx;
   todoTimeModalContext = context || 'live';
   todoTimeBuffer = '';
-  todoTimeSelectedStockIds = [];
-  if (idx !== -1){
-    var existing = todoActiveTargetsArray()[idx];
-    if (existing && existing.fromStock && existing.stockId){
-      todoTimeSelectedStockIds = [existing.stockId];
-    }
-  }
+  /* 呼び出したチップだけでなく、現在設定されているストック由来の完了時刻を
+     すべて選択済み状態にして開く(どれでも自由に解除できるようにするため) */
+  todoTimeSelectedStockIds = todoActiveTargetsArray()
+    .filter(function(t){ return t.fromStock && t.stockId; })
+    .map(function(t){ return t.stockId; });
   renderTodoTimeDisplay();
   renderTodoTimeStock();
   document.getElementById('todo-time-modal').classList.remove('hidden');
@@ -2040,35 +2073,20 @@ function renderTodoTimeDisplay(){
   var padded = (todoTimeBuffer + '____').slice(0, 4);
   document.getElementById('todo-time-display').textContent = padded.slice(0,2) + ':' + padded.slice(2,4);
 }
-/* この操作で残り何件までストックを選択できるか(編集中の枠は上書きされる分として数えない) */
+/* ストックを何件まで選択できるか(手入力の枠は据え置きなので、その分を差し引く) */
 function todoTimeRemainingCapacity(){
-  var targetsArr = todoActiveTargetsArray();
-  var baseCount = targetsArr.length - (todoTimeEditIndex !== -1 ? 1 : 0);
-  return Math.max(0, 3 - baseCount);
+  var manualCount = todoActiveTargetsArray().filter(function(t){ return !t.fromStock; }).length;
+  return Math.max(0, 3 - manualCount);
 }
 function renderTodoTimeStock(){
   var box = document.getElementById('todo-time-stock');
   box.innerHTML = '';
-  var targetsArr = todoActiveTargetsArray();
-  var usedStockIds = targetsArr
-    .filter(function(t, i){ return i !== todoTimeEditIndex; })
-    .map(function(t){ return t.stockId; })
-    .filter(function(id){ return !!id; });
   todoTimes.forEach(function(t){
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = t.label ? (t.label + ' - ' + t.time) : t.time;
-    var isUsed = usedStockIds.indexOf(t.id) !== -1;
-    var isSelected = todoTimeSelectedStockIds.indexOf(t.id) !== -1;
-    if (isUsed){
-      btn.classList.add('used');
-    } else if (isSelected){
-      btn.classList.add('selected');
-    }
-    btn.addEventListener('click', function(){
-      if (isUsed) return;
-      toggleTodoTimeStockSelection(t.id);
-    });
+    if (todoTimeSelectedStockIds.indexOf(t.id) !== -1) btn.classList.add('selected');
+    btn.addEventListener('click', function(){ toggleTodoTimeStockSelection(t.id); });
     box.appendChild(btn);
   });
 }
@@ -2113,21 +2131,6 @@ function todoTimeApplyFinish(){
 document.getElementById('todo-time-close-btn').addEventListener('click', closeTodoTimeModal);
 document.getElementById('todo-time-overlay').addEventListener('click', closeTodoTimeModal);
 document.getElementById('todo-time-confirm-btn').addEventListener('click', function(){
-  if (todoTimeSelectedStockIds.length > 0){
-    var targetsArr = todoActiveTargetsArray();
-    if (todoTimeEditIndex !== -1){
-      targetsArr.splice(todoTimeEditIndex, 1);
-    }
-    todoTimeSelectedStockIds.forEach(function(stockId){
-      if (targetsArr.length >= 3) return;
-      var entry = findStockTimeEntryById(stockId);
-      if (!entry) return;
-      targetsArr.push(makeTodoTarget(entry.time, true, entry.id));
-    });
-    targetsArr.sort(function(a,b){ return a.time.localeCompare(b.time); });
-    todoTimeApplyFinish();
-    return;
-  }
   if (todoTimeBuffer.length === 4){
     var hh = parseInt(todoTimeBuffer.slice(0,2), 10);
     var mm = parseInt(todoTimeBuffer.slice(2,4), 10);
@@ -2138,7 +2141,32 @@ document.getElementById('todo-time-confirm-btn').addEventListener('click', funct
     applyTodoTime(pad2(hh) + ':' + pad2(mm), false, null);
     return;
   }
-  showToast('完了時刻をストックから選択するか、4桁で入力してください');
+  if (todoTimeBuffer.length > 0){
+    showToast('4桁で入力してください');
+    return;
+  }
+  if (todoTimeSelectedStockIds.length === 0){
+    showToast('完了時刻をストックから選択するか、4桁で入力してください');
+    return;
+  }
+  /* ストック側の選択内容を反映する。手入力(ストック以外)の枠には一切触れない。 */
+  var targetsArr = todoActiveTargetsArray();
+  for (var i = targetsArr.length - 1; i >= 0; i--){
+    var t = targetsArr[i];
+    if (t.stockId && todoTimeSelectedStockIds.indexOf(t.stockId) === -1){
+      targetsArr.splice(i, 1);
+    }
+  }
+  todoTimeSelectedStockIds.forEach(function(stockId){
+    var already = targetsArr.some(function(t){ return t.stockId === stockId; });
+    if (already) return;
+    if (targetsArr.length >= 3) return;
+    var entry = findStockTimeEntryById(stockId);
+    if (!entry) return;
+    targetsArr.push(makeTodoTarget(entry.time, true, entry.id));
+  });
+  targetsArr.sort(function(a,b){ return a.time.localeCompare(b.time); });
+  todoTimeApplyFinish();
 });
 var todoTimePadButtons = document.querySelectorAll('#todo-time-pad button');
 for (var ttp=0; ttp<todoTimePadButtons.length; ttp++){
