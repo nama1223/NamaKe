@@ -1717,6 +1717,15 @@ function attachTimeDiffDrag(el, slot, stepMinutes){
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
   });
+  /* マウスホイールでも増減できるようにする(上スクロールで増加、下スクロールで減少) */
+  el.addEventListener('wheel', function(e){
+    e.preventDefault();
+    var dir = e.deltaY < 0 ? 1 : -1;
+    var curVal = (slot === 'start') ? timeDiffStartMin : timeDiffEndMin;
+    var newVal = normalizeMinutes(curVal + dir * stepMinutes);
+    if (slot === 'start') timeDiffStartMin = newVal; else timeDiffEndMin = newVal;
+    renderTimeDiffAll();
+  }, {passive: false});
 }
 attachTimeDiffDrag(document.getElementById('td-start-h'), 'start', 60);
 attachTimeDiffDrag(document.getElementById('td-start-m'), 'start', 1);
