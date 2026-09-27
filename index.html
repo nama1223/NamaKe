@@ -1990,20 +1990,60 @@ var todoAlarmEnabled = loadJSON(TODO_ALARM_ENABLED_KEY, false);
 var todoAlarmSounds = loadJSON(TODO_ALARM_SOUND_KEY, ['todo1', 'todo2', 'todo3']);
 var todoAlarmChannelsReady = false;
 
+/* ---- ガワ(親ページ)とのpostMessage通信 ----
+   APK側は「ローカルの固定ページ」の中にこのアプリをiframeで表示する構成。
+   window.Capacitorは親ページ側にしか存在しないため、
+   通知まわりの操作はすべて親ページへメッセージでお願いする。 */
+var nativeBridgeConfirmed = false;
+var nativeBridgeMsgSeq = 0;
+var nativeBridgePending = {};
+
+function isInIframe(){
+  try { return window.self !== window.top; } catch(e){ return true; }
+}
 function isApkPlatform(){
-  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  return nativeBridgeConfirmed;
 }
-function getLocalNotifPlugin(){
-  return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.LocalNotifications : null;
+function callNativeBridge(cmd, args){
+  return new Promise(function(resolve, reject){
+    if (!isInIframe() || !window.parent){ reject('not embedded in native shell'); return; }
+    var id = 'nb' + (++nativeBridgeMsgSeq);
+    nativeBridgePending[id] = {resolve: resolve, reject: reject};
+    window.parent.postMessage({__namaBridgeCall: true, id: id, cmd: cmd, args: args}, '*');
+    setTimeout(function(){
+      if (nativeBridgePending[id]){
+        delete nativeBridgePending[id];
+        reject('timeout: ' + cmd);
+      }
+    }, 8000);
+  });
 }
+window.addEventListener('message', function(ev){
+  var msg = ev.data;
+  if (!msg || !msg.__namaBridge) return;
+  var pending = nativeBridgePending[msg.id];
+  if (!pending) return;
+  delete nativeBridgePending[msg.id];
+  if (msg.ok) pending.resolve(msg.data); else pending.reject(msg.error);
+});
+/* 起動時に一度だけ、本当に「ガワ」に包まれているか(ping応答があるか)を確認する */
+function confirmNativeBridge(){
+  if (!isInIframe()) return Promise.resolve(false);
+  return callNativeBridge('ping', {}).then(function(){
+    nativeBridgeConfirmed = true;
+    return true;
+  }).catch(function(){
+    nativeBridgeConfirmed = false;
+    return false;
+  });
+}
+
 function soundChannelId(soundId){ return 'todo_' + soundId; }
 
 function ensureTodoAlarmChannels(){
-  var ln = getLocalNotifPlugin();
-  if (!ln) return Promise.resolve();
   if (todoAlarmChannelsReady) return Promise.resolve();
   var tasks = ALARM_SOUND_OPTIONS.map(function(opt){
-    return ln.createChannel({
+    return callNativeBridge('createChannel', {
       id: soundChannelId(opt.id),
       name: '逆算ToDo通知(' + opt.label + ')',
       description: '逆算ToDoで設定した時刻をお知らせします',
@@ -2017,11 +2057,9 @@ function ensureTodoAlarmChannels(){
 }
 
 function requestTodoAlarmPermission(){
-  var ln = getLocalNotifPlugin();
-  if (!ln) return Promise.resolve(false);
-  return ln.checkPermissions().then(function(res){
+  return callNativeBridge('checkPermissions', {}).then(function(res){
     if (res && res.display === 'granted') return true;
-    return ln.requestPermissions().then(function(res2){ return !!(res2 && res2.display === 'granted'); });
+    return callNativeBridge('requestPermissions', {}).then(function(res2){ return !!(res2 && res2.display === 'granted'); });
   }).catch(function(){ return false; });
 }
 
@@ -2063,11 +2101,9 @@ function computeTodoAlarmEvents(){
 /* 現在の予定に合わせて、予約済み通知をすべて取り消してから再予約する */
 function syncTodoAlarms(){
   if (!isApkPlatform()) return;
-  var ln = getLocalNotifPlugin();
-  if (!ln) return;
   var prevIds = loadJSON(TODO_ALARM_SCHEDULED_KEY, []);
   var cancelP = prevIds.length
-    ? ln.cancel({notifications: prevIds.map(function(id){ return {id: id}; })}).catch(function(){})
+    ? callNativeBridge('cancel', {notifications: prevIds.map(function(id){ return {id: id}; })}).catch(function(){})
     : Promise.resolve();
   cancelP.then(function(){
     if (!todoAlarmEnabled){
@@ -2089,7 +2125,7 @@ function syncTodoAlarms(){
       });
       saveJSON(TODO_ALARM_SCHEDULED_KEY, notifs.map(function(n){ return n.id; }));
       if (notifs.length === 0) return Promise.resolve();
-      return ln.schedule({notifications: notifs});
+      return callNativeBridge('schedule', {notifications: notifs});
     });
   }).catch(function(e){ console.warn('アラーム予約に失敗しました:', e); });
 }
@@ -3258,8 +3294,10 @@ updateAgeReverse();
 loadTodoAll();
 renderTodoTargets();
 renderTodoSequence();
-renderTodoAlarmBox();
-syncTodoAlarms();
+confirmNativeBridge().then(function(){
+  renderTodoAlarmBox();
+  syncTodoAlarms();
+});
 renderTodoSchedule();
 initTimeDiffDefaults();
 renderTimeDiffAll();
