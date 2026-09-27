@@ -267,6 +267,13 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 }
 .settings-toggle-row:last-child{border-bottom:none;}
 .settings-toggle-row input{width:18px;height:18px;flex-shrink:0;}
+.todo-alarm-box{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+.todo-alarm-box.hidden{display:none;}
+.todo-alarm-box .settings-toggle-row{padding:6px 0;}
+.todo-alarm-sound-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;}
+.todo-alarm-sound-row .lbl2{flex-shrink:0;color:#666;}
+.todo-alarm-sound-row select{flex:1;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
+.todo-alarm-hint{font-size:11px;color:#999;margin-top:4px;line-height:1.5;}
 
 /* ---------- 年計算機 ---------- */
 .era-result{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.9;}
@@ -706,6 +713,15 @@ select.plain{
           <div class="todo-targets-line">
             <span class="lbl">完了予定時刻</span>
             <div class="todo-targets-row" id="todo-targets-row"></div>
+          </div>
+
+          <div class="todo-alarm-box hidden" id="todo-alarm-box">
+            <label class="settings-toggle-row">
+              <input type="checkbox" id="todo-alarm-enable-cb">
+              <span>🔔 予定時刻に通知・バイブでお知らせ（APK版のみ）</span>
+            </label>
+            <div id="todo-alarm-sound-selects"></div>
+            <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
           </div>
         </div>
       </div>
@@ -1925,6 +1941,7 @@ function loadTodoAll(){
 }
 function saveTodoCurrent(){
   saveJSON(TODO_CURRENT_KEY, {sequence: todoSequence, targets: todoTargets});
+  syncTodoAlarms();
 }
 function findAction(id){
   for (var i=0;i<todoActions.length;i++){ if (todoActions[i].id === id) return todoActions[i]; }
@@ -1951,6 +1968,191 @@ function computeSchedule(sequence, targetStr){
   }
   return results;
 }
+
+/* ============ APK版限定: 逆算ToDoアラーム通知 ============
+   ・res/raw に todo1.wav / todo2.wav / todo3.wav を配置しておく前提
+   ・completion予定時刻の早い順(1〜3個目)ごとに音を選べる
+   ・同時刻(分単位)に複数の予定が重なったら、鳴り終わりを待って0.5秒空けて順に鳴らす
+*/
+var TODO_ALARM_ENABLED_KEY = 'namacalc_todo_alarm_enabled_v1';
+var TODO_ALARM_SOUND_KEY = 'namacalc_todo_alarm_sound_v1';
+var TODO_ALARM_SCHEDULED_KEY = 'namacalc_todo_alarm_scheduled_ids_v1';
+var ALARM_SOUND_OPTIONS = [
+  {id: 'todo1', label: '音A（ピロピロ↑と3連）'},
+  {id: 'todo2', label: '音B（ポン・ポーン）'},
+  {id: 'todo3', label: '音C（コロコロン↑）'}
+];
+var ALARM_SOUND_MS = 750;  /* 3種とも共通の再生時間(ms) */
+var ALARM_GAP_MS = 500;    /* 重なった時に空ける間隔=R4(ms) */
+var ALARM_NOTIF_ID_BASE = 90000;
+
+var todoAlarmEnabled = loadJSON(TODO_ALARM_ENABLED_KEY, false);
+var todoAlarmSounds = loadJSON(TODO_ALARM_SOUND_KEY, ['todo1', 'todo2', 'todo3']);
+var todoAlarmChannelsReady = false;
+
+function isApkPlatform(){
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+function getLocalNotifPlugin(){
+  return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.LocalNotifications : null;
+}
+function soundChannelId(soundId){ return 'todo_' + soundId; }
+
+function ensureTodoAlarmChannels(){
+  var ln = getLocalNotifPlugin();
+  if (!ln) return Promise.resolve();
+  if (todoAlarmChannelsReady) return Promise.resolve();
+  var tasks = ALARM_SOUND_OPTIONS.map(function(opt){
+    return ln.createChannel({
+      id: soundChannelId(opt.id),
+      name: '逆算ToDo通知(' + opt.label + ')',
+      description: '逆算ToDoで設定した時刻をお知らせします',
+      sound: opt.id + '.wav',
+      importance: 5,
+      visibility: 1,
+      vibration: true
+    }).catch(function(e){ console.warn('通知チャンネル作成に失敗:', opt.id, e); });
+  });
+  return Promise.all(tasks).then(function(){ todoAlarmChannelsReady = true; });
+}
+
+function requestTodoAlarmPermission(){
+  var ln = getLocalNotifPlugin();
+  if (!ln) return Promise.resolve(false);
+  return ln.checkPermissions().then(function(res){
+    if (res && res.display === 'granted') return true;
+    return ln.requestPermissions().then(function(res2){ return !!(res2 && res2.display === 'granted'); });
+  }).catch(function(){ return false; });
+}
+
+/* 今設定されているtodoSequence/todoTargetsから、今後鳴らすべき通知の一覧を計算する。
+   colIdx(0始まり)=完了予定時刻の早い順。3件を超える分は音を割り当てないので無視。 */
+function computeTodoAlarmEvents(){
+  var now = new Date();
+  var events = [];
+  todoTargets.forEach(function(target, colIdx){
+    if (colIdx > 2) return;
+    var schedule = computeSchedule(todoSequence, target.time);
+    schedule.forEach(function(item){
+      if (item.start > now){
+        events.push({colIdx: colIdx, time: item.start, name: item.name});
+      }
+    });
+  });
+  var groups = {};
+  var order = [];
+  events.forEach(function(ev){
+    var key = String(ev.time.getTime());
+    if (!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(ev);
+  });
+  order.sort(function(a,b){ return parseInt(a,10) - parseInt(b,10); });
+  var finalList = [];
+  order.forEach(function(key){
+    var group = groups[key];
+    group.sort(function(a,b){ return a.colIdx - b.colIdx; }); /* 開始時刻が早いToDo=colIdx小を先に */
+    var offset = 0;
+    group.forEach(function(ev){
+      finalList.push({colIdx: ev.colIdx, name: ev.name, fireAt: new Date(ev.time.getTime() + offset)});
+      offset += ALARM_SOUND_MS + ALARM_GAP_MS;
+    });
+  });
+  return finalList;
+}
+
+/* 現在の予定に合わせて、予約済み通知をすべて取り消してから再予約する */
+function syncTodoAlarms(){
+  if (!isApkPlatform()) return;
+  var ln = getLocalNotifPlugin();
+  if (!ln) return;
+  var prevIds = loadJSON(TODO_ALARM_SCHEDULED_KEY, []);
+  var cancelP = prevIds.length
+    ? ln.cancel({notifications: prevIds.map(function(id){ return {id: id}; })}).catch(function(){})
+    : Promise.resolve();
+  cancelP.then(function(){
+    if (!todoAlarmEnabled){
+      saveJSON(TODO_ALARM_SCHEDULED_KEY, []);
+      return Promise.resolve();
+    }
+    return ensureTodoAlarmChannels().then(function(){
+      var events = computeTodoAlarmEvents();
+      var notifs = events.map(function(ev, i){
+        var soundId = todoAlarmSounds[ev.colIdx] || ALARM_SOUND_OPTIONS[ev.colIdx % 3].id;
+        return {
+          id: ALARM_NOTIF_ID_BASE + i,
+          title: 'Nama計算機 逆算ToDo',
+          body: ev.name + 'の時間です',
+          schedule: {at: ev.fireAt, allowWhileIdle: true},
+          channelId: soundChannelId(soundId),
+          sound: soundId + '.wav'
+        };
+      });
+      saveJSON(TODO_ALARM_SCHEDULED_KEY, notifs.map(function(n){ return n.id; }));
+      if (notifs.length === 0) return Promise.resolve();
+      return ln.schedule({notifications: notifs});
+    });
+  }).catch(function(e){ console.warn('アラーム予約に失敗しました:', e); });
+}
+
+function renderTodoAlarmBox(){
+  var box = document.getElementById('todo-alarm-box');
+  if (!isApkPlatform()){
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  var cb = document.getElementById('todo-alarm-enable-cb');
+  cb.checked = todoAlarmEnabled;
+  var selectsBox = document.getElementById('todo-alarm-sound-selects');
+  selectsBox.innerHTML = '';
+  for (var i = 0; i < 3; i++){
+    (function(slotIdx){
+      var row = document.createElement('div');
+      row.className = 'todo-alarm-sound-row';
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl2';
+      lbl.textContent = (slotIdx + 1) + '個目:';
+      var sel = document.createElement('select');
+      ALARM_SOUND_OPTIONS.forEach(function(opt){
+        var o = document.createElement('option');
+        o.value = opt.id;
+        o.textContent = opt.label;
+        if ((todoAlarmSounds[slotIdx] || 'todo' + (slotIdx+1)) === opt.id) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', function(){
+        todoAlarmSounds[slotIdx] = sel.value;
+        saveJSON(TODO_ALARM_SOUND_KEY, todoAlarmSounds);
+        todoAlarmChannelsReady = false; /* 新しい組み合わせ用に再登録させる */
+        syncTodoAlarms();
+      });
+      row.appendChild(lbl);
+      row.appendChild(sel);
+      selectsBox.appendChild(row);
+    })(i);
+  }
+}
+document.getElementById('todo-alarm-enable-cb').addEventListener('change', function(){
+  var cb = this;
+  if (cb.checked){
+    requestTodoAlarmPermission().then(function(granted){
+      if (!granted){
+        showToast('通知が許可されていません。端末の設定から許可してください');
+        cb.checked = false;
+        return;
+      }
+      todoAlarmEnabled = true;
+      saveJSON(TODO_ALARM_ENABLED_KEY, true);
+      syncTodoAlarms();
+      showToast('通知アラームをONにしました');
+    });
+  } else {
+    todoAlarmEnabled = false;
+    saveJSON(TODO_ALARM_ENABLED_KEY, false);
+    syncTodoAlarms();
+    showToast('通知アラームをOFFにしました');
+  }
+});
 
 /* ---- 「すること」リスト表示(ドラッグ並べ替え対応) ---- */
 function renderTodoSequence(){
@@ -3056,6 +3258,8 @@ updateAgeReverse();
 loadTodoAll();
 renderTodoTargets();
 renderTodoSequence();
+renderTodoAlarmBox();
+syncTodoAlarms();
 renderTodoSchedule();
 initTimeDiffDefaults();
 renderTimeDiffAll();
