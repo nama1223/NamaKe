@@ -1983,7 +1983,7 @@ var ALARM_SOUND_OPTIONS = [
   {id: 'todo3', label: '音C（コロコロン↑）'}
 ];
 var ALARM_SOUND_MS = 750;  /* 3種とも共通の再生時間(ms) */
-var ALARM_GAP_MS = 500;    /* 重なった時に空ける間隔=R4(ms) */
+var ALARM_GAP_MS = 3000;   /* 重なった時に空ける間隔(ms)。音の再生が割り込まれないよう余裕を持たせている */
 var ALARM_NOTIF_ID_BASE = 90000;
 
 var todoAlarmEnabled = loadJSON(TODO_ALARM_ENABLED_KEY, false);
@@ -2073,7 +2073,7 @@ function computeTodoAlarmEvents(){
     var schedule = computeSchedule(todoSequence, target.time);
     schedule.forEach(function(item){
       if (item.start > now){
-        events.push({colIdx: colIdx, time: item.start, name: item.name});
+        events.push({colIdx: colIdx, time: item.start, name: item.name, label: target.label});
       }
     });
   });
@@ -2091,7 +2091,7 @@ function computeTodoAlarmEvents(){
     group.sort(function(a,b){ return a.colIdx - b.colIdx; }); /* 開始時刻が早いToDo=colIdx小を先に */
     var offset = 0;
     group.forEach(function(ev){
-      finalList.push({colIdx: ev.colIdx, name: ev.name, fireAt: new Date(ev.time.getTime() + offset)});
+      finalList.push({colIdx: ev.colIdx, name: ev.name, label: ev.label, fireAt: new Date(ev.time.getTime() + offset)});
       offset += ALARM_SOUND_MS + ALARM_GAP_MS;
     });
   });
@@ -2117,7 +2117,7 @@ function syncTodoAlarms(){
         return {
           id: ALARM_NOTIF_ID_BASE + i,
           title: 'Nama計算機 逆算ToDo',
-          body: ev.name + 'の時間です',
+          body: (ev.label || '無題') + ' - ' + ev.name,
           schedule: {at: ev.fireAt, allowWhileIdle: true},
           channelId: soundChannelId(soundId),
           sound: soundId + '.wav'
