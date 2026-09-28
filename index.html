@@ -300,6 +300,9 @@ select.plain{
 .modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;}
 .modal.modal-top{z-index:650;}
 .modal.hidden{display:none;}
+/* 「行動・完了時刻の管理」はタブごとに高さが違うので、上端を固定してタブバーの位置がぶれないようにする */
+#todo-manage-modal{align-items:flex-start;padding-top:24px;box-sizing:border-box;}
+#todo-manage-modal .modal-box{max-height:calc(100vh - 48px);}
 .modal-overlay{position:absolute;inset:0;background:rgba(15,20,30,0.5);}
 .modal-box{
   position:relative;background:#fff;border-radius:18px;
@@ -832,6 +835,18 @@ select.plain{
     <h2 id="todo-picker-title" style="margin:0 0 14px;font-size:17px;"></h2>
     <div id="todo-picker-list"></div>
     <button type="button" class="btn-block muted" id="todo-picker-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal modal-top hidden" id="todo-label-modal">
+  <div class="modal-overlay" id="todo-label-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 12px;font-size:17px;">ラベルを入力</h2>
+    <input type="text" id="todo-label-input" maxlength="40" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button type="button" class="btn-block muted" id="todo-label-cancel" style="margin-top:0;">キャンセル</button>
+      <button type="button" class="btn-block" id="todo-label-ok" style="margin-top:0;">OK</button>
+    </div>
   </div>
 </div>
 
@@ -2252,6 +2267,11 @@ function buildTodoScheduleSummaryText(){
   });
   return lines.join('\n');
 }
+/* 折りたたみ時に見える1行: 各ターゲットのラベルと完了時刻 */
+function buildTodoScheduleHeadline(){
+  return todoTargets.map(function(t){ return (t.label || '無題') + ' ' + t.time + '完了'; }).join(' / ');
+}
+var todoPersistentLastSync = 0;
 function syncTodoPersistentNotif(){
   if (!isApkPlatform()) return;
   if (!todoPersistentEnabled){
@@ -2263,18 +2283,39 @@ function syncTodoPersistentNotif(){
     callNativeBridge('cancel', {notifications: [{id: TODO_PERSISTENT_NOTIF_ID}]}).catch(function(){});
     return;
   }
+  todoPersistentLastSync = Date.now();
   ensureTodoPersistentChannel().then(function(){
+    /* schedule(予約時刻)を付けないと、即座に表示される。
+       largeBody を付けると、通知を開いた時に全行が複数行で表示される。 */
     return callNativeBridge('schedule', {notifications: [{
       id: TODO_PERSISTENT_NOTIF_ID,
       title: '逆算ToDo スケジュール',
-      body: text,
-      schedule: {at: new Date(Date.now() + 300)},
+      body: buildTodoScheduleHeadline(),
+      largeBody: text,
       channelId: TODO_PERSISTENT_CHANNEL_ID,
       ongoing: true,
       autoCancel: false
     }]});
   }).catch(function(e){ console.warn('常時通知の更新に失敗:', e); });
 }
+/* 通知をスワイプで消された/タップで消えた後でも、アプリに戻った時に再表示する。
+   (Android 14以降は、アプリ側で「消せない通知」にすることはできない仕様のため、この方法で補う) */
+function resyncTodoPersistentSoon(force){
+  if (!force && Date.now() - todoPersistentLastSync < 3000) return;
+  syncTodoPersistentNotif();
+}
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) resyncTodoPersistentSoon(false);
+});
+window.addEventListener('message', function(ev){
+  var msg = ev.data;
+  if (!msg) return;
+  if (msg.__namaBridgeNotifTap){
+    if (msg.id === TODO_PERSISTENT_NOTIF_ID) resyncTodoPersistentSoon(true);
+  } else if (msg.__namaBridgeResume){
+    resyncTodoPersistentSoon(false);
+  }
+});
 document.getElementById('todo-persistent-enable-cb').addEventListener('change', function(){
   todoPersistentEnabled = this.checked;
   saveJSON(TODO_PERSISTENT_ENABLED_KEY, todoPersistentEnabled);
@@ -2470,14 +2511,35 @@ function todoColumnTones(count){
   if (count === 2) return ['tone-blue', 'tone-red'];
   return ['tone-blue', 'tone-green', 'tone-red'];
 }
+/* ラベル編集: 端末標準のprompt()はアプリ切り替え時にOS側で破棄されてしまうため、
+   アプリ内の入力ウィンドウ(DOM)で行う。他アプリを見て戻っても開いたまま残る。 */
+var todoLabelEditTarget = null;
 function renameTodoTarget(target){
-  var current = target.label === '無題' ? '' : target.label;
-  var newLabel = window.prompt('ラベルを入力してください', current);
-  if (newLabel === null) return;
-  target.label = newLabel.trim() === '' ? '無題' : newLabel.trim();
+  todoLabelEditTarget = target;
+  var input = document.getElementById('todo-label-input');
+  input.value = target.label === '無題' ? '' : target.label;
+  document.getElementById('todo-label-modal').classList.remove('hidden');
+  setTimeout(function(){ input.focus(); input.select(); }, 60);
+}
+function closeTodoLabelModal(){
+  document.getElementById('todo-label-modal').classList.add('hidden');
+  todoLabelEditTarget = null;
+}
+function commitTodoLabel(){
+  var target = todoLabelEditTarget;
+  if (!target){ closeTodoLabelModal(); return; }
+  var v = document.getElementById('todo-label-input').value.trim();
+  target.label = v === '' ? '無題' : v;
+  closeTodoLabelModal();
   saveTodoCurrent();
   renderTodoSchedule();
 }
+document.getElementById('todo-label-ok').addEventListener('click', commitTodoLabel);
+document.getElementById('todo-label-cancel').addEventListener('click', closeTodoLabelModal);
+document.getElementById('todo-label-overlay').addEventListener('click', closeTodoLabelModal);
+document.getElementById('todo-label-input').addEventListener('keydown', function(e){
+  if (e.key === 'Enter'){ e.preventDefault(); commitTodoLabel(); }
+});
 function renderTodoSchedule(){
   var container = document.getElementById('todo-schedule-scroll');
   container.innerHTML = '';
