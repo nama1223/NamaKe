@@ -301,7 +301,7 @@ select.plain{
 .modal.modal-top{z-index:650;}
 .modal.hidden{display:none;}
 /* 「行動・完了時刻の管理」はタブごとに高さが違うので、上端を固定してタブバーの位置がぶれないようにする */
-#todo-manage-modal{align-items:flex-start;padding-top:24px;box-sizing:border-box;}
+#todo-manage-modal{align-items:flex-start;padding-top:calc(24px + env(safe-area-inset-top, 0px));box-sizing:border-box;}
 #todo-manage-modal .modal-box{max-height:calc(100vh - 48px);}
 .modal-overlay{position:absolute;inset:0;background:rgba(15,20,30,0.5);}
 .modal-box{
@@ -724,12 +724,17 @@ select.plain{
               <input type="checkbox" id="todo-alarm-enable-cb">
               <span>🔔 予定時刻に通知・バイブでお知らせ（APK版のみ）</span>
             </label>
+            <label class="settings-toggle-row">
+              <input type="checkbox" id="todo-alarm-sound-cb" checked>
+              <span>🔊 アラーム音を鳴らす（OFFならバイブと表示のみ）</span>
+            </label>
             <div id="todo-alarm-sound-selects"></div>
             <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
             <label class="settings-toggle-row">
               <input type="checkbox" id="todo-persistent-enable-cb">
               <span>📌 通知エリアにスケジュールを常時表示（音は鳴りません）</span>
             </label>
+            <div class="todo-alarm-hint" id="todo-shell-info"></div>
           </div>
         </div>
       </div>
@@ -1999,13 +2004,20 @@ var TODO_ALARM_ENABLED_KEY = 'namacalc_todo_alarm_enabled_v1';
 var TODO_ALARM_SOUND_KEY = 'namacalc_todo_alarm_sound_v1';
 var TODO_ALARM_SCHEDULED_KEY = 'namacalc_todo_alarm_scheduled_ids_v1';
 var ALARM_SOUND_OPTIONS = [
-  {id: 'todo1', label: '音A（ピロピロ↑と3連）'},
-  {id: 'todo2', label: '音B（ポン・ポーン）'},
-  {id: 'todo3', label: '音C（コロコロン↑）'}
+  {id: 'todo1', label: '音A (C↑C↓C)'},
+  {id: 'todo2', label: '音B (CG～)'},
+  {id: 'todo3', label: '音C (CEbG～)'}
 ];
 var ALARM_SOUND_MS = 750;  /* 3種とも共通の再生時間(ms) */
 var ALARM_GAP_MS = 3000;   /* 重なった時に空ける間隔(ms)。音の再生が割り込まれないよう余裕を持たせている */
 var ALARM_NOTIF_ID_BASE = 90000;
+/* 「アラーム音を鳴らす」設定(初期値ON)。OFFの時は無音のチャンネルを使い、バイブと通知表示のみになる */
+var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
+var TODO_ALARM_SILENT_CHANNEL_ID = 'todo_silent';
+var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
+/* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
+var REQUIRED_SHELL_VERSION = 4;
+var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
    (同じIDを短時間で使い回すと、端末側の状態と噛み合わず音が鳴らないことがあるための対策) */
@@ -2072,8 +2084,9 @@ window.addEventListener('message', function(ev){
 /* 起動時に一度だけ、本当に「ガワ」に包まれているか(ping応答があるか)を確認する */
 function confirmNativeBridge(){
   if (!isInIframe()) return Promise.resolve(false);
-  return callNativeBridge('ping', {}).then(function(){
+  return callNativeBridge('ping', {}).then(function(res){
     nativeBridgeConfirmed = true;
+    if (res && res.info) nativeShellInfo = res.info;
     return true;
   }).catch(function(){
     nativeBridgeConfirmed = false;
@@ -2096,6 +2109,16 @@ function ensureTodoAlarmChannels(){
       vibration: true
     }).catch(function(e){ console.warn('通知チャンネル作成に失敗:', opt.id, e); });
   });
+  /* 音を鳴らさない設定用のチャンネル(無音のwavを指定。バイブと通知表示だけ行う) */
+  tasks.push(callNativeBridge('createChannel', {
+    id: TODO_ALARM_SILENT_CHANNEL_ID,
+    name: '逆算ToDo通知(音なし・バイブのみ)',
+    description: '音を鳴らさず、バイブと表示だけでお知らせします',
+    sound: 'silent.wav',
+    importance: 5,
+    visibility: 1,
+    vibration: true
+  }).catch(function(e){ console.warn('無音チャンネル作成に失敗:', e); }));
   return Promise.all(tasks).then(function(){ todoAlarmChannelsReady = true; });
 }
 
@@ -2163,8 +2186,8 @@ function syncTodoAlarms(){
           title: 'Nama計算機 逆算ToDo',
           body: timeStr + ' ' + (ev.label || '無題') + ' - ' + ev.name,
           schedule: {at: ev.fireAt, allowWhileIdle: true},
-          channelId: soundChannelId(soundId),
-          sound: soundId + '.wav'
+          channelId: todoAlarmSoundOn ? soundChannelId(soundId) : TODO_ALARM_SILENT_CHANNEL_ID,
+          sound: todoAlarmSoundOn ? (soundId + '.wav') : 'silent.wav'
         };
       });
       saveJSON(TODO_ALARM_SCHEDULED_KEY, notifs.map(function(n){ return n.id; }));
@@ -2183,6 +2206,7 @@ function renderTodoAlarmBox(){
   box.classList.remove('hidden');
   var cb = document.getElementById('todo-alarm-enable-cb');
   cb.checked = todoAlarmEnabled;
+  document.getElementById('todo-alarm-sound-cb').checked = todoAlarmSoundOn;
   var selectsBox = document.getElementById('todo-alarm-sound-selects');
   selectsBox.innerHTML = '';
   for (var i = 0; i < 3; i++){
@@ -2211,7 +2235,49 @@ function renderTodoAlarmBox(){
       selectsBox.appendChild(row);
     })(i);
   }
+  updateAlarmSoundSelectsDisabled();
   document.getElementById('todo-persistent-enable-cb').checked = todoPersistentEnabled;
+  renderShellInfo();
+  refreshShellInfo();
+}
+function updateAlarmSoundSelectsDisabled(){
+  var sels = document.getElementById('todo-alarm-sound-selects').querySelectorAll('select');
+  for (var i = 0; i < sels.length; i++){ sels[i].disabled = !todoAlarmSoundOn; }
+}
+document.getElementById('todo-alarm-sound-cb').addEventListener('change', function(){
+  todoAlarmSoundOn = this.checked;
+  saveJSON(TODO_ALARM_SOUND_ON_KEY, todoAlarmSoundOn);
+  updateAlarmSoundSelectsDisabled();
+  syncTodoAlarms();
+  showToast(todoAlarmSoundOn ? 'アラーム音をONにしました' : 'アラーム音をOFFにしました(バイブと表示のみ)');
+});
+
+/* ガワ(APK側の固定ページ)のバージョン・余白などの状態表示。
+   ガワが古い時に「何を更新すべきか」を画面上で分かるようにする。 */
+function renderShellInfo(){
+  var el = document.getElementById('todo-shell-info');
+  if (!el) return;
+  var info = nativeShellInfo;
+  if (!info || !info.version){
+    el.textContent = 'ガワ: 旧版です（www/index.htmlの更新とAPKの再ビルドが必要）';
+    el.style.color = '#c0392b';
+    return;
+  }
+  var txt = 'ガワ v' + info.version + ' / 上余白 ' + info.top + (info.cssVar ? '(変数' + info.cssVar + ')' : '') +
+    ' / SystemBars ' + (info.systemBars ? '○' : '×') + ' App ' + (info.app ? '○' : '×') + ' 通知 ' + (info.notif ? '○' : '×');
+  if (info.version < REQUIRED_SHELL_VERSION){
+    txt += ' — ガワの更新が必要です';
+    el.style.color = '#c0392b';
+  } else {
+    el.style.color = '';
+  }
+  el.textContent = txt;
+}
+function refreshShellInfo(){
+  callNativeBridge('info', {}).then(function(res){
+    nativeShellInfo = res;
+    renderShellInfo();
+  }).catch(function(){ renderShellInfo(); });
 }
 document.getElementById('todo-alarm-enable-cb').addEventListener('change', function(){
   var cb = this;
