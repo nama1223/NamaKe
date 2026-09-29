@@ -163,6 +163,14 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   line-height:1.6;
 }
 .result-box small{display:block;font-size:12.5px;font-weight:400;opacity:0.75;font-family:var(--sans);margin-bottom:2px;}
+.result-box-head{display:flex;align-items:baseline;justify-content:center;gap:8px;}
+.result-box-head small{display:inline;margin-bottom:0;}
+.radio-inline-label{width:auto !important;flex-shrink:0;display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);}
+.mini-calendar-inline{
+  margin-top:12px;background:var(--surface);color:var(--ink);
+  border-radius:var(--radius-sm);padding:12px;text-align:left;
+  font-family:var(--sans);font-weight:400;line-height:normal;
+}
 
 /* ---------- 電卓 ---------- */
 .calc-display{
@@ -235,7 +243,16 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);
   padding:0 18px;font-size:15px;cursor:pointer;
 }
-#expense-list{margin-bottom:14px;max-height:220px;overflow-y:auto;}
+#expense-list{margin-bottom:14px;max-height:320px;overflow-y:auto;}
+.expense-row-live{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 0;
+}
+.expense-row-live .expense-live-input{
+  flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 10px;font-size:15px;font-family:var(--sans);font-variant-numeric:tabular-nums;
+}
+.expense-row-live span{color:var(--ink-sub);font-size:13px;flex-shrink:0;}
 .expense-row{
   display:flex;justify-content:space-between;align-items:center;
   padding:9px 4px;border-bottom:1px solid var(--border);
@@ -594,29 +611,42 @@ select.plain{
 
     <!-- (2) 日数計算機 -->
     <div class="page" id="page-days">
+      <p class="sub">基準日から見て何日前、または何日後の日付を計算し、カレンダーにも表示します。</p>
       <div class="card">
         <div class="field-row">
           <label>基準日</label>
           <button class="date-nav" id="days-base-prev-btn" type="button">◀</button>
           <span class="date-display" id="days-base-display">-</span>
           <button class="date-nav" id="days-base-next-btn" type="button">▶</button>
-          <button class="cal-btn" id="days-cal-btn" type="button">📅</button>
         </div>
+        <div class="cal-header">
+          <select id="days-cal-year-select"></select>
+          <select id="days-cal-month-select">
+            <option value="0">1月</option><option value="1">2月</option><option value="2">3月</option>
+            <option value="3">4月</option><option value="4">5月</option><option value="5">6月</option>
+            <option value="6">7月</option><option value="7">8月</option><option value="8">9月</option>
+            <option value="9">10月</option><option value="10">11月</option><option value="11">12月</option>
+          </select>
+        </div>
+        <div class="cal-grid" id="days-cal-grid"></div>
+      </div>
+      <div class="card">
         <div class="field-row">
           <label>日数</label>
-          <input type="number" id="days-input" value="180" min="0" inputmode="numeric">
-        </div>
-        <div class="radio-group">
-          <label><input type="radio" name="days-dir" value="before"> 前</label>
-          <label><input type="radio" name="days-dir" value="after" checked> 後</label>
+          <input type="number" id="days-input" value="180" min="0" inputmode="numeric" style="flex:1;min-width:0;">
+          <label class="radio-inline-label"><input type="radio" name="days-dir" value="before"> 前</label>
+          <label class="radio-inline-label"><input type="radio" name="days-dir" value="after" checked> 後</label>
         </div>
       </div>
-      <div class="result-box"><small>結果</small><span id="days-result">-</span></div>
-      <div class="mini-calendar" id="days-mini-cal"></div>
+      <div class="result-box">
+        <div class="result-box-head"><small>結果</small><span id="days-result">-</span></div>
+        <div class="mini-calendar-inline" id="days-mini-cal"></div>
+      </div>
     </div>
 
     <!-- (3) 予算収支計算機 -->
     <div class="page" id="page-budget">
+      <p class="sub">最初に予算を設定し、出費を一件ずつ追加していくと収支が自動計算されます。</p>
       <div class="card">
         <div class="field-row">
           <label>予算</label>
@@ -626,11 +656,8 @@ select.plain{
       </div>
       <div class="card">
         <p class="section-label">出費を入力</p>
-        <div class="expense-add">
-          <input type="number" id="expense-input" placeholder="出費額" inputmode="decimal">
-          <button type="button" id="expense-add-btn">追加</button>
-        </div>
         <div id="expense-list"></div>
+        <button type="button" class="btn-block secondary" id="expense-add-row-btn" style="margin-top:0;margin-bottom:14px;">＋ 行を追加</button>
         <div class="budget-summary">
           <span><span class="lbl">出費合計 </span><span id="expense-total" style="font-family:var(--sans)">0円</span></span>
           <span class="balance plus" id="budget-balance">+0円</span>
@@ -1278,12 +1305,29 @@ function calcBackspaceAtCursor(){
 function copyTextToClipboard(text, okMsg){
   var v = (text || '').toString();
   if (v === ''){ showToast('コピーする内容がありません'); return; }
+  function fallbackCopy(){
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = v;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) showToast(okMsg || 'コピーしました'); else showToast('コピーに失敗しました');
+    } catch(e){
+      showToast('コピーに失敗しました');
+    }
+  }
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(v).then(function(){
       showToast(okMsg || 'コピーしました');
-    }).catch(function(){ showToast('コピーに失敗しました'); });
+    }).catch(fallbackCopy);
   } else {
-    showToast('コピーに失敗しました');
+    fallbackCopy();
   }
 }
 document.getElementById('calc-copy-expr-btn').addEventListener('click', function(){
@@ -1492,6 +1536,63 @@ function warekiStr(d){
 
 /* ============ (2) 日数計算機 ============ */
 var daysBaseDate = new Date();
+/* 基準日を選ぶための、このページ専用のインラインカレンダー状態
+   (誕生日等で使う共有のcalStateとは別に持つことで、他の日付選択に影響しないようにしている) */
+var daysCalState = {year: daysBaseDate.getFullYear(), month: daysBaseDate.getMonth()};
+function renderDaysCal(){
+  var yearSel = document.getElementById('days-cal-year-select');
+  if (yearSel.children.length === 0){
+    for (var y=1900; y<=2100; y++){
+      var opt = document.createElement('option');
+      opt.value = y; opt.textContent = y + '年';
+      yearSel.appendChild(opt);
+    }
+  }
+  yearSel.value = daysCalState.year;
+  document.getElementById('days-cal-month-select').value = daysCalState.month;
+
+  var grid = document.getElementById('days-cal-grid');
+  grid.innerHTML = '';
+  WEEKDAYS.forEach(function(w){
+    var el = document.createElement('div');
+    el.className = 'cal-wd';
+    el.textContent = w;
+    grid.appendChild(el);
+  });
+  var first = new Date(daysCalState.year, daysCalState.month, 1);
+  var startOffset = first.getDay();
+  var daysInMonth = new Date(daysCalState.year, daysCalState.month+1, 0).getDate();
+  for (var i=0;i<startOffset;i++){ grid.appendChild(document.createElement('div')); }
+  var today = new Date();
+  for (var d=1; d<=daysInMonth; d++){
+    (function(dNum){
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cal-day';
+      var isToday = (daysCalState.year === today.getFullYear() && daysCalState.month === today.getMonth() && dNum === today.getDate());
+      var isSelected = daysCalState.year === daysBaseDate.getFullYear() &&
+        daysCalState.month === daysBaseDate.getMonth() && dNum === daysBaseDate.getDate();
+      if (isToday) cell.classList.add('today');
+      if (isSelected) cell.classList.add('selected');
+      var html = '';
+      if (isToday) html += '<span class="cal-day-badge badge-today">今日</span>';
+      html += String(dNum);
+      if (isSelected) html += '<span class="cal-day-badge badge-selected">選択</span>';
+      cell.innerHTML = html;
+      cell.addEventListener('click', function(){
+        daysBaseDate = new Date(daysCalState.year, daysCalState.month, dNum);
+        updateDaysCalc();
+      });
+      grid.appendChild(cell);
+    })(d);
+  }
+}
+document.getElementById('days-cal-year-select').addEventListener('change', function(e){
+  daysCalState.year = parseInt(e.target.value, 10); renderDaysCal();
+});
+document.getElementById('days-cal-month-select').addEventListener('change', function(e){
+  daysCalState.month = parseInt(e.target.value, 10); renderDaysCal();
+});
 function updateDaysCalc(){
   var days = parseInt(document.getElementById('days-input').value, 10);
   if (isNaN(days)) days = 0;
@@ -1502,10 +1603,11 @@ function updateDaysCalc(){
   document.getElementById('days-base-display').textContent = seirekiStr(daysBaseDate);
   document.getElementById('days-result').textContent = seirekiStr(result) + ' / ' + warekiStr(result);
   renderMiniCalendar(document.getElementById('days-mini-cal'), result);
+  /* カレンダーの表示月を基準日に追従させる */
+  daysCalState.year = daysBaseDate.getFullYear();
+  daysCalState.month = daysBaseDate.getMonth();
+  renderDaysCal();
 }
-document.getElementById('days-cal-btn').addEventListener('click', function(){
-  openCalendar(daysBaseDate, function(d){ daysBaseDate = d; updateDaysCalc(); });
-});
 document.getElementById('days-base-prev-btn').addEventListener('click', function(){
   daysBaseDate = shiftDate(daysBaseDate, -1); updateDaysCalc();
 });
@@ -1519,14 +1621,16 @@ for (var di=0; di<dirRadios.length; di++){
 }
 
 /* ============ (3) 予算収支計算機 ============ */
+/* expensesの各要素は「数値」または「空欄の行」を表すnull。
+   常に一定の行数を画面に出しておき、数値を入れた瞬間に集計に反映する。 */
 var expenses = [];
-var editingExpenseIndex = null;
 var EXPENSES_KEY = 'namacalc_expenses_v1';
+var BUDGET_MIN_ROWS = 5;
 function loadExpenses(){
   try {
     var saved = JSON.parse(localStorage.getItem(EXPENSES_KEY) || 'null');
     if (Array.isArray(saved)){
-      expenses = saved.filter(function(v){ return typeof v === 'number' && isFinite(v); });
+      expenses = saved.filter(function(v){ return v === null || (typeof v === 'number' && isFinite(v)); });
     }
   } catch(e){ /* ignore */ }
 }
@@ -1537,101 +1641,69 @@ function initBudget(){
   var saved = localStorage.getItem(BUDGET_KEY);
   document.getElementById('budget-input').value = (saved !== null && saved !== '') ? saved : 20000;
   loadExpenses();
+  while (expenses.length < BUDGET_MIN_ROWS) expenses.push(null);
   renderBudget();
 }
 document.getElementById('budget-input').addEventListener('input', function(e){
   localStorage.setItem(BUDGET_KEY, e.target.value);
-  renderBudget();
+  updateBudgetTotals();
 });
-function addExpense(){
-  var input = document.getElementById('expense-input');
-  var val = parseFloat(input.value);
-  if (!isNaN(val) && val !== 0){
-    expenses.push(val);
-    input.value = '';
-    renderBudget();
-  }
-  input.focus();
-}
-document.getElementById('expense-add-btn').addEventListener('click', addExpense);
-document.getElementById('expense-input').addEventListener('keydown', function(e){
-  if (e.key === 'Enter'){ e.preventDefault(); addExpense(); }
-});
-function removeExpense(idx){
-  expenses.splice(idx,1);
-  if (editingExpenseIndex === idx) editingExpenseIndex = null;
-  renderBudget();
-}
-document.getElementById('expense-clear-btn').addEventListener('click', function(){
-  if (expenses.length === 0) return;
-  if (window.confirm('出費の入力内容をすべて削除しますか？')){
-    expenses = [];
-    editingExpenseIndex = null;
-    renderBudget();
-  }
-});
-function renderBudget(){
-  var budget = parseFloat(document.getElementById('budget-input').value);
-  if (isNaN(budget)) budget = 0;
-  var total = expenses.reduce(function(a,b){ return a+b; }, 0);
-  var balance = budget - total;
+function renderExpenseRows(){
   var list = document.getElementById('expense-list');
   list.innerHTML = '';
   expenses.forEach(function(val, i){
     var row = document.createElement('div');
-    row.className = 'expense-row';
-    if (i === editingExpenseIndex){
-      var input = document.createElement('input');
-      input.type = 'number';
-      input.inputMode = 'decimal';
-      input.className = 'expense-edit-input';
-      input.value = val;
-      var doneBtn = document.createElement('button');
-      doneBtn.type = 'button';
-      doneBtn.className = 'expense-done-btn';
-      doneBtn.textContent = '確定';
-      var committed = false;
-      function commit(){
-        if (committed) return;
-        committed = true;
-        var nv = parseFloat(input.value);
-        if (!isNaN(nv)) expenses[i] = nv;
-        editingExpenseIndex = null;
-        renderBudget();
-      }
-      doneBtn.addEventListener('click', commit);
-      input.addEventListener('keydown', function(e){
-        if (e.key === 'Enter'){ e.preventDefault(); commit(); }
-      });
-      input.addEventListener('blur', commit);
-      row.appendChild(input);
-      row.appendChild(doneBtn);
-      list.appendChild(row);
-      setTimeout(function(){ input.focus(); input.select(); }, 0);
-    } else {
-      var amountSpan = document.createElement('span');
-      amountSpan.className = 'expense-amount';
-      amountSpan.textContent = val.toLocaleString() + '円';
-      amountSpan.title = 'タップして訂正';
-      amountSpan.addEventListener('click', function(){
-        editingExpenseIndex = i;
-        renderBudget();
-      });
-      var delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.textContent = '×';
-      delBtn.addEventListener('click', function(){ removeExpense(i); });
-      row.appendChild(amountSpan);
-      row.appendChild(delBtn);
-      list.appendChild(row);
-    }
+    row.className = 'expense-row-live';
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.inputMode = 'decimal';
+    input.placeholder = '出費額';
+    input.className = 'expense-live-input';
+    if (val !== null) input.value = val;
+    input.addEventListener('input', function(){
+      var v = parseFloat(input.value);
+      expenses[i] = (input.value.trim() === '' || isNaN(v)) ? null : v;
+      updateBudgetTotals();
+      saveExpenses();
+    });
+    var unit = document.createElement('span');
+    unit.textContent = '円';
+    row.appendChild(input);
+    row.appendChild(unit);
+    list.appendChild(row);
   });
+}
+function updateBudgetTotals(){
+  var budget = parseFloat(document.getElementById('budget-input').value);
+  if (isNaN(budget)) budget = 0;
+  var total = expenses.reduce(function(a,b){ return a + (typeof b === 'number' && isFinite(b) ? b : 0); }, 0);
+  var balance = budget - total;
   document.getElementById('expense-total').textContent = total.toLocaleString() + '円';
   var balEl = document.getElementById('budget-balance');
   balEl.textContent = (balance >= 0 ? '+' : '') + balance.toLocaleString() + '円';
   balEl.className = 'balance ' + (balance >= 0 ? 'plus' : 'minus');
+}
+function renderBudget(){
+  renderExpenseRows();
+  updateBudgetTotals();
   saveExpenses();
 }
+document.getElementById('expense-add-row-btn').addEventListener('click', function(){
+  expenses.push(null);
+  renderExpenseRows();
+  saveExpenses();
+  var inputs = document.querySelectorAll('.expense-live-input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+});
+document.getElementById('expense-clear-btn').addEventListener('click', function(){
+  var hasAny = expenses.some(function(v){ return typeof v === 'number' && isFinite(v); });
+  if (!hasAny) return;
+  if (window.confirm('出費の入力内容をすべて削除しますか？')){
+    expenses = [];
+    while (expenses.length < BUDGET_MIN_ROWS) expenses.push(null);
+    renderBudget();
+  }
+});
 
 /* ============ (4) LINE用外部ブラウザURL ============ */
 document.getElementById('clip-check-btn').addEventListener('click', function(){
@@ -2429,6 +2501,7 @@ function syncTodoPersistentNotif(){
         id: notifId,
         title: '逆算ToDo: ' + (target.label || '無題') + '(' + target.time + '完了)',
         body: lines.join('\n'),
+        largeBody: lines.join('\n'),
         channelId: TODO_PERSISTENT_CHANNEL_ID,
         ongoing: true,
         autoCancel: false
