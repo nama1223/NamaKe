@@ -253,6 +253,10 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   padding:9px 10px;font-size:15px;font-family:var(--sans);font-variant-numeric:tabular-nums;
 }
 .expense-row-live span{color:var(--ink-sub);font-size:13px;flex-shrink:0;}
+.expense-row-del{
+  flex-shrink:0;background:none;border:none;color:var(--danger);font-size:18px;
+  line-height:1;padding:4px 6px;cursor:pointer;
+}
 .expense-row{
   display:flex;justify-content:space-between;align-items:center;
   padding:9px 4px;border-bottom:1px solid var(--border);
@@ -1302,6 +1306,19 @@ function calcBackspaceAtCursor(){
   }
 }
 /* ---- クリップボードコピー共通処理 ---- */
+/* APK版はWebViewのnavigator.clipboard.readText()がうまく動かないため、
+   ガワ側の@capacitor/clipboardプラグイン経由で読み取る。PWA/ブラウザでは従来通り。 */
+function readClipboardText(){
+  if (isApkPlatform()){
+    return callNativeBridge('clipboardRead', {}).then(function(res){
+      return (res && typeof res.value === 'string') ? res.value : '';
+    });
+  }
+  if (navigator.clipboard && navigator.clipboard.readText){
+    return navigator.clipboard.readText();
+  }
+  return Promise.reject('clipboard read not supported');
+}
 function copyTextToClipboard(text, okMsg){
   var v = (text || '').toString();
   if (v === ''){ showToast('コピーする内容がありません'); return; }
@@ -1668,8 +1685,20 @@ function renderExpenseRows(){
     });
     var unit = document.createElement('span');
     unit.textContent = '円';
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'expense-row-del';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', function(){
+      expenses.splice(i, 1);
+      while (expenses.length < BUDGET_MIN_ROWS) expenses.push(null);
+      renderExpenseRows();
+      updateBudgetTotals();
+      saveExpenses();
+    });
     row.appendChild(input);
     row.appendChild(unit);
+    row.appendChild(delBtn);
     list.appendChild(row);
   });
 }
@@ -1707,7 +1736,7 @@ document.getElementById('expense-clear-btn').addEventListener('click', function(
 
 /* ============ (4) LINE用外部ブラウザURL ============ */
 document.getElementById('clip-check-btn').addEventListener('click', function(){
-  navigator.clipboard.readText().then(function(text){
+  readClipboardText().then(function(text){
     document.getElementById('clip-view').value = text;
     var manual = document.getElementById('manual-input');
     if (manual.value.trim() === ''){
@@ -1729,14 +1758,10 @@ function appendParam(url){
   return {ok:true, result: trimmed + sep + 'openExternalBrowser=1'};
 }
 document.getElementById('clip-grant-btn').addEventListener('click', function(){
-  navigator.clipboard.readText().then(function(text){
+  readClipboardText().then(function(text){
     var r = appendParam(text);
     if (!r.ok){ showToast(r.message); return; }
-    navigator.clipboard.writeText(r.result).then(function(){
-      showToast(r.result);
-    }).catch(function(){
-      showToast(r.result + '(コピーに失敗しました)');
-    });
+    copyTextToClipboard(r.result, r.result);
   }).catch(function(){
     showToast('クリップボードを読み取れませんでした');
   });
@@ -1746,11 +1771,7 @@ document.getElementById('manual-grant-btn').addEventListener('click', function()
   var r = appendParam(ta.value);
   if (!r.ok){ showToast(r.message); return; }
   ta.value = r.result;
-  navigator.clipboard.writeText(r.result).then(function(){
-    showToast('コピーしました: ' + r.result);
-  }).catch(function(){
-    showToast('コピーに失敗しました');
-  });
+  copyTextToClipboard(r.result, 'コピーしました: ' + r.result);
 });
 
 /* ============ (5) 「年」計算機 ============ */
@@ -2158,10 +2179,10 @@ var ALARM_GAP_MS = 3000;   /* 重なった時に空ける間隔(ms)。音の再�
 var ALARM_NOTIF_ID_BASE = 90000;
 /* 「アラーム音を鳴らす」設定(初期値ON)。OFFの時は無音のチャンネルを使い、バイブと通知表示のみになる */
 var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
-var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent';
+var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v2';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 4;
+var REQUIRED_SHELL_VERSION = 5;
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -2239,7 +2260,7 @@ function confirmNativeBridge(){
   });
 }
 
-function soundChannelId(soundId){ return 'alarm_todo_' + soundId; }
+function soundChannelId(soundId){ return 'alarm_todo_' + soundId + '_v2'; }
 
 function ensureTodoAlarmChannels(){
   if (todoAlarmChannelsReady) return Promise.resolve();
