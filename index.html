@@ -188,8 +188,29 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   font-size:32px;text-align:right;word-break:break-all;
   min-height:38px;margin-top:4px;letter-spacing:0.02em;width:100%;
 }
+.calc-line-row{display:flex;align-items:center;gap:6px;width:100%;}
+.calc-line-row .calc-expr{flex:1;min-width:0;}
+.calc-line-row .calc-live{flex:1;min-width:0;margin-top:0;}
+.calc-copy-btn{
+  flex:none;background:none;border:1px solid rgba(201,185,138,0.35);border-radius:8px;
+  color:#c9b98a;font-size:14px;line-height:1;padding:6px 8px;cursor:pointer;
+}
+.calc-copy-btn:active{background:rgba(242,193,78,0.15);}
+.calc-cursor-row{display:flex;gap:8px;margin-bottom:8px;}
+.calc-cursor-btn{
+  flex:1;padding:9px 0;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:#dfe4ea;color:var(--ink);font-size:15px;
+}
+.calc-cursor-btn:active{filter:brightness(0.94);}
 .calc-memo{display:flex;flex-direction:column;gap:8px;margin-top:16px;}
+.memo-row{display:flex;align-items:center;gap:6px;}
+.memo-copy-btn{
+  flex:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  color:var(--ink);font-size:13px;line-height:1;padding:9px 8px;cursor:pointer;
+}
+.memo-copy-btn:active{filter:brightness(0.94);}
 .memo-input{
+  flex:1;min-width:0;
   border:1px solid var(--border);border-radius:var(--radius-sm);
   padding:10px;font-size:14px;background:var(--surface);color:var(--ink);
 }
@@ -275,6 +296,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .todo-alarm-sound-row .lbl2{flex-shrink:0;color:#666;}
 .todo-alarm-sound-row select{flex:1;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
 .todo-alarm-hint{font-size:11px;color:#999;margin-top:4px;line-height:1.5;}
+#gawa-info{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom, 0px));text-align:center;font-size:9px;color:rgba(255,255,255,0.35);pointer-events:none;padding:0 20px;}
 
 /* ---------- 年計算機 ---------- */
 .era-result{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.9;}
@@ -524,8 +546,18 @@ select.plain{
     <!-- (1) 電卓 -->
     <div class="page" id="page-calc">
       <div class="calc-display">
-        <input type="text" class="calc-expr" id="calc-expr" value="" placeholder="0" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="計算式(タップして編集できます)">
-        <div class="calc-live" id="calc-live"></div>
+        <div class="calc-line-row">
+          <input type="text" class="calc-expr" id="calc-expr" value="" placeholder="0" inputmode="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="計算式(タップして編集できます)">
+          <button type="button" class="calc-copy-btn" id="calc-copy-expr-btn" aria-label="計算式をコピー">⧉</button>
+        </div>
+        <div class="calc-line-row">
+          <div class="calc-live" id="calc-live"></div>
+          <button type="button" class="calc-copy-btn" id="calc-copy-live-btn" aria-label="計算結果をコピー">⧉</button>
+        </div>
+      </div>
+      <div class="calc-cursor-row">
+        <button type="button" class="calc-cursor-btn" id="calc-cursor-left-btn" aria-label="カーソルを左へ">◀</button>
+        <button type="button" class="calc-cursor-btn" id="calc-cursor-right-btn" aria-label="カーソルを右へ">▶</button>
       </div>
       <div class="calc-grid">
         <button class="fn" data-val="AC">AC</button>
@@ -554,9 +586,9 @@ select.plain{
         <button class="eq" data-val="=">=</button>
       </div>
       <div class="calc-memo">
-        <input type="text" class="memo-input" id="calc-memo-1" placeholder="メモ1">
-        <input type="text" class="memo-input" id="calc-memo-2" placeholder="メモ2">
-        <input type="text" class="memo-input" id="calc-memo-3" placeholder="メモ3">
+        <div class="memo-row"><button type="button" class="memo-copy-btn" data-memo="1" aria-label="メモ1をコピー">⧉</button><input type="text" class="memo-input" id="calc-memo-1" placeholder="メモ1"></div>
+        <div class="memo-row"><button type="button" class="memo-copy-btn" data-memo="2" aria-label="メモ2をコピー">⧉</button><input type="text" class="memo-input" id="calc-memo-2" placeholder="メモ2"></div>
+        <div class="memo-row"><button type="button" class="memo-copy-btn" data-memo="3" aria-label="メモ3をコピー">⧉</button><input type="text" class="memo-input" id="calc-memo-3" placeholder="メモ3"></div>
       </div>
     </div>
 
@@ -609,6 +641,7 @@ select.plain{
 
     <!-- (4) LINE用外部ブラウザURL -->
     <div class="page" id="page-line">
+      <p class="sub">LINEのトークにURLを貼り付けるとLINEの内部ブラウザで開かれてしまいますが、<br>URLの終わりに【?openexternalbrowser=1】とつける事で外部ブラウザへ誘導できます。<br>ここではURLにそれをくっつけられます。</p>
       <div class="card">
         <p class="section-label">① クリップボードの中身を確認</p>
         <button type="button" class="btn-block" id="clip-check-btn">クリップボードの中身を確認</button>
@@ -629,6 +662,7 @@ select.plain{
 
     <!-- (5) 「年」計算機 -->
     <div class="page" id="page-year">
+      <p class="sub">西暦　⇔　和暦　変換機</p>
 
       <div class="card">
         <p class="section-label">西暦 → 和暦(全種類)</p>
@@ -657,6 +691,7 @@ select.plain{
         <div class="era-result" id="era-reverse-result"></div>
       </div>
 
+      <p class="sub">誕生日　⇔　年齢　変換機</p>
       <div class="card">
         <p class="section-label">誕生日 → 年齢</p>
         <div class="field-row">
@@ -734,7 +769,6 @@ select.plain{
               <input type="checkbox" id="todo-persistent-enable-cb">
               <span>📌 通知エリアにスケジュールを常時表示（音は鳴りません）</span>
             </label>
-            <div class="todo-alarm-hint" id="todo-shell-info"></div>
           </div>
         </div>
       </div>
@@ -746,6 +780,7 @@ select.plain{
 
     <!-- (7) 時間差計算 -->
     <div class="page" id="page-timediff">
+      <p class="sub">開始時間と終了時間を設定すると、経過時間が計算されます。</p>
       <div class="card">
         <div class="td-slot-row">
           <div class="td-slot-label">開始</div>
@@ -804,6 +839,7 @@ select.plain{
     <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
     <button type="button" class="btn-block muted" id="settings-close-btn">閉じる</button>
   </div>
+  <div id="gawa-info"></div>
 </div>
 
 <div class="modal hidden modal-top" id="info-modal">
@@ -1238,6 +1274,43 @@ function calcBackspaceAtCursor(){
     el.setSelectionRange(start - 1, start - 1);
   }
 }
+/* ---- クリップボードコピー共通処理 ---- */
+function copyTextToClipboard(text, okMsg){
+  var v = (text || '').toString();
+  if (v === ''){ showToast('コピーする内容がありません'); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(v).then(function(){
+      showToast(okMsg || 'コピーしました');
+    }).catch(function(){ showToast('コピーに失敗しました'); });
+  } else {
+    showToast('コピーに失敗しました');
+  }
+}
+document.getElementById('calc-copy-expr-btn').addEventListener('click', function(){
+  copyTextToClipboard(calcGetExpr(), '計算式をコピーしました');
+});
+document.getElementById('calc-copy-live-btn').addEventListener('click', function(){
+  copyTextToClipboard(document.getElementById('calc-live').textContent, '計算結果をコピーしました');
+});
+var memoCopyBtns = document.querySelectorAll('.memo-copy-btn');
+for (var mcb = 0; mcb < memoCopyBtns.length; mcb++){
+  memoCopyBtns[mcb].addEventListener('click', function(){
+    var n = this.dataset.memo;
+    copyTextToClipboard(document.getElementById('calc-memo-' + n).value, 'メモ' + n + 'をコピーしました');
+  });
+}
+/* ---- 計算式のカーソル移動(◀▶) ---- */
+function calcMoveCursor(delta){
+  var el = calcExprEl();
+  el.focus();
+  var pos = el.selectionStart;
+  if (pos === null || pos === undefined) pos = el.value.length;
+  pos = Math.max(0, Math.min(el.value.length, pos + delta));
+  el.setSelectionRange(pos, pos);
+}
+document.getElementById('calc-cursor-left-btn').addEventListener('click', function(){ calcMoveCursor(-1); });
+document.getElementById('calc-cursor-right-btn').addEventListener('click', function(){ calcMoveCursor(1); });
+
 function calcSetWhole(str){
   var el = calcExprEl();
   el.value = str;
@@ -2013,7 +2086,7 @@ var ALARM_GAP_MS = 3000;   /* 重なった時に空ける間隔(ms)。音の再�
 var ALARM_NOTIF_ID_BASE = 90000;
 /* 「アラーム音を鳴らす」設定(初期値ON)。OFFの時は無音のチャンネルを使い、バイブと通知表示のみになる */
 var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
-var TODO_ALARM_SILENT_CHANNEL_ID = 'todo_silent';
+var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 4;
@@ -2094,7 +2167,7 @@ function confirmNativeBridge(){
   });
 }
 
-function soundChannelId(soundId){ return 'todo_' + soundId; }
+function soundChannelId(soundId){ return 'alarm_todo_' + soundId; }
 
 function ensureTodoAlarmChannels(){
   if (todoAlarmChannelsReady) return Promise.resolve();
@@ -2237,8 +2310,6 @@ function renderTodoAlarmBox(){
   }
   updateAlarmSoundSelectsDisabled();
   document.getElementById('todo-persistent-enable-cb').checked = todoPersistentEnabled;
-  renderShellInfo();
-  refreshShellInfo();
 }
 function updateAlarmSoundSelectsDisabled(){
   var sels = document.getElementById('todo-alarm-sound-selects').querySelectorAll('select');
@@ -2255,22 +2326,16 @@ document.getElementById('todo-alarm-sound-cb').addEventListener('change', functi
 /* ガワ(APK側の固定ページ)のバージョン・余白などの状態表示。
    ガワが古い時に「何を更新すべきか」を画面上で分かるようにする。 */
 function renderShellInfo(){
-  var el = document.getElementById('todo-shell-info');
+  var el = document.getElementById('gawa-info');
   if (!el) return;
   var info = nativeShellInfo;
   if (!info || !info.version){
-    el.textContent = 'ガワ: 旧版です（www/index.htmlの更新とAPKの再ビルドが必要）';
-    el.style.color = '#c0392b';
+    el.textContent = 'Gawa: old';
     return;
   }
-  var txt = 'ガワ v' + info.version + ' / 上余白 ' + info.top + (info.cssVar ? '(変数' + info.cssVar + ')' : '') +
-    ' / SystemBars ' + (info.systemBars ? '○' : '×') + ' App ' + (info.app ? '○' : '×') + ' 通知 ' + (info.notif ? '○' : '×');
-  if (info.version < REQUIRED_SHELL_VERSION){
-    txt += ' — ガワの更新が必要です';
-    el.style.color = '#c0392b';
-  } else {
-    el.style.color = '';
-  }
+  var txt = 'Gawa v' + info.version + ' top=' + info.top + (info.cssVar ? ' var=' + info.cssVar : '') +
+    ' bars=' + (info.systemBars ? '1' : '0') + ' app=' + (info.app ? '1' : '0') + ' notif=' + (info.notif ? '1' : '0');
+  if (info.version < REQUIRED_SHELL_VERSION) txt += ' (update needed)';
   el.textContent = txt;
 }
 function refreshShellInfo(){
@@ -2304,7 +2369,15 @@ document.getElementById('todo-alarm-enable-cb').addEventListener('change', funct
 /* ============ APK版限定: スケジュールの常時通知(音は鳴らない参照用) ============ */
 var TODO_PERSISTENT_ENABLED_KEY = 'namacalc_todo_persistent_enabled_v1';
 var TODO_PERSISTENT_CHANNEL_ID = 'todo_persistent_ref';
-var TODO_PERSISTENT_NOTIF_ID = 89999;
+var TODO_PERSISTENT_NOTIF_ID = 89990; /* +colIdx(0-2)でターゲットごとの通知IDにする */
+function todoTimeToDateToday(timeStr){
+  var parts = (timeStr || '').split(':');
+  if (parts.length !== 2) return null;
+  var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  var now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+}
 var todoPersistentEnabled = loadJSON(TODO_PERSISTENT_ENABLED_KEY, false);
 var todoPersistentChannelReady = false;
 
@@ -2320,48 +2393,52 @@ function ensureTodoPersistentChannel(){
   }).then(function(){ todoPersistentChannelReady = true; })
     .catch(function(e){ console.warn('常時通知チャンネル作成に失敗:', e); });
 }
-/* 現在設定されている全ターゲットのスケジュールをテキストにまとめる */
-function buildTodoScheduleSummaryText(){
-  if (todoTargets.length === 0 || todoSequence.length === 0) return '';
-  var lines = [];
-  todoTargets.forEach(function(target){
-    var schedule = computeSchedule(todoSequence, target.time);
-    lines.push((target.label || '無題') + '(' + target.time + '完了)');
-    schedule.forEach(function(item){
-      lines.push('  ' + pad2(item.start.getHours()) + ':' + pad2(item.start.getMinutes()) + ' ' + item.name);
-    });
-  });
-  return lines.join('\n');
-}
-/* 折りたたみ時に見える1行: 各ターゲットのラベルと完了時刻 */
-function buildTodoScheduleHeadline(){
-  return todoTargets.map(function(t){ return (t.label || '無題') + ' ' + t.time + '完了'; }).join(' / ');
-}
 var todoPersistentLastSync = 0;
+var TODO_PERSISTENT_SLOTS = [0, 1, 2];
+/* ターゲットごとに1件ずつ、通知を分けて出す(A案)。
+   投稿する順番を「時間が遅いターゲットから先に」にすることで、
+   Androidの通知欄が新しい順に並ぶ性質を利用し、
+   時間が早いターゲットが常に一番上に来るようにしている。 */
 function syncTodoPersistentNotif(){
   if (!isApkPlatform()) return;
   if (!todoPersistentEnabled){
-    callNativeBridge('cancel', {notifications: [{id: TODO_PERSISTENT_NOTIF_ID}]}).catch(function(){});
-    return;
-  }
-  var text = buildTodoScheduleSummaryText();
-  if (!text){
-    callNativeBridge('cancel', {notifications: [{id: TODO_PERSISTENT_NOTIF_ID}]}).catch(function(){});
+    callNativeBridge('cancel', {notifications: TODO_PERSISTENT_SLOTS.map(function(i){ return {id: TODO_PERSISTENT_NOTIF_ID + i}; })}).catch(function(){});
     return;
   }
   todoPersistentLastSync = Date.now();
+  var now = new Date();
   ensureTodoPersistentChannel().then(function(){
-    /* schedule(予約時刻)を付けないと、即座に表示される。
-       largeBody を付けると、通知を開いた時に全行が複数行で表示される。 */
-    return callNativeBridge('schedule', {notifications: [{
-      id: TODO_PERSISTENT_NOTIF_ID,
-      title: '逆算ToDo スケジュール',
-      body: buildTodoScheduleHeadline(),
-      largeBody: text,
-      channelId: TODO_PERSISTENT_CHANNEL_ID,
-      ongoing: true,
-      autoCancel: false
-    }]});
+    var toCancel = [];
+    var toSchedule = [];
+    var order = [2, 1, 0]; /* 遅い方から先に投稿する */
+    order.forEach(function(colIdx){
+      var notifId = TODO_PERSISTENT_NOTIF_ID + colIdx;
+      var target = todoTargets[colIdx];
+      if (!target || todoSequence.length === 0){ toCancel.push({id: notifId}); return; }
+      /* B案: 完了予定時刻を1分以上過ぎたターゲットは丸ごと消す */
+      var endTime = todoTimeToDateToday(target.time);
+      if (endTime && (now.getTime() - endTime.getTime()) >= 60000){
+        toCancel.push({id: notifId});
+        return;
+      }
+      var schedule = computeSchedule(todoSequence, target.time);
+      var lines = schedule.map(function(item){
+        return pad2(item.start.getHours()) + ':' + pad2(item.start.getMinutes()) + ' ' + item.name;
+      });
+      toSchedule.push({
+        id: notifId,
+        title: '逆算ToDo: ' + (target.label || '無題') + '(' + target.time + '完了)',
+        body: lines.join('\n'),
+        channelId: TODO_PERSISTENT_CHANNEL_ID,
+        ongoing: true,
+        autoCancel: false
+      });
+    });
+    var p1 = toCancel.length ? callNativeBridge('cancel', {notifications: toCancel}).catch(function(){}) : Promise.resolve();
+    return p1.then(function(){
+      if (toSchedule.length === 0) return Promise.resolve();
+      return callNativeBridge('schedule', {notifications: toSchedule});
+    });
   }).catch(function(e){ console.warn('常時通知の更新に失敗:', e); });
 }
 /* 通知をスワイプで消された/タップで消えた後でも、アプリに戻った時に再表示する。
@@ -2377,7 +2454,7 @@ window.addEventListener('message', function(ev){
   var msg = ev.data;
   if (!msg) return;
   if (msg.__namaBridgeNotifTap){
-    if (msg.id === TODO_PERSISTENT_NOTIF_ID) resyncTodoPersistentSoon(true);
+    if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2) resyncTodoPersistentSoon(true);
   } else if (msg.__namaBridgeResume){
     resyncTodoPersistentSoon(false);
   }
@@ -2686,6 +2763,11 @@ setInterval(function(){
   var page = document.getElementById('page-todo');
   if (page && page.classList.contains('active')) updateTodoClock();
 }, 1000);
+/* 常時通知のB案(完了時刻を過ぎたら消す)を反映するため、ページ表示に関わらず定期的に見直す。
+   ただしこれはアプリのJSが動いている間だけ有効。アプリを完全に終了している間は働かない。 */
+setInterval(function(){
+  if (isApkPlatform() && todoPersistentEnabled) syncTodoPersistentNotif();
+}, 30000);
 
 /* ---- 完了予定時刻クイック入力モーダル(4桁パッド + ストック呼び出し) ---- */
 var todoTimeEditIndex = -1;
@@ -3461,6 +3543,8 @@ function renderSettingsToggles(){
 function openSettingsModal(){
   renderSettingsToggles();
   document.getElementById('settings-modal').classList.remove('hidden');
+  renderShellInfo();
+  refreshShellInfo();
 }
 function closeSettingsModal(){
   document.getElementById('settings-modal').classList.add('hidden');
