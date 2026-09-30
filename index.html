@@ -304,6 +304,10 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .btn-block.secondary{background:var(--accent);}
 .btn-block.tertiary{background:#3d6a52;}
 .btn-block.muted{background:#9aa5b1;margin-top:10px;}
+.btn-block.dark{background:#333333;color:#fff;}
+.btn-block.dark:active{background:#1a1a1a;}
+.btn-block.outline{background:#fff;color:var(--primary);border:1.5px solid #c9d1da;}
+.btn-block.outline:active{background:#eef1f5;}
 .settings-toggle-row{
   display:flex;align-items:center;gap:10px;
   padding:10px 2px;border-bottom:1px solid var(--border);
@@ -419,8 +423,18 @@ select.plain{
 .todo-sequence-row .name{flex:1;font-size:14.5px;}
 .todo-sequence-row .minutes{color:var(--ink-sub);font-size:12.5px;font-family:var(--sans);flex-shrink:0;}
 .todo-sequence-row button.del{background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;flex-shrink:0;}
-.todo-add-row{display:flex;gap:6px;margin-top:12px;}
+.todo-add-row{display:flex;gap:6px;margin-top:12px;align-items:stretch;}
 .todo-add-row .btn-block{margin-top:0;padding:11px 3px;font-size:12.5px;}
+/* 「行動追加」「行動セット」(いまの行動リストに足す) と 「フルセット」(行動+完了時刻を丸ごと入れ替え) を区別する */
+.todo-add-group{display:flex;gap:6px;flex:2 1 0;min-width:0;}
+.todo-add-group .btn-block{flex:1 1 0;min-width:0;width:auto;}
+.todo-add-divider{flex:0 0 0;border-left:2px dashed #b9c2cc;margin:2px 3px;}
+.todo-add-row .btn-block.fullset{
+  flex:1 1 0;min-width:0;width:auto;
+  background:#eef6f1;color:#2f5a44;border:2px solid #3d6a52;
+}
+.todo-add-row .btn-block.fullset:active{background:#d9ebe0;}
+.btn-block.fullset .fs-sub{display:block;font-size:10px;opacity:0.8;margin-top:1px;}
 
 .todo-schedule-scroll{
   display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 8px;
@@ -547,6 +561,34 @@ select.plain{
 }
 .todo-tab.active{background:var(--primary);color:#fff;font-weight:600;}
 .todo-tab-panel.hidden{display:none;}
+
+/* ---------- 設定モーダル(タブ式・上寄せ) ---------- */
+#settings-modal,#backup-modal{align-items:flex-start;padding-top:calc(24px + env(safe-area-inset-top, 0px));box-sizing:border-box;}
+#settings-modal .modal-box,#backup-modal .modal-box{max-height:calc(100vh - 48px);}
+.set-tab-bar{display:flex;gap:3px;margin-bottom:14px;background:#eef1f5;padding:3px;border-radius:10px;}
+.set-tab{
+  flex:1;background:none;border:none;padding:10px 4px;font-size:13px;color:var(--ink-sub);
+  cursor:pointer;border-radius:8px;white-space:nowrap;
+}
+.set-tab.active{background:var(--primary);color:#fff;font-weight:600;}
+.set-tab-panel.is-hidden{display:none;}
+.is-hidden{display:none !important;}
+
+/* ---------- 設定の読み込み・出力 ---------- */
+.backup-hint{font-size:12px;color:var(--ink-sub);line-height:1.6;margin:8px 0;}
+.backup-warn{font-size:12px;color:#8a5a00;background:#fff6dd;border-radius:8px;padding:8px 10px;line-height:1.6;margin:8px 0;}
+.backup-link{
+  display:block;margin:12px auto 0;background:none;border:none;color:var(--primary);
+  font-size:13px;text-decoration:underline;cursor:pointer;padding:6px;
+}
+#backup-paste-input{
+  width:100%;min-height:90px;resize:vertical;margin-top:8px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px;font-size:12.5px;font-family:var(--sans);
+}
+.backup-import-row{padding:9px 2px;}
+.backup-import-row.child{padding-left:28px;}
+.backup-import-row.parent span{font-weight:600;}
 </style>
 </head>
 <body>
@@ -763,7 +805,7 @@ select.plain{
 
     <!-- (6) 逆算ToDo -->
     <div class="page" id="page-todo">
-      <button type="button" class="btn-block muted" id="todo-manage-btn" style="margin-top:0;margin-bottom:14px;">⚙ 行動・完了時刻を管理</button>
+      <button type="button" class="btn-block dark" id="todo-manage-btn" style="margin-top:0;margin-bottom:14px;">⚙ 行動・完了時刻を管理</button>
 
       <div class="card">
         <div class="todo-collapse-header" id="todo-collapse-header">
@@ -776,9 +818,12 @@ select.plain{
           </div>
           <div id="todo-sequence-list"></div>
           <div class="todo-add-row">
-            <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動追加</button>
-            <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 行動セット</button>
-            <button type="button" class="btn-block tertiary" id="todo-apply-fullset-btn">🗂️ フルセット</button>
+            <div class="todo-add-group">
+              <button type="button" class="btn-block" id="todo-add-action-btn">➕ 行動追加</button>
+              <button type="button" class="btn-block secondary" id="todo-apply-set-btn">📦 行動セット</button>
+            </div>
+            <div class="todo-add-divider"></div>
+            <button type="button" class="btn-block fullset" id="todo-apply-fullset-btn"><span class="fs-main">🗂️ フルセット</span><span class="fs-sub">丸ごと入替</span></button>
           </div>
           <hr class="section-rule">
           <div class="todo-targets-line">
@@ -865,13 +910,60 @@ select.plain{
   <div class="modal-overlay" id="settings-overlay"></div>
   <div class="modal-box">
     <h2 style="margin:0 0 14px;font-size:17px;">設定</h2>
-    <p class="section-label">表示する機能</p>
-    <div id="settings-menu-toggles"></div>
-    <hr class="section-rule">
-    <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
-    <button type="button" class="btn-block muted" id="settings-close-btn">閉じる</button>
+
+    <div class="set-tab-bar" id="set-tab-bar">
+      <button type="button" class="set-tab active" data-tab="features">表示する機能</button>
+      <button type="button" class="set-tab" data-tab="general">アプリ全般</button>
+    </div>
+
+    <div class="set-tab-panel" id="set-tab-features">
+      <div id="settings-menu-toggles"></div>
+      <button type="button" class="btn-block outline" id="settings-order-reset-btn" style="margin-top:12px;">メニューの並び順を初期配置に戻す</button>
+    </div>
+
+    <div class="set-tab-panel is-hidden" id="set-tab-general">
+      <button type="button" class="btn-block" id="settings-backup-btn" style="margin-top:0;">💾 設定の読み込み・出力</button>
+      <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
+    </div>
+
+    <button type="button" class="btn-block muted" id="settings-close-btn" style="margin-top:16px;">閉じる</button>
   </div>
   <div id="gawa-info"></div>
+</div>
+
+<div class="modal hidden modal-top" id="backup-modal">
+  <div class="modal-overlay" id="backup-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 12px;font-size:17px;">設定の読み込み・出力</h2>
+
+    <p class="section-label">出力(バックアップ)</p>
+    <p class="backup-hint" style="margin-top:0;">このアプリに保存されているデータをまとめて1つのファイル(.nmk)に書き出します。バックアップや、別の端末への引っ越しに使えます。</p>
+    <button type="button" class="btn-block" id="backup-export-btn" style="margin-top:0;">💾 ファイルに出力(.nmk)</button>
+    <button type="button" class="btn-block outline" id="backup-copy-btn">📋 テキストとしてコピー</button>
+    <p class="backup-hint">※ ファイルが保存できない環境では「テキストとしてコピー」を使い、メモ帳などに貼り付けて保管してください。戻すときは下の「テキストを貼り付けて読み込む」を使います。</p>
+
+    <hr class="section-rule">
+
+    <p class="section-label">読み込み</p>
+    <button type="button" class="btn-block secondary" id="backup-pick-btn" style="margin-top:0;">📂 ファイルを選んで読み込み</button>
+    <input type="file" id="backup-file-input" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" tabindex="-1">
+    <button type="button" class="backup-link" id="backup-paste-toggle-btn">テキストを貼り付けて読み込む</button>
+    <div id="backup-paste-box" class="is-hidden">
+      <textarea id="backup-paste-input" placeholder="コピーしたバックアップのテキストをここに貼り付け"></textarea>
+      <button type="button" class="btn-block" id="backup-paste-load-btn">この内容を読み込む</button>
+    </div>
+
+    <div id="backup-import-area" class="is-hidden">
+      <hr class="section-rule">
+      <p class="section-label" id="backup-import-info" style="margin-bottom:4px;"></p>
+      <p class="backup-hint" style="margin-top:0;">読み込む項目にチェックを入れてください。チェックした項目は、いまのデータを<b>上書き</b>します。ファイルに含まれていない項目は表示されません。</p>
+      <div id="backup-import-list"></div>
+      <p class="backup-warn is-hidden" id="backup-import-warn">※「行動セット」は「行動」を参照しています。片方だけ読み込むと、行動セットの中身が正しく表示されない場合があります(同じ端末で取ったバックアップを戻すだけなら問題ありません)。</p>
+      <button type="button" class="btn-block danger" id="backup-import-run-btn">選んだ項目を上書きして読み込む</button>
+    </div>
+
+    <button type="button" class="btn-block muted" id="backup-close-btn" style="margin-top:16px;">閉じる</button>
+  </div>
 </div>
 
 <div class="modal hidden modal-top" id="info-modal">
@@ -1045,14 +1137,15 @@ function renderMiniCalendar(container, dateObj){
 }
 
 /* ============ ページ切替(戻るボタン対応) ============ */
+/* 並び順がこの配列の順番=メニューの初期配置(ユーザーが並べ替えた場合は保存された順が優先される) */
 var MENU_ITEMS = [
   {id:'calc',   icon:'🧮', label:'単なる電卓',            title:'電卓'},
+  {id:'timediff', icon:'⏳', label:'時間差計算',          title:'時間差計算'},
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
-  {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
-  {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'},
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'},
   {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'},
-  {id:'timediff', icon:'⏳', label:'時間差計算',          title:'時間差計算'}
+  {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
+  {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'}
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
 var VISIBLE_KEY = 'namacalc_menu_visible_v1';
@@ -2192,7 +2285,7 @@ var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 6;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
-var NAKA_VERSION = 1;
+var NAKA_VERSION = 2;
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3656,8 +3749,42 @@ function renderSettingsToggles(){
     box.appendChild(row);
   });
 }
+function switchSettingsTab(tabId){
+  var tabs = document.querySelectorAll('.set-tab');
+  for (var i=0;i<tabs.length;i++){ tabs[i].classList.toggle('active', tabs[i].dataset.tab === tabId); }
+  var panels = document.querySelectorAll('.set-tab-panel');
+  for (var j=0;j<panels.length;j++){ panels[j].classList.toggle('is-hidden', panels[j].id !== 'set-tab-' + tabId); }
+}
+var setTabButtons = document.querySelectorAll('.set-tab');
+for (var sti=0; sti<setTabButtons.length; sti++){
+  setTabButtons[sti].addEventListener('click', function(){ switchSettingsTab(this.dataset.tab); });
+}
+/* 「押したあと、もう一度押すと実行」する確認付きボタン(4秒で元に戻る)。confirm()ダイアログはAPK内で不安定な可能性があるため使わない */
+function armConfirm(btn, armedText, action){
+  var normalText = btn.textContent;
+  var armed = false, timer = null;
+  function reset(){ armed = false; btn.textContent = normalText; }
+  btn.addEventListener('click', function(){
+    if (!armed){
+      armed = true;
+      btn.textContent = armedText;
+      clearTimeout(timer);
+      timer = setTimeout(reset, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    reset();
+    action();
+  });
+}
+armConfirm(document.getElementById('settings-order-reset-btn'), 'もう一度タップで初期配置に戻す', function(){
+  localStorage.removeItem(ORDER_KEY);
+  renderMenu();
+  showToast('メニューの並び順を初期配置に戻しました');
+});
 function openSettingsModal(){
   renderSettingsToggles();
+  switchSettingsTab('features');
   document.getElementById('settings-modal').classList.remove('hidden');
   renderShellInfo();
   refreshShellInfo();
@@ -3668,6 +3795,269 @@ function closeSettingsModal(){
 document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
 document.getElementById('settings-close-btn').addEventListener('click', closeSettingsModal);
 document.getElementById('settings-overlay').addEventListener('click', closeSettingsModal);
+
+/* ============ 設定の読み込み・出力(.nmkバックアップ) ============
+   ・出力: localStorageの保存データを1つのJSONにまとめ、拡張子.nmkで保存する
+   ・拡張子対策: Blobのtypeを application/json ではなく application/octet-stream にする
+     (Android Chromeは application/json だと保存名の末尾に .json を勝手に足すことがあるため)
+   ・読み込み: ファイル or 貼り付けテキストを検証 → 項目ごとにチェック → 選んだ項目だけ上書き → 再読み込み */
+var BACKUP_FORMAT = 'namake-backup';
+var BACKUP_VERSION = 1;
+var BACKUP_IMPORTED_FLAG = 'namacalc_import_done';
+var BACKUP_GROUPS = [
+  {id:'menu',   label:'📋 トップメニューの並び順・表示設定', keys:[ORDER_KEY, VISIBLE_KEY]},
+  {id:'calc',   label:'🧮 単なる電卓(メモ欄)',               keys:[CALC_MEMO_KEY]},
+  {id:'budget', label:'💰 予算収支計算機(予算・出費)',        keys:[BUDGET_KEY, EXPENSES_KEY]},
+  {id:'todo',   label:'⏱️ 逆算ToDo', children:[
+    {id:'todo_actions',  label:'行動',                                     keys:[TODO_ACTIONS_KEY]},
+    {id:'todo_sets',     label:'行動セット',                               keys:[TODO_SETS_KEY]},
+    {id:'todo_times',    label:'完了時刻のストック',                       keys:[TODO_TIMES_KEY]},
+    {id:'todo_fullsets', label:'フルセット',                               keys:[TODO_FULLSETS_KEY]},
+    {id:'todo_current',  label:'現在のスケジュール(すること・完了予定時刻)', keys:[TODO_CURRENT_KEY]},
+    {id:'todo_alarm',    label:'通知設定(APK版)',                          keys:[TODO_ALARM_ENABLED_KEY, TODO_ALARM_SOUND_KEY, TODO_ALARM_SOUND_ON_KEY, TODO_PERSISTENT_ENABLED_KEY], defaultOff:true}
+  ]}
+];
+/* 中身が配列であるべきキー(読み込み時の形式チェック用) */
+var BACKUP_ARRAY_KEYS = [ORDER_KEY, CALC_MEMO_KEY, EXPENSES_KEY, TODO_ACTIONS_KEY, TODO_SETS_KEY, TODO_TIMES_KEY, TODO_FULLSETS_KEY];
+
+function backupAllLeaves(){
+  var leaves = [];
+  BACKUP_GROUPS.forEach(function(g){
+    if (g.children){ g.children.forEach(function(c){ leaves.push(c); }); } else { leaves.push(g); }
+  });
+  return leaves;
+}
+function backupAllKeys(){
+  var keys = [];
+  backupAllLeaves().forEach(function(l){ l.keys.forEach(function(k){ keys.push(k); }); });
+  return keys;
+}
+function buildBackupObject(){
+  var data = {};
+  backupAllKeys().forEach(function(k){ data[k] = localStorage.getItem(k); });
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    app: 'Nama計算機',
+    nakaVersion: NAKA_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: data
+  };
+}
+function backupFileName(){
+  var d = new Date();
+  return 'NamaKe_backup_' + d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) +
+         '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.nmk';
+}
+function downloadBackupFile(){
+  var name = backupFileName();
+  try {
+    var text = JSON.stringify(buildBackupObject());
+    var blob = new Blob([text], {type: 'application/octet-stream'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+    showToast('バックアップファイルを出力しました(' + name + ')' +
+      (isApkPlatform() ? '。保存されない場合は「テキストとしてコピー」をお使いください' : ''), 6000);
+  } catch(e){
+    showToast('ファイルの出力に失敗しました。「テキストとしてコピー」をお試しください', 6000);
+  }
+}
+
+/* ---- 読み込み ---- */
+var backupParsed = null;
+var backupLeafRows = [];   /* {leaf, keys, cb} */
+
+function backupPresentKeys(leaf, obj){
+  return leaf.keys.filter(function(k){ return typeof obj.data[k] === 'string'; });
+}
+function validateBackupValue(k, v){
+  if (typeof v !== 'string') return false;
+  if (k === BUDGET_KEY) return true;   /* 予算だけは数値の文字列をそのまま保存している */
+  var parsed;
+  try { parsed = JSON.parse(v); } catch(e){ return false; }
+  if (BACKUP_ARRAY_KEYS.indexOf(k) !== -1) return Array.isArray(parsed);
+  return true;
+}
+function formatBackupDate(iso){
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '不明';
+  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function handleBackupText(text){
+  var obj = null;
+  try { obj = JSON.parse(String(text).replace(/^\uFEFF/, '').trim()); } catch(e){ obj = null; }
+  if (!obj || obj.format !== BACKUP_FORMAT || !obj.data || typeof obj.data !== 'object'){
+    showToast('Nama計算機のバックアップ(.nmk)として読み込めませんでした', 5000);
+    return;
+  }
+  if (typeof obj.version === 'number' && obj.version > BACKUP_VERSION){
+    showToast('新しいバージョンのアプリで作られたファイルです。アプリを更新してから読み込んでください', 6000);
+    return;
+  }
+  var any = false;
+  backupAllLeaves().forEach(function(l){ if (backupPresentKeys(l, obj).length) any = true; });
+  if (!any){
+    showToast('このファイルには読み込めるデータが含まれていません', 5000);
+    return;
+  }
+  backupParsed = obj;
+  renderBackupImportList();
+}
+function updateBackupWarn(){
+  var hasActions = false, hasSets = false, actionsOn = false, setsOn = false;
+  backupLeafRows.forEach(function(r){
+    if (r.leaf.id === 'todo_actions'){ hasActions = true; actionsOn = r.cb.checked; }
+    if (r.leaf.id === 'todo_sets'){ hasSets = true; setsOn = r.cb.checked; }
+  });
+  var warn = (hasActions || hasSets) && (actionsOn !== setsOn);
+  document.getElementById('backup-import-warn').classList.toggle('is-hidden', !warn);
+}
+function renderBackupImportList(){
+  var obj = backupParsed;
+  var list = document.getElementById('backup-import-list');
+  list.innerHTML = '';
+  backupLeafRows = [];
+  document.getElementById('backup-import-info').textContent =
+    'ファイルの作成日時: ' + formatBackupDate(obj.exportedAt);
+
+  function makeRow(labelText, cls, checked){
+    var row = document.createElement('label');
+    row.className = 'settings-toggle-row backup-import-row ' + cls;
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    var span = document.createElement('span');
+    span.textContent = labelText;
+    row.appendChild(cb);
+    row.appendChild(span);
+    list.appendChild(row);
+    return cb;
+  }
+
+  BACKUP_GROUPS.forEach(function(g){
+    if (!g.children){
+      var keys = backupPresentKeys(g, obj);
+      if (!keys.length) return;
+      var cb = makeRow(g.label, 'single', true);
+      backupLeafRows.push({leaf: g, keys: keys, cb: cb});
+      cb.addEventListener('change', updateBackupWarn);
+      return;
+    }
+    var present = g.children.filter(function(c){ return backupPresentKeys(c, obj).length > 0; });
+    if (!present.length) return;
+    var parentCb = makeRow(g.label, 'parent', true);
+    var childCbs = [];
+    function syncParent(){
+      var on = childCbs.filter(function(c){ return c.checked; }).length;
+      parentCb.checked = (on === childCbs.length);
+      parentCb.indeterminate = (on > 0 && on < childCbs.length);
+    }
+    present.forEach(function(c){
+      var ccb = makeRow(c.label, 'child', !c.defaultOff);
+      childCbs.push(ccb);
+      backupLeafRows.push({leaf: c, keys: backupPresentKeys(c, obj), cb: ccb});
+      ccb.addEventListener('change', function(){ syncParent(); updateBackupWarn(); });
+    });
+    parentCb.addEventListener('change', function(){
+      parentCb.indeterminate = false;
+      childCbs.forEach(function(c){ c.checked = parentCb.checked; });
+      updateBackupWarn();
+    });
+    syncParent();
+  });
+  updateBackupWarn();
+  document.getElementById('backup-import-area').classList.remove('is-hidden');
+}
+function applyBackupImport(){
+  var obj = backupParsed;
+  if (!obj){ showToast('先にファイルを選んでください'); return; }
+  var keys = [];
+  backupLeafRows.forEach(function(r){
+    if (r.cb.checked) r.keys.forEach(function(k){ if (keys.indexOf(k) === -1) keys.push(k); });
+  });
+  if (!keys.length){ showToast('読み込む項目が選ばれていません'); return; }
+  for (var i=0;i<keys.length;i++){
+    if (!validateBackupValue(keys[i], obj.data[keys[i]])){
+      showToast('ファイルの内容が壊れているため読み込めませんでした(項目: ' + keys[i] + ')', 6000);
+      return;
+    }
+  }
+  /* 書き込み途中で失敗した場合に備えて元の値を控えておき、失敗したら元に戻す */
+  var prev = keys.map(function(k){ return localStorage.getItem(k); });
+  try {
+    keys.forEach(function(k){ localStorage.setItem(k, obj.data[k]); });
+  } catch(e){
+    keys.forEach(function(k, idx){
+      try { if (prev[idx] === null) localStorage.removeItem(k); else localStorage.setItem(k, prev[idx]); } catch(e2){}
+    });
+    showToast('書き込みに失敗しました: ' + (e && e.message ? e.message : e), 6000);
+    return;
+  }
+  try { sessionStorage.setItem(BACKUP_IMPORTED_FLAG, '1'); } catch(e){}
+  showToast('読み込みました。画面を更新します…', 1500);
+  setTimeout(function(){ location.reload(); }, 1300);
+}
+
+function openBackupModal(){
+  document.getElementById('backup-modal').classList.remove('hidden');
+}
+function closeBackupModal(){
+  document.getElementById('backup-modal').classList.add('hidden');
+  backupParsed = null;
+  backupLeafRows = [];
+  document.getElementById('backup-import-area').classList.add('is-hidden');
+  document.getElementById('backup-import-list').innerHTML = '';
+  document.getElementById('backup-paste-box').classList.add('is-hidden');
+  document.getElementById('backup-paste-input').value = '';
+}
+document.getElementById('settings-backup-btn').addEventListener('click', openBackupModal);
+document.getElementById('backup-close-btn').addEventListener('click', closeBackupModal);
+document.getElementById('backup-overlay').addEventListener('click', closeBackupModal);
+document.getElementById('backup-export-btn').addEventListener('click', downloadBackupFile);
+document.getElementById('backup-copy-btn').addEventListener('click', function(){
+  copyTextToClipboard(JSON.stringify(buildBackupObject()), 'バックアップをテキストとしてコピーしました');
+});
+document.getElementById('backup-pick-btn').addEventListener('click', function(){
+  document.getElementById('backup-file-input').click();
+});
+document.getElementById('backup-file-input').addEventListener('change', function(){
+  var input = this;
+  var f = input.files && input.files[0];
+  if (!f) return;
+  if (f.size > 10 * 1024 * 1024){
+    showToast('ファイルが大きすぎます(10MBまで)');
+    input.value = '';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(){ handleBackupText(reader.result || ''); input.value = ''; };
+  reader.onerror = function(){ showToast('ファイルを読み込めませんでした'); input.value = ''; };
+  reader.readAsText(f);
+});
+document.getElementById('backup-paste-toggle-btn').addEventListener('click', function(){
+  document.getElementById('backup-paste-box').classList.toggle('is-hidden');
+});
+document.getElementById('backup-paste-load-btn').addEventListener('click', function(){
+  var t = document.getElementById('backup-paste-input').value;
+  if (!t.trim()){ showToast('テキストが入力されていません'); return; }
+  handleBackupText(t);
+});
+armConfirm(document.getElementById('backup-import-run-btn'), 'もう一度タップで上書き実行', applyBackupImport);
+
+/* 読み込み直後の再読み込みで、完了をお知らせする */
+try {
+  if (sessionStorage.getItem(BACKUP_IMPORTED_FLAG)){
+    sessionStorage.removeItem(BACKUP_IMPORTED_FLAG);
+    setTimeout(function(){ showToast('設定を読み込みました'); }, 300);
+  }
+} catch(e){}
 
 /* ============ PWAインストールボタン ============ */
 var deferredInstallPrompt = null;
