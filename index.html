@@ -318,7 +318,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .todo-alarm-sound-row .lbl2{flex-shrink:0;color:#666;}
 .todo-alarm-sound-row select{flex:1;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
 .todo-alarm-hint{font-size:11px;color:#999;margin-top:4px;line-height:1.5;}
-#gawa-info{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom, 0px));text-align:center;font-size:9px;color:rgba(255,255,255,0.35);pointer-events:none;padding:0 20px;}
+#gawa-info{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom, 0px));text-align:center;font-size:13px;color:rgba(255,255,255,0.5);pointer-events:none;padding:0 20px;}
 
 /* ---------- 年計算機 ---------- */
 .era-result{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.9;}
@@ -797,7 +797,6 @@ select.plain{
             </label>
             <div id="todo-alarm-sound-selects"></div>
             <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
-            <button type="button" class="btn-block muted" id="todo-alarm-diag-btn" style="margin-top:8px;font-size:12px;padding:8px;">🔍 通知チャンネルを診断</button>
             <label class="settings-toggle-row">
               <input type="checkbox" id="todo-persistent-enable-cb">
               <span>📌 通知エリアにスケジュールを常時表示（音は鳴りません）</span>
@@ -909,18 +908,6 @@ select.plain{
     <h2 id="todo-picker-title" style="margin:0 0 14px;font-size:17px;"></h2>
     <div id="todo-picker-list"></div>
     <button type="button" class="btn-block muted" id="todo-picker-close-btn">閉じる</button>
-  </div>
-</div>
-
-<div class="modal modal-top hidden" id="channel-debug-modal">
-  <div class="modal-overlay" id="channel-debug-overlay"></div>
-  <div class="modal-box">
-    <h2 style="margin:0 0 12px;font-size:16px;">通知チャンネル診断結果</h2>
-    <textarea id="channel-debug-text" readonly style="width:100%;height:220px;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:monospace;"></textarea>
-    <div style="display:flex;gap:10px;margin-top:14px;">
-      <button type="button" class="btn-block muted" id="channel-debug-close" style="margin-top:0;">閉じる</button>
-      <button type="button" class="btn-block" id="channel-debug-copy" style="margin-top:0;">結果をコピー</button>
-    </div>
   </div>
 </div>
 
@@ -2204,6 +2191,8 @@ var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v3';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 6;
+/* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
+var NAKA_VERSION = 1;
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -2443,14 +2432,8 @@ function renderShellInfo(){
   var el = document.getElementById('gawa-info');
   if (!el) return;
   var info = nativeShellInfo;
-  if (!info || !info.version){
-    el.textContent = 'Gawa: old';
-    return;
-  }
-  var txt = 'Gawa v' + info.version + ' top=' + info.top + (info.cssVar ? ' var=' + info.cssVar : '') +
-    ' bars=' + (info.systemBars ? '1' : '0') + ' app=' + (info.app ? '1' : '0') + ' notif=' + (info.notif ? '1' : '0');
-  if (info.version < REQUIRED_SHELL_VERSION) txt += ' (update needed)';
-  el.textContent = txt;
+  var gawaTxt = (!info || !info.version) ? 'Gawa: old' : ('Gawa v' + info.version + (info.version < REQUIRED_SHELL_VERSION ? '(要更新)' : ''));
+  el.textContent = gawaTxt + '  Naka v' + NAKA_VERSION;
 }
 function refreshShellInfo(){
   callNativeBridge('info', {}).then(function(res){
@@ -2458,34 +2441,6 @@ function refreshShellInfo(){
     renderShellInfo();
   }).catch(function(){ renderShellInfo(); });
 }
-/* 通知チャンネルの実際の設定(特にaudioUsage=アラーム用の音声ストリームになっているか)を
-   端末から直接読み出して確認する診断機能。USAGE_ALARM=4, USAGE_NOTIFICATION=5。 */
-document.getElementById('todo-alarm-diag-btn').addEventListener('click', function(){
-  callNativeBridge('listChannels', {}).then(function(res){
-    var channels = (res && res.channels) ? res.channels : [];
-    var relevant = channels.filter(function(c){ return (c.id || '').indexOf('alarm_') === 0 || (c.id || '').indexOf('todo_') === 0; });
-    var lines = relevant.map(function(c){
-      var usageLabel = {4:'ALARM', 5:'NOTIFICATION'}[c.audioUsage] || String(c.audioUsage);
-      return 'id=' + c.id + '\n  sound=' + c.sound + '\n  audioUsage=' + c.audioUsage + '(' + usageLabel + ')' +
-        '\n  importance=' + c.importance + '\n  vibrate=' + c.vibrate;
-    });
-    var text = relevant.length ? lines.join('\n\n') : '(該当するチャンネルが見つかりません。まだ一度も通知を予約/送信していない可能性があります)';
-    document.getElementById('channel-debug-text').value = text;
-    document.getElementById('channel-debug-modal').classList.remove('hidden');
-  }).catch(function(e){
-    document.getElementById('channel-debug-text').value = 'エラー: ' + e;
-    document.getElementById('channel-debug-modal').classList.remove('hidden');
-  });
-});
-document.getElementById('channel-debug-close').addEventListener('click', function(){
-  document.getElementById('channel-debug-modal').classList.add('hidden');
-});
-document.getElementById('channel-debug-overlay').addEventListener('click', function(){
-  document.getElementById('channel-debug-modal').classList.add('hidden');
-});
-document.getElementById('channel-debug-copy').addEventListener('click', function(){
-  copyTextToClipboard(document.getElementById('channel-debug-text').value, '診断結果をコピーしました');
-});
 document.getElementById('todo-alarm-enable-cb').addEventListener('change', function(){
   var cb = this;
   if (cb.checked){
