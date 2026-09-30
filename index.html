@@ -2200,7 +2200,7 @@ var ALARM_GAP_MS = 3000;   /* 重なった時に空ける間隔(ms)。音の再�
 var ALARM_NOTIF_ID_BASE = 90000;
 /* 「アラーム音を鳴らす」設定(初期値ON)。OFFの時は無音のチャンネルを使い、バイブと通知表示のみになる */
 var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
-var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v2';
+var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v3';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 6;
@@ -2281,7 +2281,7 @@ function confirmNativeBridge(){
   });
 }
 
-function soundChannelId(soundId){ return 'alarm_todo_' + soundId + '_v2'; }
+function soundChannelId(soundId){ return 'alarm_todo_' + soundId + '_v3'; }
 
 function ensureTodoAlarmChannels(){
   if (todoAlarmChannelsReady) return Promise.resolve();
