@@ -243,7 +243,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);
   padding:0 18px;font-size:15px;cursor:pointer;
 }
-#expense-list{margin-bottom:14px;max-height:320px;overflow-y:auto;}
+#expense-list{margin-bottom:14px;}
 .expense-row-live{
   display:flex;align-items:center;gap:8px;
   padding:6px 0;
@@ -253,6 +253,7 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   padding:9px 10px;font-size:15px;font-family:var(--sans);font-variant-numeric:tabular-nums;
 }
 .expense-row-live span{color:var(--ink-sub);font-size:13px;flex-shrink:0;}
+.expense-row-num{width:22px;text-align:right;font-family:var(--sans);font-variant-numeric:tabular-nums;}
 .expense-row-del{
   flex-shrink:0;background:none;border:none;color:var(--danger);font-size:18px;
   line-height:1;padding:4px 6px;cursor:pointer;
@@ -796,6 +797,7 @@ select.plain{
             </label>
             <div id="todo-alarm-sound-selects"></div>
             <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
+            <button type="button" class="btn-block muted" id="todo-alarm-diag-btn" style="margin-top:8px;font-size:12px;padding:8px;">🔍 通知チャンネルを診断</button>
             <label class="settings-toggle-row">
               <input type="checkbox" id="todo-persistent-enable-cb">
               <span>📌 通知エリアにスケジュールを常時表示（音は鳴りません）</span>
@@ -907,6 +909,18 @@ select.plain{
     <h2 id="todo-picker-title" style="margin:0 0 14px;font-size:17px;"></h2>
     <div id="todo-picker-list"></div>
     <button type="button" class="btn-block muted" id="todo-picker-close-btn">閉じる</button>
+  </div>
+</div>
+
+<div class="modal modal-top hidden" id="channel-debug-modal">
+  <div class="modal-overlay" id="channel-debug-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 12px;font-size:16px;">通知チャンネル診断結果</h2>
+    <textarea id="channel-debug-text" readonly style="width:100%;height:220px;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:monospace;"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button type="button" class="btn-block muted" id="channel-debug-close" style="margin-top:0;">閉じる</button>
+      <button type="button" class="btn-block" id="channel-debug-copy" style="margin-top:0;">結果をコピー</button>
+    </div>
   </div>
 </div>
 
@@ -1671,6 +1685,9 @@ function renderExpenseRows(){
   expenses.forEach(function(val, i){
     var row = document.createElement('div');
     row.className = 'expense-row-live';
+    var num = document.createElement('span');
+    num.className = 'expense-row-num';
+    num.textContent = (i + 1) + '.';
     var input = document.createElement('input');
     input.type = 'number';
     input.inputMode = 'decimal';
@@ -1690,12 +1707,16 @@ function renderExpenseRows(){
     delBtn.className = 'expense-row-del';
     delBtn.textContent = '×';
     delBtn.addEventListener('click', function(){
+      if (expenses.length <= BUDGET_MIN_ROWS){
+        showToast('出費欄はこれ以上減らせません（最低' + BUDGET_MIN_ROWS + '行）');
+        return;
+      }
       expenses.splice(i, 1);
-      while (expenses.length < BUDGET_MIN_ROWS) expenses.push(null);
       renderExpenseRows();
       updateBudgetTotals();
       saveExpenses();
     });
+    row.appendChild(num);
     row.appendChild(input);
     row.appendChild(unit);
     row.appendChild(delBtn);
@@ -2182,7 +2203,7 @@ var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
 var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v2';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 5;
+var REQUIRED_SHELL_VERSION = 6;
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -2437,6 +2458,34 @@ function refreshShellInfo(){
     renderShellInfo();
   }).catch(function(){ renderShellInfo(); });
 }
+/* 通知チャンネルの実際の設定(特にaudioUsage=アラーム用の音声ストリームになっているか)を
+   端末から直接読み出して確認する診断機能。USAGE_ALARM=4, USAGE_NOTIFICATION=5。 */
+document.getElementById('todo-alarm-diag-btn').addEventListener('click', function(){
+  callNativeBridge('listChannels', {}).then(function(res){
+    var channels = (res && res.channels) ? res.channels : [];
+    var relevant = channels.filter(function(c){ return (c.id || '').indexOf('alarm_') === 0 || (c.id || '').indexOf('todo_') === 0; });
+    var lines = relevant.map(function(c){
+      var usageLabel = {4:'ALARM', 5:'NOTIFICATION'}[c.audioUsage] || String(c.audioUsage);
+      return 'id=' + c.id + '\n  sound=' + c.sound + '\n  audioUsage=' + c.audioUsage + '(' + usageLabel + ')' +
+        '\n  importance=' + c.importance + '\n  vibrate=' + c.vibrate;
+    });
+    var text = relevant.length ? lines.join('\n\n') : '(該当するチャンネルが見つかりません。まだ一度も通知を予約/送信していない可能性があります)';
+    document.getElementById('channel-debug-text').value = text;
+    document.getElementById('channel-debug-modal').classList.remove('hidden');
+  }).catch(function(e){
+    document.getElementById('channel-debug-text').value = 'エラー: ' + e;
+    document.getElementById('channel-debug-modal').classList.remove('hidden');
+  });
+});
+document.getElementById('channel-debug-close').addEventListener('click', function(){
+  document.getElementById('channel-debug-modal').classList.add('hidden');
+});
+document.getElementById('channel-debug-overlay').addEventListener('click', function(){
+  document.getElementById('channel-debug-modal').classList.add('hidden');
+});
+document.getElementById('channel-debug-copy').addEventListener('click', function(){
+  copyTextToClipboard(document.getElementById('channel-debug-text').value, '診断結果をコピーしました');
+});
 document.getElementById('todo-alarm-enable-cb').addEventListener('change', function(){
   var cb = this;
   if (cb.checked){
@@ -2809,6 +2858,8 @@ function renderTodoSchedule(){
       var row = document.createElement('div');
       row.className = 'todo-schedule-item';
       if (now >= item.start && now < item.end) row.classList.add('now');
+      row.dataset.start = item.start.getTime();
+      row.dataset.end = item.end.getTime();
       row.innerHTML = '<span class="t">' + formatHM(item.start) + '〜' + formatHM(item.end) + '</span><br>' + item.name + '（' + item.minutes + '分）';
       col.appendChild(row);
     });
@@ -2818,6 +2869,18 @@ function renderTodoSchedule(){
     col.appendChild(timeFooter);
     container.appendChild(col);
   });
+}
+/* 「今やること」のハイライトだけを、DOMを作り直さずに更新する軽い処理。
+   以前は30秒おきの全体再描画に頼っていたため、切り替わり境界からずれた
+   タイミングで表示中だと最大30秒の遅延が出ていた。これを1秒間隔で呼ぶことで解消する。 */
+function updateTodoHighlight(){
+  var now = Date.now();
+  var rows = document.querySelectorAll('#todo-schedule-scroll .todo-schedule-item[data-start]');
+  for (var i = 0; i < rows.length; i++){
+    var r = rows[i];
+    var isNow = now >= (+r.dataset.start) && now < (+r.dataset.end);
+    if (isNow !== r.classList.contains('now')) r.classList.toggle('now', isNow);
+  }
 }
 function updateTodoClock(){
   var dateEl = document.getElementById('todo-clock-date');
@@ -2848,14 +2911,18 @@ window.addEventListener('resize', function(){
   var page = document.getElementById('page-todo');
   if (page && page.classList.contains('active')) fitTodoClock();
 });
-/* 表示中は1分ごとにハイライトを再計算し、時計は1秒ごとに更新する */
+/* 表示中は1分ごとに全体を再描画(日付またぎ等の保険)、
+   ハイライトと時計は1秒ごとに軽量更新する */
 setInterval(function(){
   var page = document.getElementById('page-todo');
   if (page && page.classList.contains('active')) renderTodoSchedule();
-}, 30000);
+}, 60000);
 setInterval(function(){
   var page = document.getElementById('page-todo');
-  if (page && page.classList.contains('active')) updateTodoClock();
+  if (page && page.classList.contains('active')){
+    updateTodoClock();
+    updateTodoHighlight();
+  }
 }, 1000);
 /* 常時通知のB案(完了時刻を過ぎたら消す)を反映するため、ページ表示に関わらず定期的に見直す。
    ただしこれはアプリのJSが動いている間だけ有効。アプリを完全に終了している間は働かない。 */
