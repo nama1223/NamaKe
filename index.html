@@ -84,10 +84,17 @@ main{flex:1;padding:16px;padding-bottom:48px;}
   overflow:hidden;
 }
 #menu-list{display:flex;flex-direction:column;}
+/* カテゴリ表示: カテゴリが1つでもある時(または お気に入りがある時)だけ、枠ごとのカード表示になる */
+.menu-section{--sec-bg:var(--surface);}
+#menu-card.multi{background:none;box-shadow:none;overflow:visible;}
+#menu-card.multi .menu-section{background:var(--sec-bg);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
+.menu-sec-head{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;padding:11px 14px;font-size:13px;font-weight:600;color:var(--ink-sub);cursor:pointer;text-align:left;}
+.menu-sec-head .sec-title{flex:1;}
+.menu-sec-head .sec-count{font-weight:400;font-size:12px;}
 .menu-item{
   display:flex;align-items:stretch;
   border-bottom:1px solid var(--border);
-  background:var(--surface);
+  background:var(--sec-bg, var(--surface));
   touch-action:pan-y;
 }
 .menu-item:last-child{border-bottom:none;}
@@ -592,6 +599,24 @@ select.plain{
 .backup-import-row{padding:9px 2px;}
 .backup-import-row.child{padding-left:28px;}
 .backup-import-row.parent span{font-weight:600;}
+
+/* ---------- 設定画面: カテゴリ ---------- */
+.cat-box{border:1px solid var(--border);border-radius:10px;margin-top:10px;background:#fff;}
+.cat-head{display:flex;align-items:center;gap:6px;padding:6px 8px;}
+.cat-chev{width:34px;height:34px;border:none;background:#eef1f5;border-radius:8px;font-size:12px;color:var(--ink-sub);cursor:pointer;flex:none;}
+.cat-name{flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 4px;}
+.cat-name.rename{cursor:pointer;}
+.cat-swatch{width:26px;height:26px;border:2px solid #9aa5b1;border-radius:6px;flex:none;cursor:pointer;padding:0;}
+.cat-move{display:flex;gap:4px;margin-left:14px;flex:none;}
+.cat-move button{width:32px;height:32px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;color:var(--primary);cursor:pointer;padding:0;}
+.cat-move button:disabled{opacity:0.3;cursor:default;}
+.cat-body{padding:2px 10px 10px;border-top:1px solid var(--border);}
+.cat-palette{display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px 2px;}
+.cat-palette button{width:30px;height:30px;border:2px solid #c9d1da;border-radius:6px;cursor:pointer;padding:0;}
+.cat-name-edit{display:flex;gap:6px;flex:1;min-width:0;}
+.cat-name-input{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:7px 8px;font-size:14px;}
+.cat-mini-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:0 10px;font-size:13px;cursor:pointer;}
+.cat-hide-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 8px;font-size:12px;color:var(--primary);cursor:pointer;flex:none;}
 </style>
 </head>
 <body>
@@ -915,7 +940,7 @@ select.plain{
     <h2 style="margin:0 0 14px;font-size:17px;">設定</h2>
 
     <div class="set-tab-bar" id="set-tab-bar">
-      <button type="button" class="set-tab active" data-tab="features">表示する機能</button>
+      <button type="button" class="set-tab active" data-tab="features">表示・カテゴリ</button>
       <button type="button" class="set-tab" data-tab="general">アプリ全般</button>
     </div>
 
@@ -1157,6 +1182,7 @@ var MENU_ITEMS = [
 ];
 var ORDER_KEY = 'namacalc_menu_order_v1';
 var VISIBLE_KEY = 'namacalc_menu_visible_v1';
+var CATS_KEY = 'namacalc_menu_cats_v1';   /* カテゴリ・お気に入り・折りたたみ状態 */
 var BUDGET_KEY = 'namacalc_budget_v1';
 
 /* 画面の表示切替のみを行う(履歴操作はしない) */
@@ -1221,11 +1247,19 @@ function loadOrder(){
   }
   return ids;
 }
-function saveOrder(){
-  var children = document.getElementById('menu-list').children;
-  var ids = [];
-  for (var i=0;i<children.length;i++){ ids.push(children[i].dataset.id); }
-  localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
+/* 並べ替え結果の保存先は、ドラッグした枠(list.dataset.sec)で決まる: お気に入り / カテゴリ / 未分類 */
+function saveOrder(list){
+  var ids = [].slice.call(list.children).map(function(c){ return c.dataset.id; });
+  var sec = list.dataset.sec || 'uncat';
+  if (sec === 'uncat'){
+    var rest = loadOrder().filter(function(id){ return ids.indexOf(id) === -1; });
+    localStorage.setItem(ORDER_KEY, JSON.stringify(ids.concat(rest)));
+    return;
+  }
+  var d = loadCats();
+  if (sec === 'fav') d.favs = ids;
+  else d.cats.forEach(function(c){ if ('cat:' + c.id === sec) c.items = ids; });
+  saveCats(d);
 }
 function loadMenuVisibility(){
   var saved = null;
@@ -1237,38 +1271,87 @@ function setMenuVisible(id, visible){
   v[id] = visible;
   localStorage.setItem(VISIBLE_KEY, JSON.stringify(v));
 }
+function menuItemById(id){
+  for (var j=0;j<MENU_ITEMS.length;j++){ if (MENU_ITEMS[j].id === id) return MENU_ITEMS[j]; }
+  return null;
+}
+function loadCats(){
+  var d = null;
+  try { d = JSON.parse(localStorage.getItem(CATS_KEY) || 'null'); } catch(e){ d = null; }
+  if (!d || typeof d !== 'object') d = {};
+  function clean(a){
+    var out = [];
+    (Array.isArray(a) ? a : []).forEach(function(id){ if (menuItemById(id) && out.indexOf(id) === -1) out.push(id); });
+    return out;
+  }
+  return {
+    cats: (Array.isArray(d.cats) ? d.cats : []).map(function(c){
+      return {id: String(c.id), name: String(c.name || '無題'), color: typeof c.color === 'string' ? c.color : '', collapsed: !!c.collapsed, items: clean(c.items)};
+    }),
+    favs: clean(d.favs), hideUncat: !!d.hideUncat, favCollapsed: !!d.favCollapsed, uncatCollapsed: !!d.uncatCollapsed
+  };
+}
+function saveCats(d){ localStorage.setItem(CATS_KEY, JSON.stringify(d)); }
+function buildMenuRow(item){
+  var row = document.createElement('div');
+  row.className = 'menu-item';
+  row.dataset.id = item.id;
+  row.innerHTML =
+    '<div class="handle">≡</div>' +
+    '<button class="menu-btn" type="button">' +
+      '<span class="icon">' + item.icon + '</span>' +
+      '<span class="label">' + item.label + '</span>' +
+      '<span class="chev">›</span>' +
+    '</button>';
+  row.querySelector('.menu-btn').addEventListener('click', function(){
+    navigateTo(this.parentElement.dataset.id);
+  });
+  attachDrag(row);
+  return row;
+}
+/* 表示順: お気に入り → 未分類 → カテゴリ(設定画面の並びと同じ)。カテゴリもお気に入りも無い時は、従来と同じ1枚のリスト */
 function renderMenu(){
-  var order = loadOrder();
+  var d = loadCats();
   var visibility = loadMenuVisibility();
+  var inCat = {};
+  d.cats.forEach(function(c){ c.items.forEach(function(id){ inCat[id] = true; }); });
+  var uncat = loadOrder().filter(function(id){ return visibility[id] !== false && !inCat[id]; });
+  var multi = d.cats.length > 0 || d.favs.length > 0;
+  document.getElementById('menu-card').classList.toggle('multi', multi);
   var list = document.getElementById('menu-list');
   list.innerHTML = '';
-  order.forEach(function(id){
-    if (visibility[id] === false) return;
-    var item = null;
-    for (var j=0;j<MENU_ITEMS.length;j++){ if (MENU_ITEMS[j].id===id) item = MENU_ITEMS[j]; }
-    if (!item) return;
-    var row = document.createElement('div');
-    row.className = 'menu-item';
-    row.dataset.id = id;
-    row.innerHTML =
-      '<div class="handle">≡</div>' +
-      '<button class="menu-btn" type="button">' +
-        '<span class="icon">' + item.icon + '</span>' +
-        '<span class="label">' + item.label + '</span>' +
-        '<span class="chev">›</span>' +
-      '</button>';
-    row.querySelector('.menu-btn').addEventListener('click', function(){
-      navigateTo(this.parentElement.dataset.id);
-    });
-    attachDrag(row);
-    list.appendChild(row);
+  function section(key, title, color, ids, collapsed, onToggle){
+    var sec = document.createElement('div');
+    sec.className = 'menu-section';
+    if (color) sec.style.setProperty('--sec-bg', color);
+    if (multi){
+      var head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'menu-sec-head';
+      head.innerHTML = '<span>' + (collapsed ? '▶' : '▼') + '</span><span class="sec-title"></span><span class="sec-count">' + ids.length + '</span>';
+      head.querySelector('.sec-title').textContent = title;
+      head.addEventListener('click', function(){ onToggle(); renderMenu(); });
+      sec.appendChild(head);
+    }
+    var box = document.createElement('div');
+    box.className = 'sec-items';
+    box.dataset.sec = key;
+    if (!(multi && collapsed)) ids.forEach(function(id){ box.appendChild(buildMenuRow(menuItemById(id))); });
+    sec.appendChild(box);
+    list.appendChild(sec);
+  }
+  if (d.favs.length) section('fav', '⭐ お気に入り', '', d.favs, d.favCollapsed, function(){ d.favCollapsed = !d.favCollapsed; saveCats(d); });
+  var showUncat = !(d.cats.length > 0 && d.hideUncat) && (uncat.length > 0 || !multi);
+  if (showUncat) section('uncat', '未分類', '', uncat, d.uncatCollapsed, function(){ d.uncatCollapsed = !d.uncatCollapsed; saveCats(d); });
+  d.cats.forEach(function(c){
+    section('cat:' + c.id, c.name, c.color, c.items, c.collapsed, function(){ c.collapsed = !c.collapsed; saveCats(d); });
   });
 }
 function attachDrag(item){
   var handle = item.querySelector('.handle');
   handle.addEventListener('pointerdown', function(e){
     e.preventDefault();
-    var list = document.getElementById('menu-list');
+    var list = item.parentElement;
     var dragging = true;
     item.classList.add('dragging');
     try { item.setPointerCapture(e.pointerId); } catch(err){}
@@ -1308,7 +1391,7 @@ function attachDrag(item){
       item.style.transform = '';
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
-      saveOrder();
+      saveOrder(list);
     }
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
@@ -2295,7 +2378,7 @@ var REQUIRED_SHELL_VERSION = 7;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-3';
+var APP_BUILD = '20261001-4';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3737,26 +3820,141 @@ document.getElementById('info-close-btn').addEventListener('click', closeInfoMod
 document.getElementById('info-overlay').addEventListener('click', closeInfoModal);
 
 /* ============ 設定モーダル(表示項目の切替) ============ */
+var CAT_COLORS = ['', '#fde2e2', '#fdebd0', '#fff6c7', '#e0f3dc', '#d9f0f2', '#dce6fa', '#eadcf8', '#f3e0ec', '#e4e7eb'];
+var catUi = {open: {uncat: true}, editing: null, palette: null};   /* 設定画面内の一時状態(保存しない) */
+function el(tag, cls, text, parent){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
 function renderSettingsToggles(){
   var box = document.getElementById('settings-menu-toggles');
   box.innerHTML = '';
-  var visibility = loadMenuVisibility();
-  MENU_ITEMS.forEach(function(item){
-    var checked = visibility[item.id] !== false;
-    var row = document.createElement('label');
-    row.className = 'settings-toggle-row';
-    var cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = checked;
-    var span = document.createElement('span');
-    span.textContent = item.icon + ' ' + item.label;
-    row.appendChild(cb);
-    row.appendChild(span);
-    cb.addEventListener('change', function(){
-      setMenuVisible(item.id, cb.checked);
-      renderMenu();
+  var d = loadCats();
+  var vis = loadMenuVisibility();
+  var inCat = {};
+  d.cats.forEach(function(c){ c.items.forEach(function(id){ inCat[id] = true; }); });
+  function commit(){ saveCats(d); renderMenu(); renderSettingsToggles(); }
+
+  function nameEditor(parent, initial, onOk){
+    var row = el('div', 'cat-name-edit', undefined, parent);
+    var inp = el('input', 'cat-name-input', undefined, row);
+    inp.type = 'text'; inp.maxLength = 30; inp.value = initial; inp.placeholder = 'カテゴリ名(空欄は「無題」)';
+    var ok = el('button', 'cat-mini-btn', 'OK', row); ok.type = 'button';
+    var cancel = el('button', 'cat-mini-btn', '×', row); cancel.type = 'button';
+    function done(){ onOk(inp.value.trim() || '無題'); }
+    ok.addEventListener('click', done);
+    cancel.addEventListener('click', function(){ catUi.editing = null; renderSettingsToggles(); });
+    inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') done(); });
+    setTimeout(function(){ inp.focus(); }, 0);
+  }
+
+  /* カテゴリ追加 */
+  var addWrap = el('div', '', undefined, box);
+  if (catUi.editing === 'new'){
+    nameEditor(addWrap, '', function(name){
+      d.cats.push({id: 'c' + Date.now().toString(36), name: name, color: '', collapsed: false, items: []});
+      catUi.editing = null; catUi.open['cat:' + d.cats[d.cats.length-1].id] = true; commit();
     });
-    box.appendChild(row);
+  } else {
+    var ab = el('button', 'btn-block secondary', '＋ カテゴリを追加', addWrap);
+    ab.type = 'button'; ab.style.marginTop = '0';
+    ab.addEventListener('click', function(){ catUi.editing = 'new'; renderSettingsToggles(); });
+  }
+
+  /* 1つの枠(お気に入り/未分類/カテゴリ)を作る */
+  function makeBox(key, title, o){
+    var wrap = el('div', 'cat-box', undefined, box);
+    var open = !!catUi.open[key];
+    var head = el('div', 'cat-head', undefined, wrap);
+    var chev = el('button', 'cat-chev', open ? '▼' : '▶', head); chev.type = 'button';
+    chev.addEventListener('click', function(){ catUi.open[key] = !open; renderSettingsToggles(); });
+    if (o.onRename && catUi.editing === key){
+      nameEditor(head, o.name, function(name){ o.onRename(name); catUi.editing = null; commit(); });
+    } else {
+      var nm = el('div', 'cat-name' + (o.onRename ? ' rename' : ''), title + (o.onRename ? ' ✏️' : ''), head);
+      if (o.onRename) nm.addEventListener('click', function(){ catUi.editing = key; renderSettingsToggles(); });
+    }
+    if (o.onColor){
+      var sw = el('button', 'cat-swatch', undefined, head); sw.type = 'button';
+      sw.style.background = o.color || '#ffffff';
+      sw.addEventListener('click', function(){ catUi.palette = (catUi.palette === key) ? null : key; renderSettingsToggles(); });
+    }
+    if (o.hideBtn){
+      var hb = el('button', 'cat-hide-btn', o.hideBtn.text, head); hb.type = 'button';
+      hb.addEventListener('click', o.hideBtn.fn);
+    }
+    if (o.move){
+      var mv = el('div', 'cat-move', undefined, head);
+      var up = el('button', '', '▲', mv); up.type = 'button'; up.disabled = !o.move.canUp;
+      var dn = el('button', '', '▼', mv); dn.type = 'button'; dn.disabled = !o.move.canDown;
+      up.addEventListener('click', function(){ o.move.fn(-1); });
+      dn.addEventListener('click', function(){ o.move.fn(1); });
+    }
+    if (o.onColor && catUi.palette === key){
+      var pal = el('div', 'cat-palette', undefined, wrap);
+      CAT_COLORS.forEach(function(col){
+        var b = el('button', '', col ? '' : '✕', pal); b.type = 'button';
+        b.style.background = col || '#ffffff';
+        if (col === o.color) b.style.borderColor = '#1e3a5f';
+        b.addEventListener('click', function(){ o.onColor(col); catUi.palette = null; commit(); });
+      });
+    }
+    var body = null;
+    if (open){ body = el('div', 'cat-body', undefined, wrap); }
+    return body;
+  }
+  function memberRows(body, arr){
+    MENU_ITEMS.forEach(function(item){
+      var row = el('label', 'settings-toggle-row', undefined, body);
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = arr.indexOf(item.id) !== -1;
+      row.appendChild(cb); el('span', '', item.icon + ' ' + item.label, row);
+      cb.addEventListener('change', function(){
+        if (cb.checked){ arr.push(item.id); setMenuVisible(item.id, true); }
+        else arr.splice(arr.indexOf(item.id), 1);
+        commit();
+      });
+    });
+  }
+
+  /* ⭐ お気に入り(トップの一番上に固定表示) */
+  var fb = makeBox('fav', '⭐ お気に入り', {});
+  if (fb) memberRows(fb, d.favs);
+
+  /* 未分類(移動不可)。どこかのカテゴリに入れた機能はここから消える。チェック=トップに表示 */
+  var ub = makeBox('uncat', '未分類', d.cats.length ? {hideBtn: {text: d.hideUncat ? '👁 トップに表示' : '🙈 トップで隠す', fn: function(){ d.hideUncat = !d.hideUncat; commit(); }}} : {});
+  if (ub){
+    var any = false;
+    MENU_ITEMS.forEach(function(item){
+      if (inCat[item.id]) return;
+      any = true;
+      var row = el('label', 'settings-toggle-row', undefined, ub);
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = vis[item.id] !== false;
+      row.appendChild(cb); el('span', '', item.icon + ' ' + item.label, row);
+      cb.addEventListener('change', function(){ setMenuVisible(item.id, cb.checked); renderMenu(); });
+    });
+    if (!any) el('p', 'backup-hint', 'すべての機能がカテゴリに入っています', ub);
+  }
+
+  /* カテゴリ(上下ボタンで並べ替え) */
+  d.cats.forEach(function(c, i){
+    var key = 'cat:' + c.id;
+    var cbody = makeBox(key, c.name, {
+      name: c.name, color: c.color,
+      onRename: function(name){ c.name = name; },
+      onColor: function(col){ c.color = col; },
+      move: {canUp: i > 0, canDown: i < d.cats.length - 1, fn: function(dir){
+        var t = d.cats[i + dir]; d.cats[i + dir] = c; d.cats[i] = t; commit();
+      }}
+    });
+    if (cbody){
+      memberRows(cbody, c.items);
+      var del = el('button', 'btn-block outline', '🗑 このカテゴリを削除', cbody);
+      del.type = 'button'; del.style.marginTop = '10px';
+      armConfirm(del, 'もう一度タップで削除', function(){ d.cats.splice(i, 1); commit(); });
+    }
   });
 }
 function switchSettingsTab(tabId){
@@ -3794,6 +3992,7 @@ var resetOrderBtnReset = armConfirm(document.getElementById('settings-order-rese
   showToast('メニューの並び順を初期配置に戻しました');
 });
 function openSettingsModal(){
+  catUi.editing = null; catUi.palette = null;
   renderSettingsToggles();
   resetOrderBtnReset();
   switchSettingsTab('features');
@@ -3883,7 +4082,7 @@ var BACKUP_FORMAT = 'namake-backup';
 var BACKUP_VERSION = 1;
 var BACKUP_IMPORTED_FLAG = 'namacalc_import_done';
 var BACKUP_GROUPS = [
-  {id:'menu',   label:'📋 トップメニューの並び順・表示設定', keys:[ORDER_KEY, VISIBLE_KEY]},
+  {id:'menu',   label:'📋 トップメニューの並び順・表示・カテゴリ', keys:[ORDER_KEY, VISIBLE_KEY, CATS_KEY]},
   {id:'calc',   label:'🧮 単なる電卓(メモ欄)',               keys:[CALC_MEMO_KEY]},
   {id:'budget', label:'💰 予算収支計算機(予算・出費)',        keys:[BUDGET_KEY, EXPENSES_KEY]},
   {id:'todo',   label:'⏱️ 逆算ToDo', children:[
