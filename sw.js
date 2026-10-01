@@ -90,11 +90,16 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
 
+  // 0. 「更新チェック」ボタン用の確認リクエスト(?__check=付き)は、SWを素通りさせて必ずネットワークから取る
+  if (url.searchParams.has('__check')) return;
+
   // 1. HTMLリクエスト（画面遷移）は Network-First
   // 常に最新版を見に行き、オフライン時のみキャッシュから返す
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      // cache: 'no-cache' = ブラウザのHTTPキャッシュを使う前に必ずサーバーへ「更新あり?」と確認する
+      // (GitHub Pagesの短期キャッシュで古いHTMLが出続ける問題への対策。変更なしなら304で軽い)
+      fetch(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then(response => {
           const resClone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));

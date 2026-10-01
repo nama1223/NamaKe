@@ -308,6 +308,9 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .btn-block.dark:active{background:#1a1a1a;}
 .btn-block.outline{background:#fff;color:var(--primary);border:1.5px solid #c9d1da;}
 .btn-block.outline:active{background:#eef1f5;}
+/* 「もう一度タップで実行」待ちのボタン: 赤く点滅させて「押したのが無視された」と誤解されないようにする */
+.btn-block.armed,.btn-block.outline.armed{background:#d9534f;color:#fff;border-color:#d9534f;animation:armBlink 0.7s ease-in-out infinite alternate;}
+@keyframes armBlink{from{opacity:1;}to{opacity:0.6;}}
 .settings-toggle-row{
   display:flex;align-items:center;gap:10px;
   padding:10px 2px;border-bottom:1px solid var(--border);
@@ -922,7 +925,9 @@ select.plain{
     </div>
 
     <div class="set-tab-panel is-hidden" id="set-tab-general">
-      <button type="button" class="btn-block" id="settings-backup-btn" style="margin-top:0;">💾 設定の読み込み・出力</button>
+      <button type="button" class="btn-block dark" id="settings-update-btn" style="margin-top:0;">🔄 更新チェック</button>
+      <p class="backup-hint" id="settings-update-status" style="margin:6px 0 0;"></p>
+      <button type="button" class="btn-block" id="settings-backup-btn">💾 設定の読み込み・出力</button>
       <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
     </div>
 
@@ -2286,6 +2291,8 @@ var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 var REQUIRED_SHELL_VERSION = 6;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
+/* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
+var APP_BUILD = '20261001-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3763,38 +3770,104 @@ for (var sti=0; sti<setTabButtons.length; sti++){
 function armConfirm(btn, armedText, action){
   var normalText = btn.textContent;
   var armed = false, timer = null;
-  function reset(){ armed = false; btn.textContent = normalText; }
+  function reset(){ armed = false; clearTimeout(timer); btn.textContent = normalText; btn.classList.remove('armed'); }
   btn.addEventListener('click', function(){
     if (!armed){
       armed = true;
       btn.textContent = armedText;
+      btn.classList.add('armed');
       clearTimeout(timer);
-      timer = setTimeout(reset, 4000);
+      timer = setTimeout(reset, 5000);
       return;
     }
-    clearTimeout(timer);
     reset();
     action();
   });
+  return reset;   /* モーダルを閉じた時などに呼んで、確認待ちを解除する */
 }
-armConfirm(document.getElementById('settings-order-reset-btn'), 'もう一度タップで初期配置に戻す', function(){
+var resetOrderBtnReset = armConfirm(document.getElementById('settings-order-reset-btn'), 'もう一度タップで初期配置に戻す', function(){
   localStorage.removeItem(ORDER_KEY);
   renderMenu();
   showToast('メニューの並び順を初期配置に戻しました');
 });
 function openSettingsModal(){
   renderSettingsToggles();
+  resetOrderBtnReset();
   switchSettingsTab('features');
   document.getElementById('settings-modal').classList.remove('hidden');
   renderShellInfo();
   refreshShellInfo();
 }
 function closeSettingsModal(){
+  resetOrderBtnReset();
   document.getElementById('settings-modal').classList.add('hidden');
 }
 document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
 document.getElementById('settings-close-btn').addEventListener('click', closeSettingsModal);
 document.getElementById('settings-overlay').addEventListener('click', closeSettingsModal);
+
+/* ============ 更新チェック(強制更新) ============
+   ・本体のindex.htmlをキャッシュ無視で取り直し、中の APP_BUILD が今動いているものと違えば再読み込みする
+   ・URLに ?__check= を付けるのは、Service Workerを素通りさせて確実にネットワークから取るため(sw.js側と対) */
+var UPDATE_EXPECT_KEY = 'namacalc_update_expect';
+function setUpdateStatus(text){ document.getElementById('settings-update-status').textContent = text; }
+function checkForUpdate(){
+  var btn = document.getElementById('settings-update-btn');
+  var base = location.href.split('#')[0].split('?')[0];
+  btn.disabled = true;
+  btn.textContent = '🔄 確認中…';
+  setUpdateStatus('');
+  function done(){ btn.disabled = false; btn.textContent = '🔄 更新チェック'; }
+  fetch(base + '?__check=' + Date.now(), {cache: 'no-store'})
+    .then(function(res){
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function(html){
+      var m = html.match(/var APP_BUILD = '([^']+)'/);
+      if (!m){
+        done();
+        setUpdateStatus('⚠️ 最新版の情報を読み取れませんでした。');
+        showToast('更新の有無を判定できませんでした', 5000);
+        return;
+      }
+      var latest = m[1];
+      if (latest === APP_BUILD){
+        done();
+        setUpdateStatus('✅ 最新版です(版: ' + APP_BUILD + ')');
+        showToast('すでに最新版です', 4000);
+        return;
+      }
+      setUpdateStatus('🆕 新しい版(' + latest + ')が見つかりました。更新します…');
+      showToast('新しい版が見つかりました。更新します…', 2500);
+      try { sessionStorage.setItem(UPDATE_EXPECT_KEY, JSON.stringify({from: APP_BUILD, to: latest})); } catch(e){}
+      var tasks = [];
+      if ('serviceWorker' in navigator){
+        tasks.push(navigator.serviceWorker.getRegistrations().then(function(regs){
+          return Promise.all(regs.map(function(r){ return r.update().catch(function(){}); }));
+        }).catch(function(){}));
+      }
+      Promise.all(tasks).then(function(){ setTimeout(function(){ location.reload(); }, 800); });
+    })
+    .catch(function(e){
+      done();
+      setUpdateStatus('❌ 確認できませんでした(通信状態を確認してください): ' + (e && e.message ? e.message : e));
+      showToast('更新を確認できませんでした。通信状態を確認してください', 5000);
+    });
+}
+document.getElementById('settings-update-btn').addEventListener('click', checkForUpdate);
+/* 更新のための再読み込み直後に、結果をお知らせする */
+try {
+  var updExpect = sessionStorage.getItem(UPDATE_EXPECT_KEY);
+  if (updExpect){
+    sessionStorage.removeItem(UPDATE_EXPECT_KEY);
+    var ue = JSON.parse(updExpect);
+    setTimeout(function(){
+      if (ue.to === APP_BUILD) showToast('更新しました(' + ue.from + ' → ' + APP_BUILD + ')', 5000);
+      else showToast('更新を試みましたが、まだ古い版のままです(' + APP_BUILD + ')。もう一度押すか、アプリを終了して開き直してください', 7000);
+    }, 400);
+  }
+} catch(e){}
 
 /* ============ 設定の読み込み・出力(.nmkバックアップ) ============
    ・出力: localStorageの保存データを1つのJSONにまとめ、拡張子.nmkで保存する
@@ -4009,6 +4082,7 @@ function openBackupModal(){
   document.getElementById('backup-modal').classList.remove('hidden');
 }
 function closeBackupModal(){
+  importRunBtnReset();
   document.getElementById('backup-modal').classList.add('hidden');
   backupParsed = null;
   backupLeafRows = [];
@@ -4049,7 +4123,7 @@ document.getElementById('backup-paste-load-btn').addEventListener('click', funct
   if (!t.trim()){ showToast('テキストが入力されていません'); return; }
   handleBackupText(t);
 });
-armConfirm(document.getElementById('backup-import-run-btn'), 'もう一度タップで上書き実行', applyBackupImport);
+var importRunBtnReset = armConfirm(document.getElementById('backup-import-run-btn'), 'もう一度タップで上書き実行', applyBackupImport);
 
 /* 読み込み直後の再読み込みで、完了をお知らせする */
 try {
