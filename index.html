@@ -2288,11 +2288,11 @@ var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
 var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v3';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 6;
+var REQUIRED_SHELL_VERSION = 7;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-1';
+var APP_BUILD = '20261001-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3924,8 +3924,23 @@ function backupFileName(){
 }
 function downloadBackupFile(){
   var name = backupFileName();
+  var text = JSON.stringify(buildBackupObject());
+  if (isApkPlatform() && nativeBridgeConfirmed){ shareBackupViaShell(name, text); return; }
+  browserDownload(name, text);
+}
+/* APK版: ガワ(v7以降)に頼んで共有画面を開く。ガワ側が未対応・失敗の場合は通常のダウンロードにフォールバック */
+function shareBackupViaShell(name, text){
+  callNativeBridge('shareFile', {fileName: name, text: text}).then(function(){
+    showToast('共有画面を開きました。保存先を選んでください(' + name + ')', 6000);
+  }).catch(function(err){
+    var m = String(err && err.message ? err.message : err);
+    if (/cancel/i.test(m)){ showToast('共有をキャンセルしました'); return; }
+    browserDownload(name, text);
+    showToast('共有画面を開けませんでした(' + m + ')。ガワが古い可能性があります', 7000);
+  });
+}
+function browserDownload(name, text){
   try {
-    var text = JSON.stringify(buildBackupObject());
     var blob = new Blob([text], {type: 'application/octet-stream'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
