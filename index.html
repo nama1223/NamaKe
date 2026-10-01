@@ -925,7 +925,10 @@ select.plain{
     </div>
 
     <div class="set-tab-panel is-hidden" id="set-tab-general">
-      <button type="button" class="btn-block dark" id="settings-update-btn" style="margin-top:0;">🔄 更新チェック</button>
+      <div style="display:flex;gap:6px;">
+        <button type="button" class="btn-block dark" id="settings-update-btn" style="margin-top:0;flex:1 1 0;min-width:0;width:auto;">🔄 更新チェック</button>
+        <button type="button" class="btn-block outline" id="settings-reload-btn" style="margin-top:0;flex:0 0 30%;width:auto;padding-left:4px;padding-right:4px;">🔁 リロード</button>
+      </div>
       <p class="backup-hint" id="settings-update-status" style="margin:6px 0 0;"></p>
       <button type="button" class="btn-block" id="settings-backup-btn">💾 設定の読み込み・出力</button>
       <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
@@ -2292,7 +2295,7 @@ var REQUIRED_SHELL_VERSION = 7;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-2';
+var APP_BUILD = '20261001-3';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3856,6 +3859,8 @@ function checkForUpdate(){
     });
 }
 document.getElementById('settings-update-btn').addEventListener('click', checkForUpdate);
+/* APK版にはブラウザの更新操作がないため、画面の再読み込みボタンを用意する */
+document.getElementById('settings-reload-btn').addEventListener('click', function(){ location.reload(); });
 /* 更新のための再読み込み直後に、結果をお知らせする */
 try {
   var updExpect = sessionStorage.getItem(UPDATE_EXPECT_KEY);
@@ -4219,7 +4224,7 @@ if ('serviceWorker' in navigator){
   });
   navigator.serviceWorker.addEventListener('message', function(event){
     if (event.data && event.data.type === 'sw_updated'){
-      showToast('新しいバージョンを適用しました。再読み込みしてください', 6000);
+      showToast('新しいバージョンを適用しました。設定の「アプリ全般」にある「リロード」を押してください', 7000);
     }
   });
 }
