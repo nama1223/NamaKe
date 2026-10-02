@@ -337,6 +337,13 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .todo-alarm-sound-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;}
 .todo-alarm-sound-row .lbl2{flex-shrink:0;color:#666;}
 .todo-alarm-sound-row select{flex:1;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
+.todo-alarm-sep{border-top:1px dashed var(--border);margin:8px 0 4px;}
+.todo-sound-row{display:flex;align-items:center;gap:8px;margin:2px 0 0 26px;}
+.todo-sound-row.disabled{opacity:0.4;}
+.todo-sound-summary{flex:1;min-width:0;font-size:12.5px;color:var(--ink-sub);line-height:1.5;}
+.todo-sound-btn{flex:none;border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 10px;font-size:12.5px;color:var(--primary);cursor:pointer;}
+.todo-sound-btn:disabled{cursor:default;}
+#todo-sound-detail.disabled{opacity:0.4;pointer-events:none;}
 .todo-alarm-hint{font-size:11px;color:#999;margin-top:4px;line-height:1.5;}
 #gawa-info{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom, 0px));text-align:center;font-size:13px;color:rgba(255,255,255,0.5);pointer-events:none;padding:0 20px;}
 
@@ -579,8 +586,8 @@ select.plain{
 .todo-tab-panel.hidden{display:none;}
 
 /* ---------- 設定モーダル(タブ式・上寄せ) ---------- */
-#settings-modal,#backup-modal{align-items:flex-start;padding-top:calc(24px + env(safe-area-inset-top, 0px));box-sizing:border-box;}
-#settings-modal .modal-box,#backup-modal .modal-box{max-height:calc(100vh - 48px);}
+#settings-modal,#backup-modal,#todo-sound-modal{align-items:flex-start;padding-top:calc(24px + env(safe-area-inset-top, 0px));box-sizing:border-box;}
+#settings-modal .modal-box,#backup-modal .modal-box,#todo-sound-modal .modal-box{max-height:calc(100vh - 48px);}
 .set-tab-bar{display:flex;gap:3px;margin-bottom:14px;background:#eef1f5;padding:3px;border-radius:10px;}
 .set-tab{
   flex:1;background:none;border:none;padding:10px 4px;font-size:13px;color:var(--ink-sub);
@@ -869,19 +876,18 @@ select.plain{
 
           <div class="todo-alarm-box hidden" id="todo-alarm-box">
             <label class="settings-toggle-row">
+              <input type="checkbox" id="todo-persistent-enable-cb">
+              <span>📌 通知エリアにスケジュールを常時表示</span>
+            </label>
+            <div class="todo-alarm-sep"></div>
+            <label class="settings-toggle-row">
               <input type="checkbox" id="todo-alarm-enable-cb">
               <span>🔔 予定時刻に通知・バイブでお知らせ（APK版のみ）</span>
             </label>
-            <label class="settings-toggle-row">
-              <input type="checkbox" id="todo-alarm-sound-cb" checked>
-              <span>🔊 アラーム音を鳴らす（OFFならバイブと表示のみ）</span>
-            </label>
-            <div id="todo-alarm-sound-selects"></div>
-            <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
-            <label class="settings-toggle-row">
-              <input type="checkbox" id="todo-persistent-enable-cb">
-              <span>📌 通知エリアにスケジュールを常時表示（音は鳴りません）</span>
-            </label>
+            <div class="todo-sound-row" id="todo-sound-row">
+              <span class="todo-sound-summary" id="todo-sound-summary"></span>
+              <button type="button" class="todo-sound-btn" id="todo-sound-open-btn">⚙ 音の設定</button>
+            </div>
           </div>
         </div>
       </div>
@@ -970,6 +976,32 @@ select.plain{
     <button type="button" class="btn-block muted" id="settings-close-btn" style="margin-top:16px;">閉じる</button>
   </div>
   <div id="gawa-info"></div>
+</div>
+
+<div class="modal hidden modal-top" id="todo-sound-modal">
+  <div class="modal-overlay" id="todo-sound-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 12px;font-size:17px;">通知音の設定</h2>
+    <label class="settings-toggle-row">
+      <input type="checkbox" id="todo-alarm-sound-cb" checked>
+      <span>🔊 音を鳴らす（OFFならバイブと表示のみ）</span>
+    </label>
+    <div id="todo-sound-detail">
+      <p class="section-label" style="margin-top:12px;">音の種別</p>
+      <label class="settings-toggle-row">
+        <input type="radio" name="todo-alarm-type" id="todo-alarm-type-alarm" value="alarm">
+        <span>⏰ アラーム<br><small class="backup-hint">アラームの音量で鳴ります。マナーモード中でも鳴り、他の通知の影響を受けにくい設定です。</small></span>
+      </label>
+      <label class="settings-toggle-row">
+        <input type="radio" name="todo-alarm-type" id="todo-alarm-type-notif" value="notif">
+        <span>🔔 通知音<br><small class="backup-hint">通知の音量で鳴ります。マナーモード中は鳴らず、続けて通知が来ると鳴らないことがあります。</small></span>
+      </label>
+      <p class="section-label" style="margin-top:12px;">音色</p>
+      <div id="todo-alarm-sound-selects"></div>
+      <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
+    </div>
+    <button type="button" class="btn-block muted" id="todo-sound-close-btn" style="margin-top:16px;">閉じる</button>
+  </div>
 </div>
 
 <div class="modal hidden modal-top" id="backup-modal">
@@ -2390,13 +2422,17 @@ var ALARM_NOTIF_ID_BASE = 90000;
 /* 「アラーム音を鳴らす」設定(初期値ON)。OFFの時は無音のチャンネルを使い、バイブと通知表示のみになる */
 var TODO_ALARM_SOUND_ON_KEY = 'namacalc_todo_alarm_sound_on_v1';
 var TODO_ALARM_SILENT_CHANNEL_ID = 'alarm_todo_silent_v3';
+/* 音の種別: 'alarm'(アラーム音量・USAGE_ALARM。チャンネルIDが alarm_ で始まるものがネイティブパッチの対象)
+              'notif'(通常の通知音量。alarm_ で始めないチャンネルを使うのでパッチの対象外になる) */
+var TODO_ALARM_TYPE_KEY = 'namacalc_todo_alarm_type_v1';
+var todoAlarmType = loadJSON(TODO_ALARM_TYPE_KEY, 'alarm') === 'notif' ? 'notif' : 'alarm';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 7;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-5';
+var APP_BUILD = '20261001-6';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -2474,14 +2510,17 @@ function confirmNativeBridge(){
   });
 }
 
-function soundChannelId(soundId){ return 'alarm_todo_' + soundId + '_v3'; }
+function soundChannelId(soundId){
+  return todoAlarmType === 'notif' ? ('notif_todo_' + soundId + '_v1') : ('alarm_todo_' + soundId + '_v3');
+}
+function silentChannelId(){ return todoAlarmType === 'notif' ? 'notif_todo_silent_v1' : TODO_ALARM_SILENT_CHANNEL_ID; }
 
 function ensureTodoAlarmChannels(){
   if (todoAlarmChannelsReady) return Promise.resolve();
   var tasks = ALARM_SOUND_OPTIONS.map(function(opt){
     return callNativeBridge('createChannel', {
       id: soundChannelId(opt.id),
-      name: '逆算ToDo通知(' + opt.label + ')',
+      name: '逆算ToDo通知(' + opt.label + ')' + (todoAlarmType === 'notif' ? '・通知音' : ''),
       description: '逆算ToDoで設定した時刻をお知らせします',
       sound: opt.id + '.wav',
       importance: 5,
@@ -2491,8 +2530,8 @@ function ensureTodoAlarmChannels(){
   });
   /* 音を鳴らさない設定用のチャンネル(無音のwavを指定。バイブと通知表示だけ行う) */
   tasks.push(callNativeBridge('createChannel', {
-    id: TODO_ALARM_SILENT_CHANNEL_ID,
-    name: '逆算ToDo通知(音なし・バイブのみ)',
+    id: silentChannelId(),
+    name: '逆算ToDo通知(音なし・バイブのみ)' + (todoAlarmType === 'notif' ? '・通知音' : ''),
     description: '音を鳴らさず、バイブと表示だけでお知らせします',
     sound: 'silent.wav',
     importance: 5,
@@ -2566,7 +2605,7 @@ function syncTodoAlarms(){
           title: 'Nama計算機 逆算ToDo',
           body: timeStr + ' ' + (ev.label || '無題') + ' - ' + ev.name,
           schedule: {at: ev.fireAt, allowWhileIdle: true},
-          channelId: todoAlarmSoundOn ? soundChannelId(soundId) : TODO_ALARM_SILENT_CHANNEL_ID,
+          channelId: todoAlarmSoundOn ? soundChannelId(soundId) : silentChannelId(),
           sound: todoAlarmSoundOn ? (soundId + '.wav') : 'silent.wav'
         };
       });
@@ -2617,8 +2656,39 @@ function renderTodoAlarmBox(){
   }
   updateAlarmSoundSelectsDisabled();
   document.getElementById('todo-persistent-enable-cb').checked = todoPersistentEnabled;
+  renderTodoAlarmSummary();
 }
+function renderTodoAlarmSummary(){
+  var on = todoAlarmEnabled;
+  document.getElementById('todo-sound-summary').textContent =
+    '通知【' + (todoAlarmEnabled ? 'あり' : 'なし') + '】、音【' + (todoAlarmSoundOn ? 'あり' : 'なし') + '】、音の種別【' + (todoAlarmType === 'notif' ? '通知音' : 'アラーム') + '】';
+  document.getElementById('todo-sound-row').classList.toggle('disabled', !on);
+  document.getElementById('todo-sound-open-btn').disabled = !on;
+}
+function openTodoSoundModal(){
+  document.getElementById('todo-alarm-type-alarm').checked = (todoAlarmType === 'alarm');
+  document.getElementById('todo-alarm-type-notif').checked = (todoAlarmType === 'notif');
+  document.getElementById('todo-alarm-sound-cb').checked = todoAlarmSoundOn;
+  updateAlarmSoundSelectsDisabled();
+  document.getElementById('todo-sound-modal').classList.remove('hidden');
+}
+function closeTodoSoundModal(){ document.getElementById('todo-sound-modal').classList.add('hidden'); }
+document.getElementById('todo-sound-open-btn').addEventListener('click', openTodoSoundModal);
+document.getElementById('todo-sound-close-btn').addEventListener('click', closeTodoSoundModal);
+document.getElementById('todo-sound-overlay').addEventListener('click', closeTodoSoundModal);
+['todo-alarm-type-alarm', 'todo-alarm-type-notif'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', function(){
+    if (!this.checked) return;
+    todoAlarmType = this.value === 'notif' ? 'notif' : 'alarm';
+    saveJSON(TODO_ALARM_TYPE_KEY, todoAlarmType);
+    todoAlarmChannelsReady = false;   /* 種別ごとに別のチャンネルを使うので、作り直させる */
+    renderTodoAlarmSummary();
+    syncTodoAlarms();
+    showToast(todoAlarmType === 'notif' ? '音の種別を「通知音」にしました' : '音の種別を「アラーム」にしました');
+  });
+});
 function updateAlarmSoundSelectsDisabled(){
+  document.getElementById('todo-sound-detail').classList.toggle('disabled', !todoAlarmSoundOn);
   var sels = document.getElementById('todo-alarm-sound-selects').querySelectorAll('select');
   for (var i = 0; i < sels.length; i++){ sels[i].disabled = !todoAlarmSoundOn; }
 }
@@ -2626,6 +2696,7 @@ document.getElementById('todo-alarm-sound-cb').addEventListener('change', functi
   todoAlarmSoundOn = this.checked;
   saveJSON(TODO_ALARM_SOUND_ON_KEY, todoAlarmSoundOn);
   updateAlarmSoundSelectsDisabled();
+  renderTodoAlarmSummary();
   syncTodoAlarms();
   showToast(todoAlarmSoundOn ? 'アラーム音をONにしました' : 'アラーム音をOFFにしました(バイブと表示のみ)');
 });
@@ -2656,12 +2727,14 @@ document.getElementById('todo-alarm-enable-cb').addEventListener('change', funct
       }
       todoAlarmEnabled = true;
       saveJSON(TODO_ALARM_ENABLED_KEY, true);
+      renderTodoAlarmSummary();
       syncTodoAlarms();
       showToast('通知アラームをONにしました');
     });
   } else {
     todoAlarmEnabled = false;
     saveJSON(TODO_ALARM_ENABLED_KEY, false);
+    renderTodoAlarmSummary();
     syncTodoAlarms();
     showToast('通知アラームをOFFにしました');
   }
@@ -4137,7 +4210,7 @@ var BACKUP_GROUPS = [
     {id:'todo_times',    label:'完了時刻のストック',                       keys:[TODO_TIMES_KEY]},
     {id:'todo_fullsets', label:'フルセット',                               keys:[TODO_FULLSETS_KEY]},
     {id:'todo_current',  label:'現在のスケジュール(すること・完了予定時刻)', keys:[TODO_CURRENT_KEY]},
-    {id:'todo_alarm',    label:'通知設定(APK版)',                          keys:[TODO_ALARM_ENABLED_KEY, TODO_ALARM_SOUND_KEY, TODO_ALARM_SOUND_ON_KEY, TODO_PERSISTENT_ENABLED_KEY], defaultOff:true}
+    {id:'todo_alarm',    label:'通知設定(APK版)',                          keys:[TODO_ALARM_ENABLED_KEY, TODO_ALARM_SOUND_KEY, TODO_ALARM_SOUND_ON_KEY, TODO_ALARM_TYPE_KEY, TODO_PERSISTENT_ENABLED_KEY], defaultOff:true}
   ]}
 ];
 /* 中身が配列であるべきキー(読み込み時の形式チェック用) */
