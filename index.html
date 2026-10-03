@@ -92,8 +92,8 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .menu-sec-head .sec-title{flex:1;}
 .menu-sec-head .sec-count{font-weight:400;font-size:12px;}
 /* お気に入り: 見出しなし・折りたたみなしで、背景に直接タイルを並べる(1行に複数) */
-#fav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px;margin-bottom:12px;}
-#fav-grid:empty{display:none;}
+.fav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px;margin-bottom:12px;}
+#fav-bottom .fav-grid{margin:12px 0 0;}
 .fav-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:78px;padding:12px 6px;background:var(--surface);border:none;border-radius:var(--radius);box-shadow:var(--shadow);cursor:pointer;color:var(--ink);font-size:11.5px;font-weight:500;line-height:1.3;text-align:center;}
 .fav-tile .icon{font-size:24px;}
 .fav-tile:active{background:#eef1f5;}
@@ -646,8 +646,9 @@ select.plain{
     <!-- ホーム -->
     <div class="page active" id="page-home">
       <p class="sub">項目をタップして開きます。左端のハンドルをドラッグすると並べ替えできます。</p>
-      <div id="fav-grid"></div>
+      <div id="fav-top"></div>
       <div id="menu-card"><div id="menu-list"></div></div>
+      <div id="fav-bottom"></div>
     </div>
 
     <!-- (1) 電卓 -->
@@ -1328,7 +1329,7 @@ function loadCats(){
     cats: (Array.isArray(d.cats) ? d.cats : []).map(function(c){
       return {id: String(c.id), name: String(c.name || '無題'), color: typeof c.color === 'string' ? c.color : '', collapsed: !!c.collapsed, items: clean(c.items)};
     }),
-    favs: clean(d.favs), hideUncat: !!d.hideUncat, favCollapsed: !!d.favCollapsed, uncatCollapsed: !!d.uncatCollapsed
+    favs: clean(d.favs), favPos: (typeof d.favPos === 'number' && d.favPos >= 0) ? Math.floor(d.favPos) : 0, hideUncat: !!d.hideUncat, favCollapsed: !!d.favCollapsed, uncatCollapsed: !!d.uncatCollapsed
   };
 }
 function saveCats(d){ localStorage.setItem(CATS_KEY, JSON.stringify(d)); }
@@ -1357,8 +1358,10 @@ function renderMenu(){
   d.cats.forEach(function(c){ c.items.forEach(function(id){ inCat[id] = true; }); });
   var uncat = loadOrder().filter(function(id){ return visibility[id] !== false && !inCat[id]; });
   var multi = d.cats.length > 0;
-  var fg = document.getElementById('fav-grid');
-  fg.innerHTML = '';
+  var favNode = null;
+  if (d.favs.length){ favNode = document.createElement('div'); favNode.className = 'fav-grid'; }
+  document.getElementById('fav-top').innerHTML = '';
+  document.getElementById('fav-bottom').innerHTML = '';
   d.favs.forEach(function(id){
     var it = menuItemById(id);
     var b = document.createElement('button');
@@ -1366,7 +1369,7 @@ function renderMenu(){
     b.className = 'fav-tile';
     b.innerHTML = '<span class="icon">' + it.icon + '</span><span>' + it.label + '</span>';
     b.addEventListener('click', function(){ navigateTo(id); });
-    fg.appendChild(b);
+    favNode.appendChild(b);
   });
   document.getElementById('menu-card').classList.toggle('multi', multi);
   var list = document.getElementById('menu-list');
@@ -1389,13 +1392,22 @@ function renderMenu(){
     box.dataset.sec = key;
     if (!(multi && collapsed)) ids.forEach(function(id){ box.appendChild(buildMenuRow(menuItemById(id))); });
     sec.appendChild(box);
-    list.appendChild(sec);
+    return sec;
   }
   var showUncat = !(d.cats.length > 0 && d.hideUncat) && (uncat.length > 0 || !multi);
-  if (showUncat) section('uncat', '未分類', '', uncat, d.uncatCollapsed, function(){ d.uncatCollapsed = !d.uncatCollapsed; saveCats(d); });
+  /* 並び: [未分類, カテゴリ…] のどこにお気に入りを差し込むかが d.favPos(0=一番上)。未分類は非表示でも番号は数える */
+  var base = [];
+  base.push(showUncat ? section('uncat', '未分類', '', uncat, d.uncatCollapsed, function(){ d.uncatCollapsed = !d.uncatCollapsed; saveCats(d); }) : null);
   d.cats.forEach(function(c){
-    section('cat:' + c.id, c.name, c.color, c.items, c.collapsed, function(){ c.collapsed = !c.collapsed; saveCats(d); });
+    base.push(section('cat:' + c.id, c.name, c.color, c.items, c.collapsed, function(){ c.collapsed = !c.collapsed; saveCats(d); }));
   });
+  var pos = Math.min(d.favPos, base.length);
+  if (favNode && !multi) (pos === 0 ? document.getElementById('fav-top') : document.getElementById('fav-bottom')).appendChild(favNode);
+  base.forEach(function(node, k){
+    if (favNode && multi && k === pos) list.appendChild(favNode);
+    if (node) list.appendChild(node);
+  });
+  if (favNode && multi && pos >= base.length) list.appendChild(favNode);
 }
 function attachDrag(item){
   var handle = item.querySelector('.handle');
@@ -2432,7 +2444,7 @@ var REQUIRED_SHELL_VERSION = 7;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-6';
+var APP_BUILD = '20261001-7';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3952,7 +3964,9 @@ function renderSettingsToggles(){
   var addWrap = el('div', '', undefined, box);
   if (catUi.editing === 'new'){
     nameEditor(addWrap, '', function(name){
+      var favAtEnd = d.favPos >= d.cats.length + 1;
       d.cats.push({id: 'c' + Date.now().toString(36), name: name, color: '', collapsed: false, items: []});
+      if (favAtEnd) d.favPos = d.cats.length + 1;
       catUi.editing = null; catUi.open['cat:' + d.cats[d.cats.length-1].id] = true; commit();
     });
   } else {
@@ -4018,10 +4032,31 @@ function renderSettingsToggles(){
     });
   }
 
-  /* ⭐ お気に入り(トップの一番上に固定表示) */
-  var fb = makeBox('fav', '⭐ お気に入り', {headBg: '#f3e3b0'});
+  /* 表示順(seq): [未分類, カテゴリ…] にお気に入りを favPos の位置で差し込む。トップページと同じ並び */
+  var baseSeq = [{t: 'uncat'}].concat(d.cats.map(function(c, i){ return {t: 'cat', i: i}; }));
+  var fpos = Math.min(d.favPos, baseSeq.length);
+  var seq = baseSeq.slice();
+  seq.splice(fpos, 0, {t: 'fav'});
+  function moveFor(k){
+    var e = seq[k];
+    return {
+      canUp: k > 0 && !(e.t === 'cat' && seq[k-1].t === 'uncat'),
+      canDown: k < seq.length - 1,
+      fn: function(dir){
+        var n = seq[k + dir];
+        if (e.t === 'fav') d.favPos = fpos + dir;
+        else if (n.t === 'fav') d.favPos = fpos - dir;
+        else { var t = d.cats[e.i]; d.cats[e.i] = d.cats[n.i]; d.cats[n.i] = t; }
+        commit();
+      }
+    };
+  }
+
+  /* ⭐ お気に入り(タイル表示。位置はカテゴリと同じ▲▼で動かせる) */
+  function renderFavBox(k){
+  var fb = makeBox('fav', '⭐ お気に入り', {headBg: '#f3e3b0', move: moveFor(k)});
   if (fb){
-    el('p', 'backup-hint', 'トップの一番上にタイル状に並びます。▲▼で並び順を変えられます。', fb);
+    el('p', 'backup-hint', 'トップにタイル状に並びます。項目の並び順は下の▲▼、この枠の位置は見出し右の▲▼で変えられます。', fb);
     var favOrder = d.favs.concat(MENU_ITEMS.map(function(m){ return m.id; }).filter(function(id){ return d.favs.indexOf(id) === -1; }));
     favOrder.forEach(function(id){
       var item = menuItemById(id), idx = d.favs.indexOf(id);
@@ -4041,8 +4076,10 @@ function renderSettingsToggles(){
       }
     });
   }
+  }
 
   /* 未分類(移動不可)。どこかのカテゴリに入れた機能はここから消える。チェック=トップに表示 */
+  function renderUncatBox(){
   var ub = makeBox('uncat', '未分類', d.cats.length ? {hideBtn: {text: d.hideUncat ? '👁 トップに表示' : '🙈 トップで隠す', fn: function(){ d.hideUncat = !d.hideUncat; commit(); }}} : {});
   if (ub){
     var any = false;
@@ -4057,16 +4094,17 @@ function renderSettingsToggles(){
     if (!any) el('p', 'backup-hint', 'すべての機能がカテゴリに入っています', ub);
   }
 
+  }
+
   /* カテゴリ(上下ボタンで並べ替え) */
-  d.cats.forEach(function(c, i){
+  function renderCatBox(i, k){
+    var c = d.cats[i];
     var key = 'cat:' + c.id;
     var cbody = makeBox(key, c.name, {
       name: c.name, color: c.color, headBg: darkenColor(c.color, 0.86),
       onRename: function(name){ c.name = name; },
       onColor: function(col){ c.color = col; },
-      move: {canUp: i > 0, canDown: i < d.cats.length - 1, fn: function(dir){
-        var t = d.cats[i + dir]; d.cats[i + dir] = c; d.cats[i] = t; commit();
-      }}
+      move: moveFor(k)
     });
     if (cbody){
       memberRows(cbody, c.items);
@@ -4074,6 +4112,12 @@ function renderSettingsToggles(){
       del.type = 'button'; del.style.marginTop = '10px';
       armConfirm(del, 'もう一度タップで削除', function(){ d.cats.splice(i, 1); commit(); });
     }
+  }
+
+  seq.forEach(function(e, k){
+    if (e.t === 'fav') renderFavBox(k);
+    else if (e.t === 'uncat') renderUncatBox();
+    else renderCatBox(e.i, k);
   });
 }
 function switchSettingsTab(tabId){
