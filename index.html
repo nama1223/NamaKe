@@ -2440,11 +2440,11 @@ var TODO_ALARM_TYPE_KEY = 'namacalc_todo_alarm_type_v1';
 var todoAlarmType = loadJSON(TODO_ALARM_TYPE_KEY, 'alarm') === 'notif' ? 'notif' : 'alarm';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 7;
+var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-7';
+var APP_BUILD = '20261001-8';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
