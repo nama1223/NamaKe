@@ -73,6 +73,7 @@ header button.gear:active{background:rgba(255,255,255,0.15);}
 main{flex:1;padding:16px;padding-bottom:48px;}
 .page{display:none;}
 .page.active{display:block;}
+#sw-frame{display:block;width:100%;height:480px;border:none;border-radius:12px;background:#eef1f5;}
 
 .sub{color:var(--ink-sub);font-size:13px;margin:0 0 14px;line-height:1.6;}
 
@@ -651,6 +652,11 @@ select.plain{
       <div id="fav-bottom"></div>
     </div>
 
+    <!-- NamaStopwatch(なます): 別アプリをiframeで表示。初めて開いた時に読み込む -->
+    <div class="page" id="page-stopwatch">
+      <iframe id="sw-frame" title="NamaStopwatch なます" allow="screen-wake-lock; clipboard-write"></iframe>
+    </div>
+
     <!-- (1) 電卓 -->
     <div class="page" id="page-calc">
       <div class="calc-display">
@@ -1218,6 +1224,7 @@ var MENU_ITEMS = [
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'},
   {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'},
+  {id:'stopwatch', icon:'⏲️', label:'NamaStopwatch なます', title:'NamaStopwatch なます'},
   {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
   {id:'line',   icon:'🔗', label:'LINE用外部ブラウザURL',   title:'LINE用外部ブラウザURL'}
 ];
@@ -1225,6 +1232,21 @@ var ORDER_KEY = 'namacalc_menu_order_v1';
 var VISIBLE_KEY = 'namacalc_menu_visible_v1';
 var CATS_KEY = 'namacalc_menu_cats_v1';   /* カテゴリ・お気に入り・折りたたみ状態 */
 var BUDGET_KEY = 'namacalc_budget_v1';
+var STOPWATCH_KEY = 'namastopwatch_v1';   /* NamaStopwatch(なます)が同じドメインに保存するデータ。バックアップ対象 */
+
+/* NamaStopwatch(なます)のiframe。URLはドメインを直書きせず、いま開いているドメインを基準にする(ダブルドメイン対応) */
+function fitSwFrame(){
+  var f = document.getElementById('sw-frame');
+  if (!f || !document.getElementById('page-stopwatch').classList.contains('active')) return;
+  var top = f.getBoundingClientRect().top + window.scrollY;
+  f.style.height = Math.max(420, window.innerHeight - top - 60) + 'px';
+}
+function openStopwatchFrame(){
+  var f = document.getElementById('sw-frame');
+  if (!f.getAttribute('src')) f.src = location.origin + '/NamaStopwatch/?embedded=1';
+  fitSwFrame();
+}
+window.addEventListener('resize', fitSwFrame);
 
 /* 画面の表示切替のみを行う(履歴操作はしない) */
 function renderPage(id){
@@ -1234,6 +1256,7 @@ function renderPage(id){
   if (!target){ id = 'home'; target = document.getElementById('page-home'); }
   target.classList.add('active');
   if (id === 'todo') fitTodoClock();
+  if (id === 'stopwatch') openStopwatchFrame();
   var backBtn = document.getElementById('btn-back');
   var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
@@ -2444,7 +2467,7 @@ var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-8';
+var APP_BUILD = '20261001-9';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -4248,6 +4271,7 @@ var BACKUP_GROUPS = [
   {id:'menu',   label:'📋 トップメニューの並び順・表示・カテゴリ', keys:[ORDER_KEY, VISIBLE_KEY, CATS_KEY]},
   {id:'calc',   label:'🧮 単なる電卓(メモ欄)',               keys:[CALC_MEMO_KEY]},
   {id:'budget', label:'💰 予算収支計算機(予算・出費)',        keys:[BUDGET_KEY, EXPENSES_KEY]},
+  {id:'stopwatch', label:'⏲️ NamaStopwatch なます(曲リスト・計測結果)', keys:[STOPWATCH_KEY]},
   {id:'todo',   label:'⏱️ 逆算ToDo', children:[
     {id:'todo_actions',  label:'行動',                                     keys:[TODO_ACTIONS_KEY]},
     {id:'todo_sets',     label:'行動セット',                               keys:[TODO_SETS_KEY]},
@@ -4337,6 +4361,7 @@ function validateBackupValue(k, v){
   if (k === BUDGET_KEY) return true;   /* 予算だけは数値の文字列をそのまま保存している */
   var parsed;
   try { parsed = JSON.parse(v); } catch(e){ return false; }
+  if (k === STOPWATCH_KEY) return !!parsed && Array.isArray(parsed.lists);
   if (BACKUP_ARRAY_KEYS.indexOf(k) !== -1) return Array.isArray(parsed);
   return true;
 }
