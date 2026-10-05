@@ -74,16 +74,21 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .page{display:none;}
 .page.active{display:block;}
 /* 数をかぞえるやつ: 暗めのモノトーン(選択中の枠だけ琥珀色) */
-.ct{background:#101010;border-radius:14px;padding:12px;color:#ddd;}
+.ct{background:#101010;border-radius:14px;padding:12px;color:#ddd;display:flex;flex-direction:column;height:calc(100vh - 150px);}
+#page-counter{margin-bottom:-32px;}   /* main下側の余白(48px)のうち32pxを打ち消し、下に謎の余白が出ないようにする */
 .ct-mem{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
 .ct-m{background:#1d1d1d;border:1px solid #333;border-radius:8px;color:#8a8a8a;padding:6px 0;font:600 10px/1.3 ui-monospace,Consolas,monospace;text-align:center;cursor:pointer;}
 .ct-m b{display:block;font-size:15px;color:#d8d8d8;}
 .ct-m.on{background:#ffb300;border-color:#ffb300;color:#222;}.ct-m.on b{color:#111;}
-.ct-lcd{margin:12px 0;background:#050505;border:2px solid #2b2b2b;border-radius:10px;padding:18px 12px;box-shadow:inset 0 0 18px #000;}
+.ct-lcd{position:relative;cursor:pointer;margin:12px 0 32px;background:#050505;border:2px solid #2b2b2b;border-radius:10px;padding:18px 12px;box-shadow:inset 0 0 18px #000;}
 .ct-lcd svg{display:block;width:100%;height:auto;}
-.ct-tap{display:block;width:100%;height:42vh;min-height:220px;background:#262626;border:2px solid #3a3a3a;border-radius:16px;color:#6e6e6e;font:700 26px ui-monospace,Consolas,monospace;letter-spacing:0.4em;touch-action:manipulation;user-select:none;-webkit-user-select:none;cursor:pointer;}
+.ct-lcd::after{content:'✎';position:absolute;right:10px;bottom:6px;color:#555;font-size:14px;}
+.ct-ed{display:flex;gap:8px;align-items:center;}
+.ct-ed input{flex:1;min-width:0;background:#111;color:#f2f2f2;border:1px solid #666;border-radius:8px;padding:10px;font:700 34px ui-monospace,Consolas,monospace;text-align:center;}
+.ct-ed button{background:#262626;color:#ddd;border:1px solid #555;border-radius:8px;padding:14px 16px;font-size:15px;cursor:pointer;}
+.ct-tap{display:block;width:100%;flex:1 1 auto;min-height:160px;background:#262626;border:2px solid #3a3a3a;border-radius:16px;color:#6e6e6e;font:700 26px ui-monospace,Consolas,monospace;letter-spacing:0.4em;touch-action:manipulation;user-select:none;-webkit-user-select:none;cursor:pointer;}
 .ct-tap:active{background:#3c3c3c;}
-.ct-bar{display:flex;justify-content:space-between;gap:12px;margin-top:34px;}
+.ct-bar{display:flex;justify-content:space-between;gap:12px;margin-top:44px;}
 .ct-btn{background:#1d1d1d;color:#bbb;border:1px solid #444;border-radius:10px;padding:10px 14px;font-size:13px;cursor:pointer;}
 .ct-btn.armed{background:#d9534f;color:#fff;border-color:#d9534f;animation:armBlink 0.7s ease-in-out infinite alternate;}
 #sw-frame{display:block;width:100%;height:480px;border:none;border-radius:12px;background:#eef1f5;}
@@ -1285,7 +1290,7 @@ function renderPage(id){
   target.classList.add('active');
   if (id === 'todo') fitTodoClock();
   if (id === 'stopwatch') openStopwatchFrame();
-  if (id === 'counter') renderCt();
+  if (id === 'counter') { renderCt(); fitCt(); }
   var backBtn = document.getElementById('btn-back');
   var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
@@ -2496,7 +2501,7 @@ var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-10';
+var APP_BUILD = '20261001-11';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -4235,6 +4240,7 @@ function loadCt(){
   return {counts: c, sel: (d.sel >= 0 && d.sel < 10) ? (d.sel | 0) : 0, snd: d.snd !== false};
 }
 var ct = loadCt();
+var ctEd = false;   /* カウント値を手入力している間は true(その間はTAPを無効にする) */
 function saveCt(){ try { localStorage.setItem(COUNTER_KEY, JSON.stringify(ct)); } catch(e){} }
 /* 7セグメント風の表示(5桁)。消えているセグメントも薄く残して、本物の液晶らしくする */
 function ctLcd(n){
@@ -4254,7 +4260,7 @@ function renderCt(){
   var h = '';
   for (var i=0;i<10;i++){ h += '<div class="ct-m'+(i === ct.sel ? ' on' : '')+'" data-i="'+i+'">'+(i+1)+'<b>'+ct.counts[i]+'</b></div>'; }
   document.getElementById('ct-mem').innerHTML = h;
-  document.getElementById('ct-lcd').innerHTML = ctLcd(ct.counts[ct.sel]);
+  if (!ctEd) document.getElementById('ct-lcd').innerHTML = ctLcd(ct.counts[ct.sel]);
   document.getElementById('ct-snd').textContent = ct.snd ? '🔊 効果音 ON' : '🔇 効果音 OFF';
 }
 /* 「カチッ」: 短いノイズ(バンドパス)と、急降下する短い矩形波を重ねた合成音 */
@@ -4280,14 +4286,45 @@ function ctClick(){
 }
 document.getElementById('ct-tap').addEventListener('pointerdown', function(e){
   e.preventDefault();
+  if (ctEd) return;
   if (ct.counts[ct.sel] < 99999) ct.counts[ct.sel]++;
   saveCt(); renderCt(); ctClick();
 });
 document.getElementById('ct-mem').addEventListener('click', function(e){
   var m = e.target.closest('.ct-m');
   if (!m) return;
-  ct.sel = parseInt(m.dataset.i, 10); saveCt(); renderCt();
+  ctEd = false; ct.sel = parseInt(m.dataset.i, 10); saveCt(); renderCt();
 });
+/* 数字をタップ → 手入力で編集 */
+document.getElementById('ct-lcd').addEventListener('click', function(){
+  if (ctEd) return;
+  ctEd = true;
+  var box = document.getElementById('ct-lcd');
+  box.innerHTML = '<div class="ct-ed"><input id="ct-in" type="number" inputmode="numeric" min="0" max="99999"><button type="button" id="ct-ok">OK</button><button type="button" id="ct-no">×</button></div>';
+  var inp = document.getElementById('ct-in');
+  inp.value = ct.counts[ct.sel];
+  function done(apply){
+    if (apply){
+      var v = parseInt(inp.value, 10);
+      if (isNaN(v) || v < 0 || v > 99999){ showToast('0〜99999の数字を入力してください'); return; }
+      ct.counts[ct.sel] = v; saveCt();
+    }
+    ctEd = false; renderCt();
+  }
+  /* stopPropagation: ボタンを押した後のクリックが親(LCD枠)に伝わって、編集欄が開き直るのを防ぐ */
+  document.getElementById('ct-ok').addEventListener('click', function(e){ e.stopPropagation(); done(true); });
+  document.getElementById('ct-no').addEventListener('click', function(e){ e.stopPropagation(); done(false); });
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') done(true); });
+  inp.focus(); inp.select();
+});
+/* 画面の縦幅いっぱいに広げる(ヘッダーの下〜画面下端) */
+function fitCt(){
+  var c = document.querySelector('#page-counter .ct');
+  if (!c || !document.getElementById('page-counter').classList.contains('active')) return;
+  var top = c.getBoundingClientRect().top + window.scrollY;
+  c.style.height = Math.max(460, window.innerHeight - top - 16) + 'px';
+}
+window.addEventListener('resize', fitCt);
 document.getElementById('ct-snd').addEventListener('click', function(){ ct.snd = !ct.snd; saveCt(); renderCt(); if (ct.snd) ctClick(); });
 armConfirm(document.getElementById('ct-reset'), 'もう一度タップでリセット', function(){
   ct.counts[ct.sel] = 0; saveCt(); renderCt();
