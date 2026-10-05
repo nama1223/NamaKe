@@ -85,7 +85,6 @@ main{flex:1;padding:16px;padding-bottom:48px;}
 .ct-lcd::after{content:'✎';position:absolute;right:10px;bottom:6px;color:#555;font-size:14px;}
 .ct-ed{display:flex;gap:8px;align-items:center;}
 .ct-ed input{flex:1;min-width:0;background:#111;color:#f2f2f2;border:1px solid #666;border-radius:8px;padding:10px;font:700 34px ui-monospace,Consolas,monospace;text-align:center;}
-.ct-ed button{background:#262626;color:#ddd;border:1px solid #555;border-radius:8px;padding:14px 16px;font-size:15px;cursor:pointer;}
 .ct-tap{display:block;width:100%;flex:1 1 auto;min-height:160px;background:#262626;border:2px solid #3a3a3a;border-radius:16px;color:#6e6e6e;font:700 26px ui-monospace,Consolas,monospace;letter-spacing:0.4em;touch-action:manipulation;user-select:none;-webkit-user-select:none;cursor:pointer;}
 .ct-tap:active{background:#3c3c3c;}
 .ct-bar{display:flex;justify-content:space-between;gap:12px;margin-top:44px;}
@@ -2501,7 +2500,7 @@ var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-12';
+var APP_BUILD = '20261001-13';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -4302,30 +4301,28 @@ document.getElementById('ct-lcd').addEventListener('click', function(){
   if (ctEd) return;
   ctEd = true;
   var box = document.getElementById('ct-lcd');
-  box.innerHTML = '<div class="ct-ed"><input id="ct-in" type="number" inputmode="numeric" min="0" max="99999"><button type="button" id="ct-ok">OK</button><button type="button" id="ct-no">×</button></div>';
+  box.innerHTML = '<div class="ct-ed"><input id="ct-in" type="number" inputmode="numeric" min="0" max="99999"></div>';
   var inp = document.getElementById('ct-in');
   inp.value = ct.counts[ct.sel];
-  function done(apply){
-    if (apply){
-      var v = parseInt(inp.value, 10);
-      if (isNaN(v) || v < 0 || v > 99999){ showToast('0〜99999の数字を入力してください'); return; }
-      ct.counts[ct.sel] = v; saveCt();
-    }
+  /* 確定。範囲外・空欄の時は、変更せずに閉じる(Enterの時だけ、入力を続けられる) */
+  function finish(fromOutside){
+    var v = parseInt(inp.value, 10);
+    if (isNaN(v) || v < 0 || v > 99999){
+      showToast(fromOutside ? '0〜99999の範囲外のため、変更しませんでした' : '0〜99999の数字を入力してください');
+      if (!fromOutside) return;
+    } else { ct.counts[ct.sel] = v; saveCt(); }
     document.removeEventListener('pointerdown', outside, true);
     ctEd = false; renderCt();
   }
-  /* 入力欄の外をタップしたら、そのタップの操作(加算・枠の選択・ボタン等)は実行せず、入力だけをキャンセルする */
+  /* 入力欄の外をタップしたら入力を確定する。そのタップ自体の操作(加算・枠の選択・ボタン等)は実行しない */
   function outside(e){
     if (e.target.closest('.ct-ed')) return;
     e.stopPropagation(); e.preventDefault();
     ctSwallow = true; setTimeout(function(){ ctSwallow = false; }, 500);
-    done(false);
+    finish(true);
   }
   document.addEventListener('pointerdown', outside, true);
-  /* stopPropagation: ボタンを押した後のクリックが親(LCD枠)に伝わって、編集欄が開き直るのを防ぐ */
-  document.getElementById('ct-ok').addEventListener('click', function(e){ e.stopPropagation(); done(true); });
-  document.getElementById('ct-no').addEventListener('click', function(e){ e.stopPropagation(); done(false); });
-  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') done(true); });
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') finish(false); });
   inp.focus(); inp.select();
 });
 /* 画面の縦幅いっぱいに広げる(ヘッダーの下〜画面下端) */
