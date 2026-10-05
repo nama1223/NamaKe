@@ -2501,7 +2501,7 @@ var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 2;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261001-11';
+var APP_BUILD = '20261001-12';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -4240,6 +4240,8 @@ function loadCt(){
   return {counts: c, sel: (d.sel >= 0 && d.sel < 10) ? (d.sel | 0) : 0, snd: d.snd !== false};
 }
 var ct = loadCt();
+var ctSwallow = false;   /* 入力キャンセルに使ったタップの「クリック」を1回だけ無効にする */
+document.addEventListener('click', function(e){ if (ctSwallow){ ctSwallow = false; e.stopPropagation(); e.preventDefault(); } }, true);
 var ctEd = false;   /* カウント値を手入力している間は true(その間はTAPを無効にする) */
 function saveCt(){ try { localStorage.setItem(COUNTER_KEY, JSON.stringify(ct)); } catch(e){} }
 /* 7セグメント風の表示(5桁)。消えているセグメントも薄く残して、本物の液晶らしくする */
@@ -4309,8 +4311,17 @@ document.getElementById('ct-lcd').addEventListener('click', function(){
       if (isNaN(v) || v < 0 || v > 99999){ showToast('0〜99999の数字を入力してください'); return; }
       ct.counts[ct.sel] = v; saveCt();
     }
+    document.removeEventListener('pointerdown', outside, true);
     ctEd = false; renderCt();
   }
+  /* 入力欄の外をタップしたら、そのタップの操作(加算・枠の選択・ボタン等)は実行せず、入力だけをキャンセルする */
+  function outside(e){
+    if (e.target.closest('.ct-ed')) return;
+    e.stopPropagation(); e.preventDefault();
+    ctSwallow = true; setTimeout(function(){ ctSwallow = false; }, 500);
+    done(false);
+  }
+  document.addEventListener('pointerdown', outside, true);
   /* stopPropagation: ボタンを押した後のクリックが親(LCD枠)に伝わって、編集欄が開き直るのを防ぐ */
   document.getElementById('ct-ok').addEventListener('click', function(e){ e.stopPropagation(); done(true); });
   document.getElementById('ct-no').addEventListener('click', function(e){ e.stopPropagation(); done(false); });
