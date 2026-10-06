@@ -650,16 +650,18 @@ select.plain{
 .cat-mini-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:0 10px;font-size:13px;cursor:pointer;}
 .cat-hide-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 8px;font-size:12px;color:var(--primary);cursor:pointer;flex:none;}
 
-/* ---------- ワリカン(大きめの文字を保ちつつ縦幅を節約) ---------- */
-#page-warikan{font-size:19px;--wk-top:60px;}
-#page-warikan .sub{font-size:17px;line-height:1.6;margin:0 0 10px;}
-.wk-sec{border-radius:var(--radius);padding:12px;margin-bottom:10px;border:3px solid;box-shadow:var(--shadow);}
+/* ---------- ワリカン(縦幅を節約しつつ、枠を減らして見やすく) ----------
+   文字サイズは --zs(標準=1 / 大=1.18)を掛けて切り替える */
+#page-warikan{font-size:calc(19px * var(--zs));--wk-top:60px;--zs:1;}
+#page-warikan.wk-big{--zs:1.18;}
+#page-warikan .sub{font-size:calc(17px * var(--zs));line-height:1.6;margin:0 0 10px;}
+.wk-sec{border-radius:var(--radius);padding:12px;margin-bottom:10px;border:none;box-shadow:var(--shadow);}
 /* (A)割り勘: ヘッダーの下に固定し、他の部分だけスクロールさせる。背が高くなりすぎた時はJS(wkFit)が wk-nosticky を付けて固定を解く */
-.wk-a{background:#d9e8fb;border-color:#3b6fb6;position:sticky;top:var(--wk-top);z-index:20;box-shadow:0 6px 12px rgba(20,30,45,0.2);}
+.wk-a{background:#d9e8fb;border-top:5px solid #3b6fb6;position:sticky;top:var(--wk-top);z-index:20;box-shadow:0 6px 12px rgba(20,30,45,0.2);}
 .wk-a.wk-nosticky{position:static;box-shadow:var(--shadow);}
-.wk-b{background:#fdf0c4;border-color:#c9861f;--wk-on:#b87410;--wk-edge:#c9a85a;}
-.wk-c{background:#d9f1e1;border-color:#3d8f5f;--wk-on:#2f7d51;--wk-edge:#7fb592;}
-.wk-title{font-size:21px;font-weight:800;margin:0;color:var(--ink);line-height:1.35;}
+.wk-b{background:#fdf0c4;border-top:5px solid #c9861f;--wk-on:#b87410;}
+.wk-c{background:#d9f1e1;border-top:5px solid #3d8f5f;--wk-on:#2f7d51;}
+.wk-title{font-size:calc(21px * var(--zs));font-weight:800;margin:0;color:var(--ink);line-height:1.35;}
 .wk-b .wk-title{color:#7a4b00;}
 .wk-c .wk-title{color:#1f5e3a;}
 .wk-fit{white-space:nowrap;overflow:hidden;min-width:0;}   /* 1行に収まるよう JS が文字サイズを自動で縮める */
@@ -667,51 +669,54 @@ select.plain{
 /* 「ラベル + 入力」を1行にする */
 .wk-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .wk-row:last-child{margin-bottom:0;}
-.wk-rl{flex:none;width:4.6em;font-size:19px;font-weight:700;color:var(--ink);line-height:1.2;}
-.wk-rl.s{width:auto;font-size:17px;}
-.wk-unit{font-size:22px;font-weight:700;flex:none;color:var(--ink);}
+.wk-rl{flex:none;width:4.6em;font-size:calc(19px * var(--zs));font-weight:700;color:var(--ink);line-height:1.2;}
+.wk-rl.s{width:auto;font-size:calc(17px * var(--zs));}
+.wk-unit{font-size:calc(22px * var(--zs));font-weight:700;flex:none;color:var(--ink);}
 .wk-sec input[type=number]{-moz-appearance:textfield;appearance:textfield;}
 .wk-sec input[type=number]::-webkit-inner-spin-button,
 .wk-sec input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 .wk-in{
-  flex:1;min-width:0;height:56px;font-size:30px;font-weight:700;text-align:right;
-  padding:0 12px;border:3px solid #8fa3bd;border-radius:12px;background:#fff;color:var(--ink);
+  flex:1;min-width:0;height:56px;font-size:calc(30px * var(--zs));font-weight:700;text-align:right;
+  padding:0 12px;border:2px solid #c3cfdd;border-radius:12px;background:#fff;color:var(--ink);
   font-variant-numeric:tabular-nums;font-family:var(--sans);
 }
-.wk-in:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,58,95,0.25);}
+.wk-in:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,58,95,0.2);}
 
 /* 数値の増減部品: [−] [数値] [＋] */
 .wk-stepper{display:flex;align-items:stretch;gap:6px;flex:1;min-width:0;}
 .wk-sbtn{
   flex:none;width:56px;height:56px;border:none;border-radius:12px;
-  background:var(--primary);color:#fff;font-size:32px;line-height:1;cursor:pointer;
+  background:var(--primary);color:#fff;font-size:calc(32px * var(--zs));line-height:1;cursor:pointer;
   touch-action:manipulation;user-select:none;-webkit-user-select:none;
 }
+.wk-a .wk-sbtn{width:52px;}
 .wk-sbtn:active{background:var(--primary-dark);}
 /* 数値部分: 縦スワイプ／ホイールで増減(touch-action: pan-x でブラウザの縦スクロールと競合させない) */
 .wk-val{
   flex:1;min-width:0;height:56px;display:flex;align-items:center;justify-content:center;gap:4px;
-  background:#fff;border:3px solid #8fa3bd;border-radius:12px;
-  font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);
+  background:#fff;border:2px solid #c3cfdd;border-radius:12px;
+  font-size:calc(30px * var(--zs));font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);
   touch-action:pan-x;cursor:ns-resize;user-select:none;-webkit-user-select:none;
   transition:border-color .2s, background-color .2s;
 }
 .wk-val:hover,.wk-val.touch-active{border-color:var(--primary);background:#f3f7ff;}
-.wk-val-suf{font-size:19px;font-weight:600;color:var(--ink-sub);}
+.wk-val-suf{font-size:calc(19px * var(--zs));font-weight:600;color:var(--ink-sub);}
 .wk-val-in{
   width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;
-  font:700 30px var(--sans);color:var(--ink);outline:none;
+  font-weight:700;font-size:calc(30px * var(--zs));font-family:var(--sans);color:var(--ink);outline:none;
 }
 
-/* 選択ボタン(ラジオ代わり) */
+/* 選択ボタン(ラジオ代わり): 枠線は使わず、白い面と選択色の面で区別する */
 .wk-seg{display:flex;gap:6px;flex:1;min-width:0;}
-.wk-seg button{
-  flex:1 1 0;min-width:0;min-height:50px;padding:4px 2px;font-size:18px;font-weight:700;line-height:1.25;
-  border:3px solid var(--wk-edge, #8fa3bd);background:#fff;color:var(--ink);border-radius:12px;cursor:pointer;
-  touch-action:manipulation;
+.wk-seg button,.wk-toggle{
+  min-height:50px;padding:4px 2px;font-size:calc(18px * var(--zs));font-weight:700;line-height:1.25;
+  border:none;background:#fff;color:var(--ink);border-radius:12px;cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,0.22);touch-action:manipulation;
 }
-.wk-seg button.on{background:var(--wk-on, var(--primary));border-color:var(--wk-on, var(--primary));color:#fff;}
-.wk-desc{font-size:16px;line-height:1.55;margin:8px 0 0;color:var(--ink);}
+.wk-seg button{flex:1 1 0;min-width:0;}
+.wk-seg button.on,.wk-toggle.on{background:var(--wk-on, var(--primary));color:#fff;box-shadow:none;}
+.wk-toggle{width:100%;text-align:left;padding:4px 12px;}
+.wk-desc{font-size:calc(16px * var(--zs));line-height:1.55;margin:8px 0 0;color:var(--ink);}
 
 /* 折りたたみ見出し(タイトルと現在の設定を同じ行に。入りきらない時だけ折り返す) */
 .wk-fold{
@@ -719,62 +724,80 @@ select.plain{
   background:none;border:none;padding:0;text-align:left;cursor:pointer;color:var(--ink);
 }
 .wk-fold-main{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;}
-.wk-fold-sum{font-size:17px;color:var(--ink);font-weight:600;}
-.wk-arrow{flex:none;font-size:22px;transition:transform .2s;}
+.wk-fold-sum{font-size:calc(17px * var(--zs));color:var(--ink);font-weight:600;}
+.wk-arrow{flex:none;font-size:calc(22px * var(--zs));transition:transform .2s;}
 .wk-fold[aria-expanded="true"] .wk-arrow{transform:rotate(180deg);}
-.wk-body{margin-top:6px;padding-top:10px;border-top:2px dashed rgba(0,0,0,0.25);}
+.wk-body{margin-top:6px;padding-top:10px;border-top:1px dashed rgba(0,0,0,0.3);}
 
-/* 結果表示 */
+/* 結果表示: 一人分の金額だけを大きく、他は小さく控えめに */
 .wk-res{background:var(--primary);color:#fff;border-radius:12px;padding:8px 10px;margin-top:8px;text-align:center;}
 .wk-res-main{display:flex;align-items:baseline;justify-content:center;gap:12px;}
-.wk-res-label{font-size:19px;opacity:0.92;}
-.wk-res-big{font-size:46px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;}
-.wk-res-big span{font-size:24px;font-weight:700;margin-left:3px;}
+.wk-res-label{font-size:calc(17px * var(--zs));opacity:0.8;}
+.wk-res-big{font-size:calc(48px * var(--zs));font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;}
+.wk-res-big span{font-size:calc(24px * var(--zs));font-weight:700;margin-left:3px;}
 .wk-res-foot{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:4px;}
-.wk-diff{display:inline-block;padding:3px 14px;border-radius:999px;font-size:21px;font-weight:800;background:#fff;font-variant-numeric:tabular-nums;}
+.wk-diff{display:inline-block;padding:3px 14px;border-radius:999px;font-size:calc(20px * var(--zs));font-weight:800;background:#fff;font-variant-numeric:tabular-nums;}
 .wk-diff.over{color:#1f7a4d;}
 .wk-diff.short{color:#c0392b;}
-.wk-diff.even{color:#4b5563;font-size:18px;font-weight:700;}
-.wk-res-note{font-size:16px;opacity:0.92;}
-.wk-res-total{font-size:18px;margin:4px 0;font-variant-numeric:tabular-nums;}
-.wk-res-total b{font-size:1.15em;}
+.wk-diff.kanji{color:#1e3a5f;}
+.wk-diff.even{color:#4b5563;font-size:calc(17px * var(--zs));font-weight:700;}
+.wk-res-note{font-size:calc(14px * var(--zs));opacity:0.75;}
+.wk-res-total{font-size:calc(16px * var(--zs));margin:4px 0;font-variant-numeric:tabular-nums;opacity:0.85;}
+.wk-res-total b{font-size:1.1em;font-weight:700;}
 .wk-grow{
   display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;
-  background:#fff;color:var(--ink);border-left:10px solid #999;border-radius:10px;padding:5px 10px;margin-bottom:6px;
+  background:#fff;color:var(--ink);border-left:8px solid #999;border-radius:10px;padding:5px 10px;margin-bottom:6px;
 }
-.wk-gline{flex:1;font-size:17px;font-variant-numeric:tabular-nums;color:var(--ink);}
-.wk-gname{font-size:1.2em;font-weight:800;margin-right:6px;}
-.wk-gpay{flex:none;font-size:30px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
-.wk-gpay span{font-size:17px;font-weight:700;margin-left:1px;}
-.wk-warn{background:#fff3cd;color:#7a4b00;border-radius:8px;padding:6px 10px;font-size:16px;font-weight:700;margin-top:6px;line-height:1.5;text-align:left;}
+.wk-gline{flex:1;font-size:calc(16px * var(--zs));font-variant-numeric:tabular-nums;color:var(--ink-sub);}
+.wk-gname{font-size:1.2em;font-weight:800;margin-right:6px;color:var(--ink);}
+.wk-gpay{flex:none;font-size:calc(30px * var(--zs));font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.wk-gpay span{font-size:calc(17px * var(--zs));font-weight:700;margin-left:1px;}
+.wk-warn{background:#fff3cd;color:#7a4b00;border-radius:8px;padding:6px 10px;font-size:calc(16px * var(--zs));font-weight:700;margin-top:6px;line-height:1.5;text-align:left;}
+
+/* コピーボタン(人数の行の右端。表示を圧迫しない) */
+.wk-copy{
+  flex:none;width:52px;height:56px;padding:0;font-size:calc(24px * var(--zs));line-height:1;
+  background:#fff;border:2px solid #c3cfdd;border-radius:12px;cursor:pointer;
+}
+.wk-copy:active{background:#eaf1fb;}
 
 /* 班カード */
-.wk-gcard{background:#fff;border:3px solid #cfd8d2;border-left-width:12px;border-radius:12px;padding:10px;margin-bottom:10px;}
+.wk-gcard{background:#fff;border:none;border-left:6px solid #ccc;border-radius:12px;padding:10px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.18);}
 .wk-ghead{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.wk-gn{flex:none;font-size:21px;font-weight:800;color:var(--ink);}
-.wk-gcard .wk-sbtn{width:48px;height:48px;font-size:28px;}
-.wk-gcard .wk-val{height:48px;font-size:26px;}
-.wk-gcard .wk-val-in{font-size:26px;}
+.wk-gnbox{flex:none;display:flex;flex-direction:column;line-height:1.2;min-width:4.4em;}
+.wk-gn{font-size:calc(20px * var(--zs));font-weight:800;color:var(--ink);}
+.wk-gsum{font-size:calc(14px * var(--zs));font-weight:700;color:var(--ink-sub);font-variant-numeric:tabular-nums;}
+.wk-gcard .wk-sbtn{width:48px;height:48px;font-size:calc(28px * var(--zs));}
+.wk-gcard .wk-val{height:48px;font-size:calc(26px * var(--zs));}
+.wk-gcard .wk-val-in{font-size:calc(26px * var(--zs));}
 .wk-gcard .wk-seg{margin-bottom:8px;}
 .wk-gcard .wk-row{margin-bottom:0;}
-.wk-del{flex:none;width:44px;height:44px;padding:0;font-size:20px;border:2px solid var(--danger);color:var(--danger);background:#fff;border-radius:10px;cursor:pointer;}
+.wk-del{flex:none;width:44px;height:44px;padding:0;font-size:calc(20px * var(--zs));border:1px solid #d9a5a0;color:var(--danger);background:#fff;border-radius:10px;cursor:pointer;}
 .wk-del:active{background:#fdecea;}
-.wk-g1card{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:18px;font-weight:600;}
+.wk-g1card{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:calc(18px * var(--zs));font-weight:600;}
 .wk-g1card b{font-size:1.15em;}
 .wk-drow{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.wk-base{flex:1;font-size:18px;font-weight:600;}
+.wk-base{flex:1;font-size:calc(18px * var(--zs));font-weight:600;}
 .wk-base b{font-size:1.15em;font-variant-numeric:tabular-nums;}
 .wk-drow .wk-seg{flex:none;width:128px;margin-bottom:0;}
 .wk-add{
-  flex:1;min-height:52px;font-size:20px;font-weight:800;color:#fff;
+  flex:1;min-height:52px;font-size:calc(20px * var(--zs));font-weight:800;color:#fff;
   background:#2f7d51;border:none;border-radius:12px;cursor:pointer;
 }
 .wk-add:active{background:#1f5e3a;}
 .wk-soundbtn{
-  flex:none;width:56px;min-height:52px;font-size:24px;line-height:1;color:#1f5e3a;
-  background:#fff;border:3px solid #7fb592;border-radius:12px;cursor:pointer;padding:0;
+  flex:none;width:56px;min-height:52px;font-size:calc(24px * var(--zs));line-height:1;color:#1f5e3a;
+  background:#fff;border:2px solid #b4d3bf;border-radius:12px;cursor:pointer;padding:0;
 }
-#wk-reset{font-size:18px;min-height:52px;margin-top:0;}
+/* ページ最下段: 文字サイズ切替 + リセット */
+.wk-bottom{display:flex;align-items:center;gap:8px;}
+.wk-bottom .wk-seg{flex:none;width:130px;}
+.wk-bottom .wk-seg button{background:#fff;}
+.wk-bottom .wk-seg button.on{background:var(--primary);}
+.wk-reset{
+  flex:1;min-height:50px;font-size:calc(17px * var(--zs));font-weight:700;color:var(--ink);
+  background:#fff;border:2px solid #b8c2cf;border-radius:12px;cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -932,6 +955,7 @@ select.plain{
         </div>
         <div class="wk-row" id="wk-people-slot">
           <span class="wk-rl">合計人数</span>
+          <button type="button" class="wk-copy" id="wk-copy" aria-label="結果をコピー" title="結果をコピー(LINEなどに貼り付け用)">📋</button>
         </div>
         <div id="wk-result"></div>
       </section>
@@ -960,6 +984,12 @@ select.plain{
               <button type="button" data-unit="100">100円</button>
               <button type="button" data-unit="1000">1000円</button>
             </div>
+          </div>
+          <div class="wk-row">
+            <button type="button" class="wk-toggle" id="wk-adj"></button>
+          </div>
+          <div class="wk-row" id="wk-pct-slot">
+            <span class="wk-rl s" title="税・サービス料など、合計金額に何%か足して割る">上乗せ</span>
           </div>
           <p class="wk-desc" id="wk-b-desc"></p>
         </div>
@@ -993,7 +1023,14 @@ select.plain{
         </div>
       </section>
 
-      <button type="button" class="btn-block outline" id="wk-reset">入力をすべてリセット</button>
+      <div class="wk-bottom">
+        <span class="wk-rl s">文字</span>
+        <div class="wk-seg" id="wk-size-seg">
+          <button type="button" data-big="0">標準</button>
+          <button type="button" data-big="1">大</button>
+        </div>
+        <button type="button" class="wk-reset" id="wk-reset">リセット</button>
+      </div>
     </div>
 
     <!-- (4) LINE用外部ブラウザURL -->
@@ -2713,9 +2750,9 @@ var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 8;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
-var NAKA_VERSION = 3;
+var NAKA_VERSION = 4;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261006-2';
+var APP_BUILD = '20261006-3';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -4984,7 +5021,7 @@ var WK_COLORS = ['#3b6fb6','#c9861f','#3d8f5f','#c0508a','#7a5fc0','#1f9bb0','#d
 
 function wkNewGroup(){ return {n:0, pay:'delta', fixed:0, dir:-1, amt:0}; }
 function wkDefault(){
-  return {total:null, people:4, mode:'up', unit:10, step:100, snd:true, groups:[wkNewGroup()]};
+  return {total:null, people:4, mode:'up', unit:10, step:100, snd:true, adj:false, pct:0, big:false, groups:[wkNewGroup()]};
 }
 function wkInt(v, min, max, fb){
   var n = parseInt(v, 10);
@@ -5019,6 +5056,9 @@ function wkLoad(){
   d.unit = WK_UNITS.indexOf(s.unit) !== -1 ? s.unit : 10;
   d.step = WK_STEPS.indexOf(s.step) !== -1 ? s.step : 100;
   d.snd = s.snd !== false;
+  d.adj = s.adj === true;
+  d.pct = wkInt(s.pct, 0, 100, 0);
+  d.big = s.big === true;
   if (Array.isArray(s.groups) && s.groups.length){
     d.groups = s.groups.slice(0, WK_MAX_GROUPS).map(function(g){
       g = (g && typeof g === 'object') ? g : {};
@@ -5041,7 +5081,8 @@ function wkSave(){
 
 /* ---- 計算 ---- */
 function wkCalc(){
-  var T = wk.total === null ? 0 : wk.total, N = wk.people;
+  var raw = wk.total === null ? 0 : wk.total, N = wk.people;
+  var T = wk.pct > 0 ? Math.round(raw * (100 + wk.pct) / 100) : raw;     /* 上乗せ(税・サービス料)後の支払額 */
   var unit = (wk.mode === 'one') ? 1 : wk.unit;
   var down = (wk.mode === 'down');
   /* num円を den人で割った1人分を、キリの良さ(unit)に丸める。切り上げ=余らせる／切り捨て=足りなくする */
@@ -5050,7 +5091,7 @@ function wkCalc(){
     if (down) return Math.floor(Math.floor(num / den) / unit) * unit;
     return Math.ceil(Math.ceil(num / den) / unit) * unit;
   }
-  var c = {hasTotal: wk.total !== null, T: T, N: N, base: rnd(T, N), extra: [], sumOthers: 0, n1: 0, pay1: 0, S: 0, collected: 0, diff: 0, over: false};
+  var c = {hasTotal: wk.total !== null, raw: raw, T: T, N: N, base: rnd(T, N), extra: [], sumOthers: 0, n1: 0, pay1: 0, kanji: null, S: 0, collected: 0, diff: 0, over: false};
   var S = 0, sumO = 0;
   wk.groups.forEach(function(g){
     var pay = (g.pay === 'fixed') ? g.fixed : Math.max(0, c.base + g.dir * g.amt);
@@ -5063,7 +5104,16 @@ function wkCalc(){
   var R = T - S;                       /* 第二班以降で足りていない分 = 第一班が引き受ける額 */
   c.over = R < 0;
   c.pay1 = c.n1 > 0 ? rnd(R, c.n1) : 0;
-  c.collected = c.n1 * c.pay1 + S;
+  /* 幹事が端数を調整する設定: 第一班の中で1人(幹事)だけ差額を引き受け、合計をぴったり合わせる */
+  if (wk.adj && c.n1 > 0 && R > 0){
+    if (c.n1 === 1){
+      c.pay1 = R;                      /* 第一班が1人 = その人が端数まで丸ごと引き受ける */
+    } else {
+      var k = R - (c.n1 - 1) * c.pay1;
+      if (k >= 0 && k !== c.pay1) c.kanji = k;   /* 差額がマイナスになる(キリが粗すぎる)時は調整せず「余り」表示に任せる */
+    }
+  }
+  c.collected = (c.kanji !== null) ? ((c.n1 - 1) * c.pay1 + c.kanji + S) : (c.n1 * c.pay1 + S);
   c.diff = c.collected - T;            /* 正=余り / 負=不足 */
   return c;
 }
@@ -5195,8 +5245,9 @@ function wkToast(msg){
 }
 function wkUpdate(){
   var c = wkCalc();
+  document.getElementById('page-warikan').classList.toggle('wk-big', wk.big);
   wkRenderResult(c);
-  wkUpdateB();
+  wkUpdateB(c);
   wkUpdateC(c);
   wkStaticRefs.forEach(function(fn){ fn(c); });
   wkGroupRefs.forEach(function(fn){ fn(c); });
@@ -5208,13 +5259,17 @@ function wkNoteText(){
   if (wk.mode === 'up') return wk.unit + '円単位で切り上げ';
   return wk.unit + '円単位で切り捨て';
 }
+/* 結果の左下に出す小さなピル: 幹事調整が効いている時は「幹事 ●円」、それ以外は 余り／不足／ちょうど */
 function wkDiffHtml(c){
+  if (c.kanji !== null) return '<div class="wk-diff kanji">幹事 ' + wkFmt(c.kanji) + '円</div>';
   if (c.diff > 0) return '<div class="wk-diff over">余り ' + wkFmt(c.diff) + '円</div>';
   if (c.diff < 0) return '<div class="wk-diff short">不足 ' + wkFmt(-c.diff) + '円</div>';
   return '<div class="wk-diff even">ちょうど割り切れます</div>';
 }
-function wkFootHtml(c){
-  return '<div class="wk-res-foot">' + wkDiffHtml(c) + '<span class="wk-res-note">' + wkNoteText() + '</span></div>';
+function wkFootHtml(c, withTotal){
+  var note = wkNoteText();
+  if (wk.pct > 0) note += '・+' + wk.pct + '%込' + (withTotal ? ' ' + wkFmt(c.T) + '円' : '');
+  return '<div class="wk-res-foot">' + wkDiffHtml(c) + '<span class="wk-res-note">' + note + '</span></div>';
 }
 function wkRenderResult(c){
   var el = document.getElementById('wk-result');
@@ -5226,45 +5281,65 @@ function wkRenderResult(c){
   if (c.sumOthers === 0){
     html = '<div class="wk-res">' +
       '<div class="wk-res-main"><span class="wk-res-label">一人あたり</span>' +
-      '<span class="wk-res-big">' + wkFmt(c.base) + '<span>円</span></span></div>' +
-      wkFootHtml(c) + '</div>';
+      '<span class="wk-res-big">' + wkFmt(c.pay1) + '<span>円</span></span></div>' +
+      wkFootHtml(c, true) + '</div>';
   } else {
     var rows = '';
     /* 1行 = 「班名 + 計算式」(幅に合わせて文字サイズ自動調整) + 一人分の金額 */
-    var row = function(idx, n, pay){
+    var row = function(idx, label, formula, pay){
       return '<div class="wk-grow" style="border-left-color:' + WK_COLORS[idx % WK_COLORS.length] + '">' +
-        '<div class="wk-gline wk-fit"><span class="wk-gname">' + wkGroupName(idx) + '</span>' +
-        n + '人×' + wkFmt(pay) + '円=' + wkFmt(n * pay) + '円</div>' +
+        '<div class="wk-gline wk-fit"><span class="wk-gname">' + label + '</span>' + formula + '</div>' +
         '<div class="wk-gpay">' + wkFmt(pay) + '<span>円</span></div></div>';
     };
-    if (c.n1 > 0) rows += row(0, c.n1, c.pay1);
-    c.extra.forEach(function(e, i){ if (e.n > 0) rows += row(i + 1, e.n, e.pay); });
+    if (c.n1 > 0){
+      if (c.kanji !== null){     /* 幹事調整中: 第一班のうち幹事以外の人数で表示(幹事の分は下のピルに出る) */
+        var o = c.n1 - 1;
+        rows += row(0, wkGroupName(0), '他' + o + '人×' + wkFmt(c.pay1) + '円=' + wkFmt(o * c.pay1) + '円', c.pay1);
+      } else {
+        rows += row(0, wkGroupName(0), c.n1 + '人×' + wkFmt(c.pay1) + '円=' + wkFmt(c.n1 * c.pay1) + '円', c.pay1);
+      }
+    }
+    c.extra.forEach(function(e, i){
+      if (e.n > 0) rows += row(i + 1, wkGroupName(i + 1), e.n + '人×' + wkFmt(e.pay) + '円=' + wkFmt(e.n * e.pay) + '円', e.pay);
+    });
     html = '<div class="wk-res">' + rows +
       '<div class="wk-res-total wk-fit">集金額 <b>' + wkFmt(c.collected) + '円</b> / 支払額 <b>' + wkFmt(c.T) + '円</b></div>' +
-      wkFootHtml(c);
-    if (c.over) html += '<div class="wk-warn">⚠ 第二班以降だけで合計金額を超えています(第一班は0円)</div>';
+      wkFootHtml(c, false);
+    if (c.over) html += '<div class="wk-warn">⚠ 第二班以降だけで支払額を超えています(第一班は0円)</div>';
     if (c.n1 === 0) html += '<div class="wk-warn">⚠ 第一班が0人です</div>';
     html += '</div>';
   }
   el.innerHTML = html;
 }
-function wkUpdateB(){
+function wkUpdateB(c){
   var i, b;
   var modes = document.querySelectorAll('#wk-mode-seg button');
   for (i = 0; i < modes.length; i++){ b = modes[i]; b.classList.toggle('on', b.dataset.mode === wk.mode); }
   var units = document.querySelectorAll('#wk-unit-seg button');
   for (i = 0; i < units.length; i++){ b = units[i]; b.classList.toggle('on', parseInt(b.dataset.unit, 10) === wk.unit); }
   document.getElementById('wk-unit-field').classList.toggle('is-hidden', wk.mode === 'one');
+  var adj = document.getElementById('wk-adj');
+  adj.classList.toggle('on', wk.adj);
+  adj.textContent = (wk.adj ? '☑' : '☐') + ' 幹事が端数を調整(合計ぴったり)';
   var desc, sum;
+  var unitTxt = wk.mode === 'one' ? '1円' : (wk.unit + '円');
   if (wk.mode === 'one'){
     sum = '一円単位';
-    desc = '1円未満の端数だけ切り上げます。少し多めに集まり「余り」が出ることがあります。';
+    desc = wk.adj ? '他の人は1円未満を切り上げ、幹事が差額を引き受けて合計ぴったりにします。'
+                  : '1円未満の端数だけ切り上げます。少し多めに集まり「余り」が出ることがあります。';
   } else if (wk.mode === 'up'){
     sum = '余らせる・' + wk.unit + '円';
-    desc = wk.unit + '円単位に切り上げます。多めに集まった分は「余り」で表示します。';
+    desc = wk.adj ? ('他の人は' + unitTxt + '単位に切り上げ、幹事が差額を引き受けて(少なめに払って)合計ぴったりにします。')
+                  : (unitTxt + '単位に切り上げます。多めに集まった分は「余り」で表示します。');
   } else {
     sum = '足りなくする・' + wk.unit + '円';
-    desc = wk.unit + '円単位に切り捨てます。足りない分は「不足」で表示します。';
+    desc = wk.adj ? ('他の人は' + unitTxt + '単位に切り捨て、幹事が差額を引き受けて(多めに払って)合計ぴったりにします。')
+                  : (unitTxt + '単位に切り捨てます。足りない分は「不足」で表示します。');
+  }
+  if (wk.adj) sum += '・幹事調整';
+  if (wk.pct > 0){
+    sum += '・+' + wk.pct + '%';
+    if (c && c.hasTotal) desc += ' 上乗せ後の支払額は ' + wkFmt(c.T) + '円(元の合計 ' + wkFmt(c.raw) + '円)。';
   }
   document.getElementById('wk-b-sum').textContent = sum;
   document.getElementById('wk-b-desc').textContent = desc;
@@ -5281,6 +5356,33 @@ function wkUpdateC(c){
   snd.title = wk.snd ? '操作音 ON(タップで切替)' : '操作音 OFF(タップで切替)';
   var n1 = document.getElementById('wk-g1n');
   if (n1) n1.textContent = c.n1;
+  var sz = document.querySelectorAll('#wk-size-seg button');
+  for (i = 0; i < sz.length; i++){ b = sz[i]; b.classList.toggle('on', (b.dataset.big === '1') === wk.big); }
+}
+/* 結果をLINEなどに貼れる文面にする */
+function wkCopyText(){
+  var c = wkCalc();
+  if (!c.hasTotal) return '';
+  var L = [];
+  var head = '【ワリカン】合計 ' + wkFmt(c.raw) + '円';
+  if (wk.pct > 0) head += '(+' + wk.pct + '%込 ' + wkFmt(c.T) + '円)';
+  L.push(head + ' / ' + c.N + '人');
+  if (c.sumOthers === 0){
+    L.push('一人あたり ' + wkFmt(c.pay1) + '円');
+    if (c.kanji !== null) L.push('幹事 ' + wkFmt(c.kanji) + '円');
+  } else {
+    if (c.n1 > 0){
+      if (c.kanji !== null) L.push(wkGroupName(0) + ' 他' + (c.n1 - 1) + '人 × ' + wkFmt(c.pay1) + '円 / 幹事 ' + wkFmt(c.kanji) + '円');
+      else L.push(wkGroupName(0) + ' ' + c.n1 + '人 × ' + wkFmt(c.pay1) + '円 = ' + wkFmt(c.n1 * c.pay1) + '円');
+    }
+    c.extra.forEach(function(e, i){
+      if (e.n > 0) L.push(wkGroupName(i + 1) + ' ' + e.n + '人 × ' + wkFmt(e.pay) + '円 = ' + wkFmt(e.n * e.pay) + '円');
+    });
+    L.push('集金額 ' + wkFmt(c.collected) + '円 / 支払額 ' + wkFmt(c.T) + '円');
+  }
+  if (c.diff > 0) L.push('余り ' + wkFmt(c.diff) + '円');
+  else if (c.diff < 0) L.push('不足 ' + wkFmt(-c.diff) + '円');
+  return L.join('\n');
 }
 /* 縦幅の調整:
    ・.wk-fit の要素は、1行に収まるまで文字サイズを少しずつ縮める(11pxまで)
@@ -5321,7 +5423,11 @@ function wkBuildGroupCard(g, i){
 
   /* 1行目: 班名 + 人数の増減 + 削除(第二班は常に残すため、班が2つ以上ある時だけ削除を出す) */
   var head = wkEl('div', 'wk-ghead');
-  head.appendChild(wkEl('span', 'wk-gn', name));
+  var nbox = wkEl('div', 'wk-gnbox');
+  nbox.appendChild(wkEl('span', 'wk-gn', name));
+  var gsum = wkEl('span', 'wk-gsum', '—');
+  nbox.appendChild(gsum);
+  head.appendChild(nbox);
   head.appendChild(wkStepper({
     suffix: '人', sens: 2,
     get: function(){ return g.n; },
@@ -5403,6 +5509,7 @@ function wkBuildGroupCard(g, i){
     bDelta.classList.toggle('on', g.pay === 'delta');
     if (baseEl) baseEl.textContent = c.hasTotal ? wkFmt(c.base) : '—';
     if (bLess){ bLess.classList.toggle('on', g.dir === -1); bMore.classList.toggle('on', g.dir === 1); }
+    gsum.textContent = c.hasTotal ? ('→' + wkFmt(c.extra[i].pay) + '円/人') : '—';
   });
   return card;
 }
@@ -5439,6 +5546,31 @@ function initWarikan(){
     }
   }, wkStaticRefs));
 
+  /* 合計への上乗せ(%) */
+  document.getElementById('wk-pct-slot').appendChild(wkStepper({
+    suffix: '%', sens: 2,
+    get: function(){ return wk.pct; },
+    step: function(){ return 1; },
+    set: function(v){ wk.pct = Math.max(0, Math.min(100, v)); wkUpdate(); }
+  }, wkStaticRefs));
+  document.getElementById('wk-adj').addEventListener('click', function(){ wk.adj = !wk.adj; wkUpdate(); });
+
+  /* 結果コピー(人数の行の右端) */
+  document.getElementById('wk-copy').addEventListener('click', function(){
+    var t = wkCopyText();
+    if (!t){ showToast('合計金額を入力してください'); return; }
+    copyTextToClipboard(t, '結果をコピーしました');
+  });
+  /* 人数ステッパーはコピーボタンの手前に入れる */
+  var slot = document.getElementById('wk-people-slot');
+  var peopleStepper = slot.querySelector('.wk-stepper');
+  if (peopleStepper) slot.insertBefore(peopleStepper, document.getElementById('wk-copy'));
+
+  document.getElementById('wk-size-seg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    wk.big = (b.dataset.big === '1'); wkUpdate();
+  });
+
   wkFold('wk-b-head', 'wk-b-body');
   wkFold('wk-c-head', 'wk-c-body');
 
@@ -5464,8 +5596,10 @@ function initWarikan(){
     var cards = document.querySelectorAll('#wk-groups .wk-gcard');
     if (cards.length && cards[cards.length - 1].scrollIntoView) cards[cards.length - 1].scrollIntoView({block: 'nearest', behavior: 'smooth'});
   });
-  armConfirm(document.getElementById('wk-reset'), 'もう一度タップでリセット', function(){
+  armConfirm(document.getElementById('wk-reset'), 'もう一度タップ', function(){
+    var keepBig = wk.big, keepSnd = wk.snd;       /* 文字サイズと操作音の好みはリセットしない */
     wk = wkDefault();
+    wk.big = keepBig; wk.snd = keepSnd;
     totalEl.value = '';
     wkRenderGroups(); wkUpdate();
     showToast('ワリカンの入力をリセットしました');
