@@ -2839,7 +2839,7 @@ var REQUIRED_SHELL_VERSION = 9;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 6;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261011-2';
+var APP_BUILD = '20261012-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3244,10 +3244,10 @@ window.addEventListener('message', function(ev){
   if (msg.__namaBridgeNotifTap){
     if (msg.actionId === TODO_STOP_ACTION_ID){
       requestTodoAlarmStop();                       /* 通知の「完了にする(アラーム停止)」ボタン */
-    } else if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2){
-      resyncTodoPersistentSoon(true);
-    } else if (msg.id > ALARM_NOTIF_ID_BASE){
-      openTodoPageIfNeeded();                       /* アラームの通知本体をタップ: ToDo画面を開く(停止ボタンがある) */
+    } else {
+      /* 通知本体のタップ。このアプリの通知はすべて逆算ToDoのもの(アラーム／常時表示)なので、どれをタップしてもToDo画面を開く */
+      if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2) resyncTodoPersistentSoon(true);   /* 常時表示の通知は、タップで消える仕様なので出し直す */
+      openTodoPageIfNeeded();
     }
   } else if (msg.__namaBridgeResume){
     resyncTodoPersistentSoon(false);
