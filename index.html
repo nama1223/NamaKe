@@ -10,6 +10,57 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Nama計算機">
 <link rel="apple-touch-icon" href="./Namake192.png">
+<!-- ====== 目次(検索用の索引) ======
+ このファイルは単一HTML(約6千行)。同じ機能のコードが「CSS(上部の style)・HTML(中ほどの各ページ)・JS(下部の script)」の3か所に分かれて
+ 置かれているので、下の言葉を検索すると各部分に飛べる。(行番号はずれるので載せない。言葉はファイル内で1か所だけに出る)
+ 全体のJSは1つの即時関数の中にある(関数は他の機能からも呼べる)。HTMLの区切りは番号つきのコメント(例: 電卓なら「(1) 電卓」)で、検索語は他と区別するため前の「-- 」から書いてある。
+
+ 【機能 → 検索する言葉】  CSS / HTML / JS
+  ・ホームメニュー(並べ替え・表示ON/OFF): CSS「---------- ホームメニュー」 / JS「============ ホームメニュー」
+  ・ページ切替(戻るボタン対応): JS「============ ページ切替」
+  ・(1) 電卓: CSS「---------- 電卓」 / HTML「-- (1) 電卓」 / JS「============ (1) 電卓」
+  ・(2) 日数計算機: HTML「-- (2) 日数計算機」 / JS「============ (2) 日数計算機」
+  ・(3) 予算収支計算機: CSS「---------- 予算収支」 / HTML「-- (3) 予算収支計算機」 / JS「============ (3) 予算収支計算機」
+  ・(3.5) ワリカン: CSS「---------- ワリカン」 / HTML「-- (3.5) ワリカン」 / JS「============ ワリカン」
+  ・(4) LINE用外部ブラウザURL: CSS「---------- LINEツール」 / HTML「-- (4) LINE用外部ブラウザURL」 / JS「============ (4) LINE用外部ブラウザURL」
+  ・(5) 「年」計算機: CSS「---------- 年計算機」 / HTML「-- (5) 「年」計算機」 / JS「============ (5) 「年」計算機」
+  ・(6) 逆算ToDo: CSS「---------- 逆算ToDo ----------」 / HTML「-- (6) 逆算ToDo」 / JS「============ (6) 逆算ToDo」
+  ・(6) 逆算ToDo: APKアラーム通知: JS「============ APK版限定: 逆算ToDoアラーム通知」
+  ・(6) 逆算ToDo: 常時通知: JS「============ APK版限定: スケジュールの常時通知」
+  ・(6) 逆算ToDo: アラーム一括停止: CSS「---------- 逆算ToDo: アラーム一括停止」 / JS「============ 逆算ToDo: 今日のアラームを一括停止」
+  ・(7) 時間差計算: CSS「---------- 時間差計算」 / HTML「-- (7) 時間差計算」 / JS「============ (7) 時間差計算」
+  ・数をかぞえるやつ: JS「============ 数をかぞえるやつ」
+  ・共通: トースト: CSS「---------- トースト」 / JS「============ トースト」
+  ・共通: カレンダーモーダル: CSS「---------- カレンダーモーダル」 / JS「============ カレンダーモーダル(共通部品)」
+  ・共通: 日付ユーティリティ・和暦: JS「============ 日付ユーティリティ・和暦」
+  ・共通: 汎用インフォモーダル: JS「============ 汎用インフォモーダル」
+  ・設定モーダル(表示項目の切替): CSS「---------- 設定モーダル」 / JS「============ 設定モーダル(表示項目の切替)」
+  ・設定の読み込み・出力(.nmkバックアップ): CSS「---------- 設定の読み込み・出力」 / JS「============ 設定の読み込み・出力(.nmkバックアップ)」
+  ・更新チェック(強制更新): JS「============ 更新チェック」
+  ・PWAインストールボタン: JS「============ PWAインストールボタン」
+  ・初期化 / Service Worker登録: JS「============ 初期化」
+
+ 【よく触る場所・共通部品(検索する言葉)】
+  ・メニュー定義(新しいページを足す時に触る): 「var MENU_ITEMS =」
+  ・バックアップ対象のキー群: 「var BACKUP_GROUPS」
+  ・バックアップ値の形式チェック: 「function validateBackupValue」
+  ・ビルド番号(更新確認用。index.htmlを変えたら手で上げる): 「var APP_BUILD = '2026」
+  ・本体バージョン(設定画面の表示用。意味のある変更で上げる): 「var NAKA_VERSION」
+  ・ガワの要求バージョン: 「var REQUIRED_SHELL_VERSION」
+  ・ガワ(APK)への依頼: 「function callNativeBridge」
+  ・APK版かどうかの判定: 「function isApkPlatform」
+  ・ページ移動: 「function navigateTo」
+  ・保存/読込(localStorage): 「function loadJSON」
+  ・トースト表示: 「function showToast」
+  ・2回タップ確認ボタン: 「function armConfirm」
+  ・クリップボードコピー: 「function copyTextToClipboard」
+
+ 【新しいページ(機能)を足す時に触る場所】
+  1. HTML: 各ページの並びに「<div class=page id=page-○○>」を足す  2. CSS: 機能ごとの区切りコメントを付けて足す
+  3. JS: 機能ごとの区切りコメントを付けて足し、末尾の初期化付近で起動する  4. メニュー定義に1行足す(初期の並び順もここ)
+  5. 保存データがあるなら、バックアップ対象のキー群と形式チェックにも足す  6. ビルド番号を上げる(必要なら本体バージョンも)  7. この目次に1行足す
+ ※ 区切りコメントを書き換えた/足した/消した時は、この目次も直す。
+====== /目次 ====== -->
 <style>
 :root{
   --bg:#eef1f5;
@@ -650,6 +701,14 @@ select.plain{
 .cat-mini-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:0 10px;font-size:13px;cursor:pointer;}
 .cat-hide-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 8px;font-size:12px;color:var(--primary);cursor:pointer;flex:none;}
 
+/* ---------- 逆算ToDo: アラーム一括停止 ---------- */
+.todo-stop-row{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+.todo-stop-row.hidden{display:none;}
+.todo-stopped-note{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff3cd;color:#7a4b00;border-radius:10px;padding:8px 10px;font-size:14px;font-weight:600;}
+.todo-stopped-note.hidden{display:none;}
+.todo-stopped-note button{flex:none;min-height:40px;padding:0 16px;font-size:15px;font-weight:700;color:#fff;background:#b87410;border:none;border-radius:10px;cursor:pointer;}
+#todo-stop-btn.hidden{display:none;}
+
 /* ---------- ワリカン(静かな見た目: 濃い色の塊・枠・影・太字を減らす) ----------
    文字サイズは --zs(標準=1 / 大=1.18)を掛けて切り替える */
 #page-warikan{font-size:calc(19px * var(--zs));--wk-top:60px;--zs:1;}
@@ -1175,6 +1234,13 @@ select.plain{
               <span class="todo-sound-summary" id="todo-sound-summary"></span>
               <button type="button" class="todo-sound-btn" id="todo-sound-open-btn">⚙ 音の設定</button>
             </div>
+            <div class="todo-stop-row hidden" id="todo-stop-row">
+              <button type="button" class="btn-block outline" id="todo-stop-btn" style="margin-top:0;">🛑 今日の残りのアラームを止める</button>
+              <div class="todo-stopped-note hidden" id="todo-stopped-row">
+                <span>⏸ 今日のアラームは停止中です</span>
+                <button type="button" id="todo-resume-btn">再開</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1288,6 +1354,17 @@ select.plain{
       <div class="todo-alarm-hint">完了予定時刻の早い順に1〜3個目の通知音を選べます。同時刻に予定が重なった場合は、少し間隔を空けて順番に鳴ります。</div>
     </div>
     <button type="button" class="btn-block muted" id="todo-sound-close-btn" style="margin-top:16px;">閉じる</button>
+  </div>
+</div>
+
+<div class="modal hidden modal-top" id="todo-stop-modal">
+  <div class="modal-overlay" id="todo-stop-overlay"></div>
+  <div class="modal-box">
+    <h2 style="margin:0 0 12px;font-size:17px;">アラームを止めますか?</h2>
+    <p id="todo-stop-msg" style="margin:0 0 8px;font-size:15px;line-height:1.7;"></p>
+    <p class="backup-hint" style="margin-top:0;">ToDoの予定は消えません。ToDo画面の「再開」で、いつでも元に戻せます。</p>
+    <button type="button" class="btn-block danger" id="todo-stop-ok-btn" style="margin-top:12px;">今日の残りのアラームを止める</button>
+    <button type="button" class="btn-block muted" id="todo-stop-cancel-btn">やめる</button>
   </div>
 </div>
 
@@ -2758,11 +2835,11 @@ var TODO_ALARM_TYPE_KEY = 'namacalc_todo_alarm_type_v1';
 var todoAlarmType = loadJSON(TODO_ALARM_TYPE_KEY, 'alarm') === 'notif' ? 'notif' : 'alarm';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 8;
+var REQUIRED_SHELL_VERSION = 9;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
-var NAKA_VERSION = 5;
+var NAKA_VERSION = 6;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261006-4';
+var APP_BUILD = '20261011-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -2921,16 +2998,16 @@ function syncTodoAlarms(){
     ? callNativeBridge('cancel', {notifications: prevIds.map(function(id){ return {id: id}; })}).catch(function(){})
     : Promise.resolve();
   cancelP.then(function(){
-    if (!todoAlarmEnabled){
+    if (!todoAlarmEnabled || isTodoAlarmStoppedToday()){   /* OFF、または「今日は停止」の間は予約しない */
       saveJSON(TODO_ALARM_SCHEDULED_KEY, []);
       return Promise.resolve();
     }
-    return ensureTodoAlarmChannels().then(function(){
+    return ensureTodoAlarmChannels().then(ensureTodoActionTypes).then(function(){
       var events = computeTodoAlarmEvents();
       var notifs = events.map(function(ev, i){
         var soundId = todoAlarmSounds[ev.colIdx] || ALARM_SOUND_OPTIONS[ev.colIdx % 3].id;
         var timeStr = pad2(ev.time.getHours()) + ':' + pad2(ev.time.getMinutes());
-        return {
+        var n = {
           id: nextTodoAlarmNotifId(),
           title: 'Nama計算機 逆算ToDo',
           body: timeStr + ' ' + (ev.label || '無題') + ' - ' + ev.name,
@@ -2938,6 +3015,8 @@ function syncTodoAlarms(){
           channelId: todoAlarmSoundOn ? soundChannelId(soundId) : silentChannelId(),
           sound: todoAlarmSoundOn ? (soundId + '.wav') : 'silent.wav'
         };
+        if (todoActionTypesReady) n.actionTypeId = TODO_STOP_ACTION_TYPE;   /* 通知に「完了にする(アラーム停止)」ボタンを付ける */
+        return n;
       });
       saveJSON(TODO_ALARM_SCHEDULED_KEY, notifs.map(function(n){ return n.id; }));
       if (notifs.length === 0) return Promise.resolve();
@@ -2994,6 +3073,7 @@ function renderTodoAlarmSummary(){
     '通知【' + (todoAlarmEnabled ? 'あり' : 'なし') + '】、音【' + (todoAlarmSoundOn ? 'あり' : 'なし') + '】、音の種別【' + (todoAlarmType === 'notif' ? '通知音' : 'アラーム') + '】';
   document.getElementById('todo-sound-row').classList.toggle('disabled', !on);
   document.getElementById('todo-sound-open-btn').disabled = !on;
+  renderTodoStopRow();
 }
 function openTodoSoundModal(){
   document.getElementById('todo-alarm-type-alarm').checked = (todoAlarmType === 'alarm');
@@ -3111,7 +3191,8 @@ function syncTodoPersistentNotif(){
   }
   todoPersistentLastSync = Date.now();
   var now = new Date();
-  ensureTodoPersistentChannel().then(function(){
+  ensureTodoPersistentChannel().then(ensureTodoActionTypes).then(function(){
+    var withStop = todoActionTypesReady && todoAlarmEnabled && !isTodoAlarmStoppedToday();   /* 停止ボタンは、アラームが有効で今日まだ止めていない間だけ */
     var toCancel = [];
     var toSchedule = [];
     var order = [2, 1, 0]; /* 遅い方から先に投稿する */
@@ -3129,7 +3210,7 @@ function syncTodoPersistentNotif(){
       var lines = schedule.map(function(item){
         return pad2(item.start.getHours()) + ':' + pad2(item.start.getMinutes()) + ' ' + item.name;
       });
-      toSchedule.push({
+      var pn = {
         id: notifId,
         title: '逆算ToDo: ' + (target.label || '無題') + '(' + target.time + '完了)',
         body: lines.join('\n'),
@@ -3137,7 +3218,9 @@ function syncTodoPersistentNotif(){
         channelId: TODO_PERSISTENT_CHANNEL_ID,
         ongoing: true,
         autoCancel: false
-      });
+      };
+      if (withStop) pn.actionTypeId = TODO_STOP_ACTION_TYPE;
+      toSchedule.push(pn);
     });
     var p1 = toCancel.length ? callNativeBridge('cancel', {notifications: toCancel}).catch(function(){}) : Promise.resolve();
     return p1.then(function(){
@@ -3153,15 +3236,22 @@ function resyncTodoPersistentSoon(force){
   syncTodoPersistentNotif();
 }
 document.addEventListener('visibilitychange', function(){
-  if (!document.hidden) resyncTodoPersistentSoon(false);
+  if (!document.hidden){ resyncTodoPersistentSoon(false); renderTodoStopRow(); }   /* 日付が変わっていれば「停止中」表示も自然に消える */
 });
 window.addEventListener('message', function(ev){
   var msg = ev.data;
   if (!msg) return;
   if (msg.__namaBridgeNotifTap){
-    if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2) resyncTodoPersistentSoon(true);
+    if (msg.actionId === TODO_STOP_ACTION_ID){
+      requestTodoAlarmStop();                       /* 通知の「完了にする(アラーム停止)」ボタン */
+    } else if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2){
+      resyncTodoPersistentSoon(true);
+    } else if (msg.id > ALARM_NOTIF_ID_BASE){
+      openTodoPageIfNeeded();                       /* アラームの通知本体をタップ: ToDo画面を開く(停止ボタンがある) */
+    }
   } else if (msg.__namaBridgeResume){
     resyncTodoPersistentSoon(false);
+    renderTodoStopRow();
   }
 });
 document.getElementById('todo-persistent-enable-cb').addEventListener('change', function(){
@@ -3170,6 +3260,75 @@ document.getElementById('todo-persistent-enable-cb').addEventListener('change', 
   syncTodoPersistentNotif();
   showToast(todoPersistentEnabled ? '常時通知をONにしました' : '常時通知をOFFにしました');
 });
+
+/* ============ 逆算ToDo: 今日のアラームを一括停止 ============
+   ・通知(アラーム／常時表示)に「完了にする(アラーム停止)」ボタンを付ける(ガワ v9 以降)
+   ・そのボタン、またはToDo画面の「今日の残りのアラームを止める」を押すと確認画面を出し、OKなら予約済みのアラームを全部取り消す
+   ・「今日は停止」の印(日付)を保存する。印がある間は syncTodoAlarms が再予約しないので、アプリを開き直しても鳴らない
+   ・印は日付が変わると自然に無効になる。ToDo画面の「再開」でいつでも解除できる。ToDoの予定そのものは消さない */
+var TODO_ALARM_STOPPED_KEY = 'namacalc_todo_alarm_stopped_date_v1';
+var TODO_STOP_ACTION_TYPE = 'todo_stop';
+var TODO_STOP_ACTION_ID = 'stop_all';
+var todoActionTypesReady = false;
+function todoTodayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function isTodoAlarmStoppedToday(){ return loadJSON(TODO_ALARM_STOPPED_KEY, '') === todoTodayStr(); }
+/* 通知に付けるボタンを端末に登録する(古いガワでは失敗する。その場合はボタン無しで動く) */
+function ensureTodoActionTypes(){
+  if (todoActionTypesReady) return Promise.resolve();
+  return callNativeBridge('registerActionTypes', {types: [{
+    id: TODO_STOP_ACTION_TYPE,
+    actions: [{id: TODO_STOP_ACTION_ID, title: '完了にする(アラーム停止)'}]
+  }]}).then(function(){ todoActionTypesReady = true; })
+    .catch(function(e){ console.warn('通知ボタンの登録に失敗(ガワが古い可能性):', e); });
+}
+function renderTodoStopRow(){
+  var row = document.getElementById('todo-stop-row');
+  if (!row) return;
+  row.classList.toggle('hidden', !(isApkPlatform() && todoAlarmEnabled));
+  var stopped = isTodoAlarmStoppedToday();
+  document.getElementById('todo-stop-btn').classList.toggle('hidden', stopped);
+  document.getElementById('todo-stopped-row').classList.toggle('hidden', !stopped);
+}
+function closeTodoStopModal(){ document.getElementById('todo-stop-modal').classList.add('hidden'); }
+function openTodoStopModal(){
+  if (isTodoAlarmStoppedToday()){ showToast('今日のアラームはすでに止めてあります'); return; }
+  var n = computeTodoAlarmEvents().length;
+  if (n === 0){ showToast('今日、これから鳴るアラームはありません'); return; }
+  document.getElementById('todo-stop-msg').textContent = '今日これから鳴る予定のアラーム ' + n + '件を、すべて止めます。';
+  document.getElementById('todo-stop-modal').classList.remove('hidden');
+}
+function stopTodoAlarmsToday(){
+  saveJSON(TODO_ALARM_STOPPED_KEY, todoTodayStr());
+  closeTodoStopModal();
+  renderTodoStopRow();
+  syncTodoAlarms();            /* 印があるので、予約を全部取り消したまま再予約しない */
+  syncTodoPersistentNotif();   /* 常時表示の通知から「停止」ボタンを外す */
+  showToast('今日の残りのアラームを止めました');
+}
+function resumeTodoAlarms(){
+  saveJSON(TODO_ALARM_STOPPED_KEY, '');
+  renderTodoStopRow();
+  syncTodoAlarms();
+  syncTodoPersistentNotif();
+  showToast('アラームを再開しました');
+}
+function openTodoPageIfNeeded(){
+  if (!(history.state && history.state.page === 'todo')) navigateTo('todo');
+}
+/* 通知のボタンが押された時: ToDo画面を開いて、確認画面を出す */
+function requestTodoAlarmStop(){
+  openTodoPageIfNeeded();
+  openTodoStopModal();
+  resyncTodoPersistentSoon(true);   /* ボタンを押すと通知が消える仕様なので、常時表示の通知を出し直す */
+}
+document.getElementById('todo-stop-btn').addEventListener('click', openTodoStopModal);
+document.getElementById('todo-resume-btn').addEventListener('click', resumeTodoAlarms);
+document.getElementById('todo-stop-ok-btn').addEventListener('click', stopTodoAlarmsToday);
+document.getElementById('todo-stop-cancel-btn').addEventListener('click', closeTodoStopModal);
+document.getElementById('todo-stop-overlay').addEventListener('click', closeTodoStopModal);
 
 /* ---- 「すること」リスト表示(ドラッグ並べ替え対応) ---- */
 function renderTodoSequence(){
