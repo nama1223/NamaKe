@@ -13,7 +13,7 @@
 <!-- ====== 目次(検索用の索引) ======
  このファイルは単一HTML(約6千行)。同じ機能のコードが「CSS(上部の style)・HTML(中ほどの各ページ)・JS(下部の script)」の3か所に分かれて
  置かれているので、下の言葉を検索すると各部分に飛べる。(行番号はずれるので載せない。言葉はファイル内で1か所だけに出る)
- 全体のJSは1つの即時関数の中にある(関数は他の機能からも呼べる)。HTMLの区切りは番号つきのコメント(例: 電卓なら「(1) 電卓」)で、検索語は他と区別するため前の「-- 」から書いてある。
+ 本体のJSは1つの即時関数の中にある(関数は他の機能からも呼べる)。ただし「やらせるToDo」の中身だけは、その直前に別の script として挿入してある(window.Yaraseru)。HTMLの区切りは番号つきのコメント(例: 電卓なら「(1) 電卓」)で、検索語は他と区別するため前の「-- 」から書いてある。
 
  【機能 → 検索する言葉】  CSS / HTML / JS
   ・ホームメニュー(並べ替え・表示ON/OFF): CSS「---------- ホームメニュー」 / JS「============ ホームメニュー」
@@ -29,6 +29,9 @@
   ・(6) 逆算ToDo: 常時通知: JS「============ APK版限定: スケジュールの常時通知」
   ・(6) 逆算ToDo: アラーム一括停止: CSS「---------- 逆算ToDo: アラーム一括停止」 / JS「============ 逆算ToDo: 今日のアラームを一括停止」
   ・(7) 時間差計算: CSS「---------- 時間差計算」 / HTML「-- (7) 時間差計算」 / JS「============ (7) 時間差計算」
+  ・(8) やらせるToDo: HTML「-- (8) やらせるToDo」 / CSS・JSの中身(別ファイル yaraseru.html をそのまま挿入した区間): 「やらせるToDo 合体ここから」〜「やらせるToDo 合体ここまで」(CSSとJSで各1組)
+      CSS(本体側の追加分): 「---------- やらせるToDo(合体用)」 / JS(起動・戻る・通知・バックアップとのつなぎ): 「============ やらせるToDo(合体)」
+      中身の探し方(JS側): 「function mount(」が単体版の本体。細かい検索語は yaraseru.html の冒頭目次を見る
   ・数をかぞえるやつ: JS「============ 数をかぞえるやつ」
   ・共通: トースト: CSS「---------- トースト」 / JS「============ トースト」
   ・共通: カレンダーモーダル: CSS「---------- カレンダーモーダル」 / JS「============ カレンダーモーダル(共通部品)」
@@ -42,6 +45,7 @@
 
  【よく触る場所・共通部品(検索する言葉)】
   ・メニュー定義(新しいページを足す時に触る): 「var MENU_ITEMS =」
+  ・やらせるToDoの通知ID範囲(逆算ToDoの89990〜と重ならない): 「var YR_NOTIF_BASE」
   ・バックアップ対象のキー群: 「var BACKUP_GROUPS」
   ・バックアップ値の形式チェック: 「function validateBackupValue」
   ・ビルド番号(更新確認用。index.htmlを変えたら手で上げる): 「var APP_BUILD = '2026」
@@ -866,6 +870,181 @@ select.plain{
   flex:none;width:52px;min-height:50px;font-size:calc(22px * var(--zs));line-height:1;
   background:#fff;border:none;border-radius:12px;cursor:pointer;padding:0;
 }
+
+/* ========== やらせるToDo 合体ここから (yaraseru.html の <style> の中身。単体版を更新したら、この区間を丸ごと差し替える) ========== */
+/* ---------- やらせるToDo ---------- */
+.yr{--yr-primary:#1e3a5f;--yr-bg:#eef1f5;--yr-ink:#1c2530;--yr-sub:#5b6776;--yr-green:#2f7d51;--yr-red:#c0392b;--yr-amber:#b87410;
+  font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;font-size:17px;line-height:1.5;color:var(--yr-ink);background:var(--yr-bg);
+  min-height:100vh;box-sizing:border-box;}
+.yr *{box-sizing:border-box;}
+.yr button{font-family:inherit;cursor:pointer;touch-action:manipulation;}
+.yr .yr-hide{display:none !important;}
+.yr-bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--yr-primary);color:#fff;}
+.yr-bar h1{flex:1;margin:0;font-size:19px;font-weight:700;}
+.yr-bar button{background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:10px;min-height:42px;min-width:42px;padding:0 12px;font-size:17px;}
+.yr-main{padding:12px;max-width:640px;margin:0 auto;}
+.yr-card{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;border-left:6px solid #c3cfdd;}
+.yr-card.todo{border-left-color:#3b6fb6;}
+.yr-card.running{border-left-color:var(--yr-green);background:#f1faf4;}
+.yr-card.done{border-left-color:#9aa5b3;opacity:.8;}
+.yr-card.fail{border-left-color:var(--yr-red);background:#fdf3f2;}
+.yr-title{font-size:19px;font-weight:700;word-break:break-all;}
+.yr-meta{font-size:15px;color:var(--yr-sub);margin-top:2px;}
+.yr-meta.late{color:var(--yr-red);font-weight:600;}
+.yr-row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+.yr-btn{border:none;border-radius:12px;min-height:48px;padding:0 16px;font-size:17px;font-weight:700;background:#e3e9f1;color:var(--yr-ink);}
+.yr-btn.primary{background:var(--yr-primary);color:#fff;}
+.yr-btn.start{background:var(--yr-green);color:#fff;flex:1;min-height:56px;font-size:19px;}
+.yr-btn.danger{background:#fdeceb;color:var(--yr-red);}
+.yr-btn.wide{width:100%;}
+.yr-btn:active{filter:brightness(.9);}
+.yr-big{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--yr-green);}
+.yr-sum{display:flex;justify-content:space-between;align-items:baseline;margin:2px 4px 10px;}
+.yr-sum b{font-size:20px;}
+.yr-note{background:#fff3cd;color:#7a4b00;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:15px;}
+.yr-note .yr-btn{min-height:40px;margin-top:6px;}
+.yr-fail-msg{font-size:15px;color:var(--yr-red);font-weight:600;margin-top:6px;}
+.yr-input{width:100%;min-height:48px;font-size:18px;padding:0 12px;border:2px solid #c3cfdd;border-radius:10px;background:#fff;color:var(--yr-ink);font-family:inherit;}
+.yr-input:focus{outline:none;border-color:var(--yr-primary);}
+.yr-lab{display:block;font-size:15px;font-weight:600;color:var(--yr-sub);margin:12px 0 4px;}
+.yr-addrow{display:flex;gap:8px;margin-bottom:12px;}
+.yr-addrow .yr-input{flex:1;}
+.yr-set{background:#fff;border-radius:14px;padding:6px 12px;margin-bottom:10px;}
+.yr-setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #edf0f4;}
+.yr-setrow:last-child{border-bottom:none;}
+.yr-setrow small{display:block;color:var(--yr-sub);font-size:13px;}
+.yr-step{display:flex;align-items:center;gap:6px;}
+.yr-step button{width:44px;height:44px;border:none;border-radius:10px;background:#e3e9f1;font-size:22px;font-weight:700;}
+.yr-step input{width:64px;height:44px;text-align:center;font-size:19px;font-weight:700;border:2px solid #c3cfdd;border-radius:10px;}
+.yr-empty{text-align:center;color:var(--yr-sub);padding:24px 8px;}
+.yr-h{font-size:15px;font-weight:700;color:var(--yr-sub);margin:14px 4px 6px;}
+/* 画面上部のアラート(アラーム中に出る) */
+.yr-alerts{position:fixed;left:0;right:0;top:0;z-index:100;padding:8px;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.yr-alert{pointer-events:auto;background:#fff;border-radius:14px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);border-top:6px solid var(--yr-amber);max-width:640px;width:100%;margin:0 auto;}
+.yr-alert.fail{border-top-color:var(--yr-red);}
+.yr-alert h3{margin:0 0 4px;font-size:18px;}
+.yr-alert p{margin:0;font-size:16px;}
+.yr-alert .yr-row{margin-top:8px;}
+.yr-alert .yr-btn{min-height:44px;}
+/* モーダル */
+.yr-modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;}
+.yr-modal>div{background:#fff;border-radius:16px;padding:16px;width:100%;max-width:520px;margin-top:6vh;}
+.yr-modal h2{margin:0 0 6px;font-size:19px;}
+.yr-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #edf0f4;}
+.yr-pick:last-child{border-bottom:none;}
+
+/* 生存確認(第2段階) */
+.yr-line{position:fixed;right:0;bottom:0;width:clamp(14px,5vmin,40px);background:#e30000;z-index:250;pointer-events:none;
+  transition:height 1s linear;animation:yr-blink 1s steps(1,end) infinite;}
+@keyframes yr-blink{0%{opacity:1;}50%{opacity:.3;}}
+.yr-block{position:fixed;inset:0;z-index:300;background:#7a0000;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;
+  animation:yr-flash 1s steps(1,end) infinite;}
+@keyframes yr-flash{0%{background:#7a0000;}50%{background:#b00000;}}
+.yr-block-big{font-size:34px;font-weight:700;margin-bottom:12px;}
+.yr-block p{font-size:19px;margin:6px 0;}
+.yr-block-sub{opacity:.85;font-size:16px !important;}
+.yr-block .yr-btn{margin-top:28px;background:rgba(255,255,255,.2);color:#fff;min-height:44px;font-size:15px;}
+.yr-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:320;background:#1c2530;color:#fff;padding:10px 18px;border-radius:999px;font-size:16px;max-width:90%;box-shadow:0 4px 14px rgba(0,0,0,.35);}
+.yr-camhold{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none;}
+.yr-camhold video{width:2px;height:2px;}
+.yr-prev{background:#000;border-radius:12px;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:8px 0;}
+.yr-prev video{width:100%;max-height:260px;display:block;transform:scaleX(-1);}
+.yr-adj{font-size:18px;margin:6px 0;}
+.yr-adj b{font-size:30px;font-variant-numeric:tabular-nums;}
+.yr-state{font-weight:700;padding:2px 10px;border-radius:999px;background:#e3e9f1;margin-left:6px;}
+.yr-state.dark{background:#1c2530;color:#fff;}
+.yr-meter{position:relative;height:14px;border-radius:7px;background:#e3e9f1;margin:6px 0 10px;overflow:hidden;}
+.yr-meter div{height:100%;background:#3b6fb6;}
+.yr-meter i{position:absolute;top:0;bottom:0;width:3px;background:#e30000;}
+.yr-seg{display:flex;gap:6px;}
+.yr-seg button{min-height:44px;padding:0 14px;border:none;border-radius:10px;background:#e3e9f1;font-size:16px;font-weight:700;}
+.yr-seg button.on{background:var(--yr-primary);color:#fff;}
+
+/* 感度テスト・時刻入力(第2段階の続き) */
+.yr-adjrow{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:16px;}
+.yr-adjrow span{flex:none;width:4.2em;color:var(--yr-sub);}
+.yr-adjrow b{flex:none;width:2.6em;text-align:right;font-size:24px;font-variant-numeric:tabular-nums;}
+.yr-adjrow .yr-meter{flex:1;margin:0;}
+.yr-state{font-size:19px;padding:4px 14px;}
+.yr-timectl{display:flex;gap:8px;}
+.yr-timebtn{flex:1;font-size:20px;min-height:52px;text-align:left;background:#eef3fb;}
+.yr-tp{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0;}
+.yr-tpcol{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.yr-tpcol button{width:76px;height:52px;border:none;border-radius:12px;background:#e3e9f1;font-size:22px;}
+.yr-tpcol button:active{filter:brightness(.9);}
+.yr-tpnum{font-size:56px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;}
+.yr-tpcol small{color:var(--yr-sub);font-size:13px;}
+.yr-tpcolon{font-size:48px;font-weight:700;padding-bottom:24px;}
+.yr-tphint{text-align:center;font-size:18px;color:var(--yr-sub);margin:4px 0 2px;}
+
+/* 脱線モード・記録・おかえり演出(第3段階) */
+.yr-btn.amber{background:#fdeccb;color:#7a4b00;}
+.yr-big.amber{color:#b87410;}
+.yr-big.late{color:var(--yr-red);}
+.yr-esc{background:#fff8e6;border-radius:12px;padding:8px 10px;margin-top:8px;}
+.yr-chart{display:flex;align-items:flex-end;gap:3px;height:150px;background:#fff;border-radius:12px;padding:8px 6px 4px;}
+.yr-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;border-radius:6px;cursor:pointer;min-width:0;}
+.yr-col.sel{background:#e8f0fb;}
+.yr-cbar{width:70%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;}
+.yr-cbar i{display:block;width:100%;}
+.yr-cbar i.work,.yr-legend .work::before,.yr-tl i.work{background:#2f7d51;}
+.yr-cbar i.esc,.yr-legend .esc::before,.yr-tl i.esc{background:#e0a020;}
+.yr-cbar i.over,.yr-legend .over::before,.yr-tl i.over{background:#d63a2f;}
+.yr-col small{font-size:10px;color:var(--yr-sub);margin-top:2px;white-space:nowrap;}
+.yr-legend{display:flex;gap:14px;margin:6px 4px;font-size:14px;color:var(--yr-sub);flex-wrap:wrap;}
+.yr-legend span::before{content:'';display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+.yr-tl{position:relative;height:26px;background:#edf0f4;border-radius:6px;margin-top:10px;overflow:hidden;}
+.yr-tl i{position:absolute;top:0;bottom:0;}
+.yr-tlab{display:flex;justify-content:space-between;font-size:13px;color:var(--yr-sub);margin-top:2px;}
+.yr-hist{display:flex;align-items:flex-end;gap:3px;height:100px;}
+.yr-hist>div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;}
+.yr-hist i{display:block;width:70%;background:#e0a020;border-radius:3px 3px 0 0;min-height:0;}
+.yr-hist b{font-size:12px;height:16px;}
+.yr-hist small{font-size:11px;color:var(--yr-sub);}
+/* おかえり演出 */
+.yr-fx{position:fixed;inset:0;z-index:310;display:flex;align-items:center;justify-content:center;}
+.yr-fx.fx1{background:rgba(8,10,40,.82);}
+.yr-fx.fx2{background:rgba(255,240,245,.6);}
+.yr-fx.fx0{background:rgba(255,255,255,.35);}
+.yr-fx canvas{position:absolute;inset:0;width:100%;height:100%;}
+.yr-fx-text{position:relative;font-size:clamp(46px,15vw,120px);font-weight:800;letter-spacing:.04em;animation:yr-pop .7s cubic-bezier(.2,1.6,.4,1) both;text-align:center;}
+.yr-fx.fx0 .yr-fx-text{color:#fff;text-shadow:0 3px 0 #ff4d6d,0 6px 14px rgba(0,0,0,.35);}
+.yr-fx.fx1 .yr-fx-text{color:#ffd54a;text-shadow:0 0 24px rgba(255,200,60,.8);}
+.yr-fx.fx2 .yr-fx-text{color:#d6336c;text-shadow:0 2px 0 #fff,0 0 18px rgba(255,255,255,.9);}
+@keyframes yr-pop{0%{transform:scale(.2);opacity:0;}100%{transform:scale(1);opacity:1;}}
+@media (prefers-reduced-motion:reduce){.yr-line,.yr-block{animation:none;}}
+
+/* 設定のジャンル別の色分け・スワイプ・褒め言葉(第4段階) */
+.yr-set.g-base{background:#dbe9fb;}
+.yr-set.g-alive{background:#dcf1e3;}
+.yr-set.g-esc{background:#fdf0c4;}
+.yr-set.g-praise{background:#f1e3fb;}
+.yr-set.g-data{background:#e3e6ea;}
+.yr-set .yr-setrow{border-bottom-color:rgba(0,0,0,.1);}
+.yr-set .yr-step button,.yr-set .yr-btn:not(.primary):not(.danger),.yr-set .yr-seg button:not(.on){background:#fff;}
+.yr-swipe{touch-action:pan-x;cursor:ns-resize;}
+.yr-swipe.touch-active,.yr-swipe:hover{box-shadow:inset 0 0 0 2px var(--yr-primary);border-radius:10px;}
+.yr-tpnum.yr-swipe{user-select:none;-webkit-user-select:none;padding:0 8px;}
+.yr-praise{position:fixed;left:8px;right:8px;bottom:12px;z-index:150;max-width:640px;margin:0 auto;background:#fff;border-radius:16px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.35);border-top:6px solid #b87410;}
+.yr-praise-h{font-size:14px;font-weight:700;color:#7a4b00;}
+.yr-praise-t{font-size:19px;line-height:1.6;margin:6px 0 10px;white-space:pre-wrap;}
+
+/* 本体(Nama計算機)の中に置いた時(mount の embedded:true): 本体のヘッダーを使うので、自前の上部バーは「小さな操作列」にする */
+.yr.yr-embedded{min-height:0;}
+.yr-embedded .yr-bar{position:static;background:transparent;color:var(--yr-ink);padding:4px 12px 0;}
+.yr-embedded .yr-bar h1{font-size:17px;}
+.yr-embedded .yr-bar button{background:#e3e9f1;color:var(--yr-ink);}
+.yr-embedded .yr-bar [data-act="back"]{display:none !important;}
+/* ========== やらせるToDo 合体ここまで ========== */
+/* ---------- やらせるToDo(合体用) ---------- */
+/* 別のメニューを開いている間も通知・生存確認・全面表示のタイマーを動かし続けるため、ページが非表示でも「中身の置き場」だけは残す。
+   (画面の中身と、開いているモーダルだけを隠す。画面全体に出る警告・赤線・演出は position:fixed なので、そのまま見える) */
+#page-yaraseru:not(.active){display:block;height:0;overflow:visible;}
+#page-yaraseru:not(.active) .yr{min-height:0;}
+#page-yaraseru:not(.active) .yr-bar,
+#page-yaraseru:not(.active) .yr-main,
+#page-yaraseru:not(.active) [data-role="modal"],
+#page-yaraseru:not(.active) [data-role="modal2"]{display:none;}
 </style>
 </head>
 <body>
@@ -902,6 +1081,11 @@ select.plain{
     <!-- NamaStopwatch(なます): 別アプリをiframeで表示。初めて開いた時に読み込む -->
     <div class="page" id="page-stopwatch">
       <iframe id="sw-frame" title="NamaStopwatch なます" allow="screen-wake-lock; clipboard-write"></iframe>
+    </div>
+
+    <!-- (8) やらせるToDo (中身は下の script「やらせるToDo 合体ここから」の window.Yaraseru が作る) -->
+    <div class="page" id="page-yaraseru">
+      <div id="yaraseru-root"></div>
     </div>
 
     <!-- (1) 電卓 -->
@@ -1532,6 +1716,1766 @@ select.plain{
 </div>
 
 <script>
+/* ========== やらせるToDo 合体ここから (yaraseru.html の <script> の中身。単体版を更新したら、この区間を丸ごと差し替える) ==========
+   ※ 本体の script とは別。外へ出すのは window.Yaraseru だけ。起動や通知・戻るボタンとのつなぎは、本体の script 側の「やらせるToDo(合体)」の区間にある */
+(function(global){
+'use strict';
+
+/* =====================================================================
+   やらせるToDo  window.Yaraseru.mount(rootElement, options)
+   options: { host, now, storage, camera, embedded, onNavigate }
+     host    … 通知など実行環境ごとに違う処理(省略すると単体版用の createStandaloneHost)
+     now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
+     storage … localStorage 互換の保存先
+     embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
+     onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
+   戻り値の back() / canGoBack() / view(): 内側の画面が「今日」以外なら back() で「今日」へ戻る(戻れたら true)
+   ===================================================================== */
+var VERSION = 6;
+var KEY = {
+  settings: 'yaraseru_v1_settings',
+  backlog:  'yaraseru_v1_backlog',     /* 「そのうちやる事」 */
+  today:    'yaraseru_v1_today',       /* 「今日やる事」 {date, items} */
+  history:  'yaraseru_v1_history',     /* 過去の日の記録(日付が変わった時に移す。[PHASE3]で振り返りに使う) */
+  nudge:    'yaraseru_v1_nudge',       /* 催促の最終時刻 {last} */
+  alive:    'yaraseru_v1_alive',       /* 生存確認の進行状態 {id, mode, nextAt, deadline} */
+  praise:   'yaraseru_v1_praise'       /* 褒め言葉の記録(最近30件) */
+};
+var SECRET_KEY = 'yaraseru_secret_gemini';    /* APIキー。設定・バックアップとは別のキーに置く(合体後もバックアップの対象にしない) */
+var PRAISE_STYLE_DEFAULT = '豪快なドワーフのおっちゃん。口調は「〜じゃ」「〜だな」「がはは」など荒っぽいが温かい感じ。酒や鍛冶仕事のたとえは、使うとしても1回まで。';
+var STATUS_LABEL = {todo:'これから', running:'実行中', done:'完了', fail:'本日終了'};
+var FAIL_MESSAGE = '本日は諦めて他のことをしましょう。先送りして大丈夫です。';
+
+/* ---- 実行環境ごとに違う部分(単体PWA版) ----
+   Nama計算機へ合体した後は、同じ形(permission / requestPermission / notify / init)の host を渡して差し替える。
+   ・APK版: ガワ(LocalNotifications)経由で「アプリが閉じていても鳴る予約通知」にする([PHASE2]以降で追加)
+   ・通知は「今すぐ表示」だけを使う。予約通知はAPKでしか確実に動かせないため後回し */
+function createStandaloneHost(){
+  var reg = null, clickCb = null;
+  return {
+    name: 'standalone',
+    init: function(onClick){
+      clickCb = onClick;
+      if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
+        navigator.serviceWorker.register('./yaraseru-sw.js').then(function(r){ reg = r; }).catch(function(){});
+        navigator.serviceWorker.addEventListener('message', function(e){
+          if (e.data && e.data.type === 'yr-notif-click' && clickCb) clickCb(e.data.tag);
+        });
+      }
+    },
+    permission: function(){ return ('Notification' in global) ? global.Notification.permission : 'unsupported'; },
+    requestPermission: function(){
+      if (!('Notification' in global)) return Promise.resolve('unsupported');
+      return Promise.resolve(global.Notification.requestPermission());
+    },
+    /* o: {title, body, tag}  戻り値: 表示できたか */
+    notify: function(o){
+      if (!('Notification' in global) || global.Notification.permission !== 'granted') return false;
+      try {
+        if (reg && reg.showNotification){ reg.showNotification(o.title, {body: o.body, tag: o.tag, requireInteraction: true, renotify: true}); return true; }
+        var n = new global.Notification(o.title, {body: o.body, tag: o.tag});
+        n.onclick = function(){ try { global.focus(); } catch(e){} if (clickCb) clickCb(o.tag); };
+        return true;
+      } catch(e){ return false; }
+    }
+  };
+}
+
+/* ---- カメラ(単体PWA版) ----
+   明るさを調べるだけ。映像は保存も送信もしない。Nama計算機へ合体した後は、同じ形のものを opts.camera で渡して差し替える
+   (APK版では、ガワ側でカメラの権限が必要になる) */
+function createBrowserCamera(){
+  var stream = null, video = null, canvas = null, ctx = null;
+  function ensureEls(){
+    if (video) return;
+    video = document.createElement('video');
+    video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.muted = true; video.autoplay = true;
+    canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 24;
+    ctx = canvas.getContext('2d', {willReadFrequently: true});
+  }
+  var md = function(){ return global.navigator && global.navigator.mediaDevices; };
+  return {
+    supported: function(){ return !!(md() && md().getUserMedia); },
+    list: function(){
+      return md().enumerateDevices().then(function(ds){
+        return ds.filter(function(d){ return d.kind === 'videoinput'; }).map(function(d, i){ return {id: d.deviceId, label: d.label || ('カメラ' + (i + 1))}; });
+      });
+    },
+    open: function(id){
+      ensureEls();
+      if (stream) return Promise.resolve();
+      function get(c){ return md().getUserMedia({video: c, audio: false}); }
+      /* 指定のカメラが見つからなければ、既定のカメラで開く */
+      var p = id ? get({deviceId: {exact: id}}).catch(function(){ return get(true); }) : get(true);
+      return p.then(function(st){ stream = st; video.srcObject = st; var pl = video.play(); return pl && pl.catch ? pl.catch(function(){}) : null; });
+    },
+    close: function(){
+      if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+      if (video) video.srcObject = null;
+    },
+    /* 画面全体の {lum: 平均の明るさ(0〜255), contrast: 明るさのばらつき(標準偏差。小さいほど のっぺり)}。映像がまだ無ければ null
+       ※ スマホは暗くなると自動で明るく補正するため、「明るさ」だけでは塞いだ判定ができない端末がある。
+          指で塞ぐと画像が全体にのっぺり(均一)になるので、「ばらつき」も使えるようにしてある */
+    measure: function(){
+      if (!stream || !video || !video.videoWidth) return null;
+      try {
+        ctx.drawImage(video, 0, 0, 32, 24);
+        var d = ctx.getImageData(0, 0, 32, 24).data, n = d.length / 4, sum = 0, sq = 0, i, v;
+        for (i = 0; i < d.length; i += 4){ v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; sum += v; sq += v * v; }
+        var mean = sum / n;
+        return {lum: mean, contrast: Math.sqrt(Math.max(0, sq / n - mean * mean))};
+      } catch(e){ return null; }
+    },
+    luminance: function(){ var m = this.measure(); return m ? m.lum : null; },
+    mount: function(el){ ensureEls(); el.appendChild(video); }   /* プレビュー表示用などに、動画要素を差し込む */
+  };
+}
+
+function mount(root, opts){
+  opts = opts || {};
+  var now = opts.now || function(){ return Date.now(); };
+  var host = opts.host || createStandaloneHost();
+  var store = opts.storage || global.localStorage;
+  var camera = opts.camera || createBrowserCamera();
+  /* 旧名(yarasero_v1_*)で保存したテストデータを、新しい名前へ一度だけ引き継ぐ。不要になったらこの数行は消してよい */
+  (function(){
+    try {
+      ['settings', 'backlog', 'today', 'history', 'nudge'].forEach(function(n){
+        var o = store.getItem('yarasero_v1_' + n);
+        if (o !== null && store.getItem('yaraseru_v1_' + n) === null) store.setItem('yaraseru_v1_' + n, o);
+      });
+    } catch(e){}
+  })();
+
+  /* ---------- 保存 ---------- */
+  function load(k, def){ try { var v = store.getItem(k); return v === null ? def : JSON.parse(v); } catch(e){ return def; } }
+  function save(k, v){ try { store.setItem(k, JSON.stringify(v)); } catch(e){} }
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function dayStr(t){ var d = new Date(t); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function uid(){ return 'y' + now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function int(v, min, max, def){ var n = parseInt(v, 10); if (isNaN(n)) return def; return Math.max(min, Math.min(max, n)); }
+
+  /* ---------- データ ---------- */
+  var settings = (function(){
+    var s = load(KEY.settings, {}) || {};
+    var o = {
+      leadMin: int(s.leadMin, 0, 120, 5), nudgeMin: int(s.nudgeMin, 5, 480, 60), sound: s.sound !== false,
+      aliveEnabled: s.aliveEnabled === true,                       /* 初期はOFF(カメラの許可と感度の調整をしてからONにする) */
+      aliveMode: s.aliveMode === 'random' ? 'random' : 'fixed',
+      aliveFixedMin: int(s.aliveFixedMin, 1, 120, 5), aliveRandMin: int(s.aliveRandMin, 1, 120, 3), aliveRandMax: int(s.aliveRandMax, 1, 180, 10),
+      aliveRespSec: int(s.aliveRespSec, 10, 600, 120),
+      threshold: int(s.threshold, 0, 255, 50),
+      thrFlat: int(s.thrFlat, 0, 80, 10),                         /* これよりのっぺり(ばらつきが小さい)なら「塞いだ」 */
+      detect: /^(dark|flat|either)$/.test(s.detect) ? s.detect : 'either',   /* 判定方式: 暗さ / のっぺり / どちらか */                    /* これより暗ければ「塞いだ」 */
+      cameraId: typeof s.cameraId === 'string' ? s.cameraId : '',
+      escapeMin: int(s.escapeMin, 1, 60, 5),                       /* 脱線の時間 */
+      extendMin: int(s.extendMin, 1, 60, 5),                       /* 延長の長さ */
+      escapeGraceSec: int(s.escapeGraceSec, 10, 600, 60),          /* 脱線の時間切れ後、強いアラームになるまでの猶予 */
+      effect: s.effect !== false,
+      praiseOn: s.praiseOn !== false,                              /* 褒める機能を使う */
+      praiseOnDone: s.praiseOnDone !== false,                      /* 完了した時に自動で褒める */
+      praiseStyle: (typeof s.praiseStyle === 'string' && s.praiseStyle.trim()) ? s.praiseStyle.trim().slice(0, 300) : PRAISE_STYLE_DEFAULT,
+      praiseTemp: isNaN(parseFloat(s.praiseTemp)) ? 0.9 : Math.max(0, Math.min(2, Math.round(parseFloat(s.praiseTemp) * 10) / 10)),
+      geminiModel: (typeof s.geminiModel === 'string' && s.geminiModel.trim()) ? s.geminiModel.trim().slice(0, 80) : 'gemini-flash-lite-latest'                                   /* 「おかえり！」の演出 */
+    };
+    if (o.aliveRandMax < o.aliveRandMin) o.aliveRandMax = o.aliveRandMin;
+    return o;
+  })();
+  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10]};
+  var backlog = load(KEY.backlog, []);
+  var today = load(KEY.today, null);
+  var nudge = load(KEY.nudge, {last: 0});
+  var alive = load(KEY.alive, null);
+  if (!alive || typeof alive !== 'object' || !/^(wait|checking|blocked)$/.test(alive.mode)) alive = null;
+  if (!Array.isArray(backlog)) backlog = [];
+  function newItem(title, fromId){
+    return {id: uid(), title: title, fromId: fromId || null, startAt: null, limitAt: null, status: 'todo',
+            preNotified: false, startedAt: null, doneAt: null, failAt: null, escapes: [], esc: null};
+  }
+  /* 日付が変わっていたら、昨日までを履歴へ移して今日を空にする */
+  function ensureToday(){
+    var d = dayStr(now());
+    if (today && today.date === d && Array.isArray(today.items)) return false;
+    if (today && Array.isArray(today.items) && today.items.length){
+      var h = load(KEY.history, []); if (!Array.isArray(h)) h = [];
+      h.push({date: today.date, items: today.items.map(function(it){
+        var escs = escList(it).slice();                                 /* 脱線中のまま日付が変わった分は、その日の終わりで区切る */
+        if (it.esc) escs.push({start: it.esc.start, end: dayEnd(today.date), planned: it.esc.endAt - it.esc.start, over: Math.max(0, dayEnd(today.date) - it.esc.endAt), early: false});
+        return {title: it.title, status: it.status, startAt: it.startAt, limitAt: it.limitAt, startedAt: it.startedAt, doneAt: it.doneAt, failAt: it.failAt, escapes: escs, aliveOk: it.aliveOk || 0, aliveBlocked: it.aliveBlocked || 0};
+      })});
+      save(KEY.history, h.slice(-90));
+    }
+    today = {date: d, items: []};
+    nudge = {last: 0};
+    save(KEY.today, today); save(KEY.nudge, nudge);
+    return true;
+  }
+  ensureToday();
+  /* 同じ名前が今日すでにあれば「名前 (2)」「名前 (3)」のように通し番号を付けて、2つ目以降も登録できるようにする */
+  function uniqueTitle(base){
+    var used = {}; today.items.forEach(function(i){ used[i.title] = true; });
+    if (!used[base]) return base;
+    var n = 2; while (used[base + ' (' + n + ')']) n++;
+    return base + ' (' + n + ')';
+  }
+  function items(){ return today.items; }
+  function findItem(id){ for (var i = 0; i < today.items.length; i++) if (today.items[i].id === id) return today.items[i]; return null; }
+  function findBacklog(id){ for (var i = 0; i < backlog.length; i++) if (backlog[i].id === id) return backlog[i]; return null; }
+  function persist(){ save(KEY.today, today); save(KEY.backlog, backlog); save(KEY.settings, settings); save(KEY.nudge, nudge); }
+
+  /* "HH:MM" → 今日のその時刻(ms)。未設定は null */
+  function timeToMs(hhmm, base){
+    if (!hhmm) return null;
+    var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm); if (!m) return null;
+    var d = new Date(base); d.setHours(+m[1], +m[2], 0, 0); return d.getTime();
+  }
+  function fmtDur(ms){
+    var s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    return (h ? h + ':' + pad2(m) : m) + ':' + pad2(r);
+  }
+
+  /* ---------- 画面の骨組み ---------- */
+  root.classList.add('yr');
+  var embedded = opts.embedded === true;
+  if (embedded) root.classList.add('yr-embedded');
+  root.innerHTML =
+    '<div class="yr-bar"><button type="button" data-act="back" class="yr-hide" aria-label="戻る">←</button>' +
+    '<h1 data-role="title">やらせるToDo</h1>' +
+    '<button type="button" data-act="goto-stats" data-role="statsbtn" aria-label="記録">📊</button>' +
+    '<button type="button" data-act="goto-settings" data-role="gear" aria-label="設定">⚙</button></div>' +
+    '<div class="yr-main" data-role="main"></div>' +
+    '<div class="yr-alerts" data-role="alerts"></div>' +
+    '<div data-role="modal"></div>' +
+    '<div data-role="modal2"></div>' +
+    '<div class="yr-camhold" data-role="camhold"></div>';
+  function $r(role){ return root.querySelector('[data-role="' + role + '"]'); }
+  var view = 'today';    /* today / backlog / settings */
+
+  function go(v){
+    var prev = view;
+    view = v;
+    $r('title').textContent = (embedded && v === 'today') ? '' : ({today: 'やらせるToDo', backlog: 'そのうちやる事', stats: '記録・振り返り', settings: '設定'}[v] || '設定');   /* 本体に置いた時は、本体のヘッダーがタイトルを出すので「今日」では出さない */
+    root.querySelector('[data-act="back"]').classList.toggle('yr-hide', v === 'today');
+    $r('gear').classList.toggle('yr-hide', v !== 'today');
+    $r('statsbtn').classList.toggle('yr-hide', v !== 'today');
+    render();
+    try { global.scrollTo(0, 0); } catch(e){}
+    if (opts.onNavigate){ try { opts.onNavigate(v, prev); } catch(e){} }
+  }
+
+  function render(){
+    var m = $r('main');
+    if (view === 'today') m.innerHTML = renderToday();
+    else if (view === 'backlog') m.innerHTML = renderBacklog();
+    else if (view === 'stats') m.innerHTML = renderStats();
+    else { m.innerHTML = renderSettings(); bindSettingsSwipes(); }
+    updateLive();
+  }
+
+  /* ---------- 今日やる事 ---------- */
+  function sortedItems(){
+    var rank = {running: 0, todo: 1, fail: 2, done: 3};
+    return items().slice().sort(function(a, b){
+      if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
+      if (a.status === 'todo'){
+        if (a.startAt && b.startAt) return a.startAt < b.startAt ? -1 : (a.startAt > b.startAt ? 1 : 0);
+        if (a.startAt) return -1; if (b.startAt) return 1;
+      }
+      return 0;
+    });
+  }
+  function renderToday(){
+    var d = new Date(now());
+    var w = ['日','月','火','水','木','金','土'][d.getDay()];
+    var all = items(), doneN = all.filter(function(i){ return i.status === 'done'; }).length;
+    var h = '<div class="yr-sum"><b>' + (d.getMonth() + 1) + '/' + d.getDate() + '(' + w + ')</b><span>完了 ' + doneN + ' / ' + all.length + '</span></div>' +
+            '<div class="yr-meta" data-role="day-sum" style="margin:-6px 4px 8px"></div>';
+    var perm = host.permission();
+    if (perm === 'default') h += '<div class="yr-note">通知とアラームを使うには、ここで許可してください。<br><button type="button" class="yr-btn primary" data-act="allow-notif">🔔 通知とアラームを有効にする</button></div>';
+    else if (perm === 'denied') h += '<div class="yr-note">通知がブロックされています(アラーム音と画面内の表示は使えます)。ブラウザの設定で許可すると通知も出ます。</div>';
+    if (!all.length) h += '<div class="yr-empty">今日やる事はまだありません。<br>下のボタンから追加しましょう。</div>';
+    sortedItems().forEach(function(it){ h += renderCard(it); });
+    h += '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="pick-backlog">＋ そのうちから追加</button>' +
+         '<button type="button" class="yr-btn primary" style="flex:1" data-act="new-item">＋ 新しくつくる</button></div>';
+    h += '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="goto-backlog">📋 そのうちやる事リストを編集</button></div>';
+    return h;
+  }
+  function timesText(it){
+    var p = [];
+    if (it.startAt) p.push('⏰ 開始予定 ' + it.startAt);
+    if (it.limitAt) p.push('🚫 開始リミット ' + it.limitAt);
+    return p.join('　');
+  }
+  function renderCard(it){
+    var h = '<div class="yr-card ' + it.status + '" data-id="' + it.id + '">';
+    h += '<div class="yr-title">' + esc(it.title) + '</div>';
+    if (it.status === 'todo'){
+      var tt = timesText(it);
+      h += '<div class="yr-meta" data-late="' + (it.startAt ? it.startAt : '') + '">' + (tt ? esc(tt) : '開始時刻は未設定') + '</div>';
+      h += '<div class="yr-meta" data-count="' + (it.startAt ? it.startAt : '') + '"></div>';
+      h += '<div class="yr-row"><button type="button" class="yr-btn start" data-act="start" data-id="' + it.id + '">▶ 開始する</button>' +
+           '<button type="button" class="yr-btn" data-act="edit-item" data-id="' + it.id + '">⏰ 予定</button></div>';
+    } else if (it.status === 'running'){
+      h += '<div class="yr-meta">' + (it.startedAt ? '開始 ' + clock(it.startedAt) : '') + '</div>';
+      h += '<div class="yr-big" data-elapsed="' + it.startedAt + '">0:00</div>';
+      h += '<div class="yr-meta" data-sum-for="' + it.id + '"></div>';
+      h += '<div class="yr-meta" data-role="alive-next"></div>';
+      if (it.esc){
+        h += '<div class="yr-esc"><div class="yr-meta" style="font-weight:700">🌀 脱線中</div><div class="yr-big amber" data-esc-left="' + it.esc.endAt + '">0:00</div>' +
+             '<div class="yr-row"><button type="button" class="yr-btn start" data-act="esc-return" data-id="' + it.id + '">↩ 早期復帰</button>' +
+             '<button type="button" class="yr-btn" data-act="esc-extend" data-id="' + it.id + '">＋' + settings.extendMin + '分</button></div></div>';
+        h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="finish" data-id="' + it.id + '">✔ 完了した</button></div>';
+      } else {
+        h += '<div class="yr-row"><button type="button" class="yr-btn start" data-act="finish" data-id="' + it.id + '">✔ 完了した</button>' +
+             '<button type="button" class="yr-btn amber" data-act="esc-start" data-id="' + it.id + '">🌀 脱線する(' + settings.escapeMin + '分)</button></div>';
+      }
+    } else if (it.status === 'done'){
+      h += '<div class="yr-meta">✅ 完了' + (it.startedAt && it.doneAt ? '(所要 ' + Math.max(1, Math.round((it.doneAt - it.startedAt) / 60000)) + '分)' : '') + '</div>';
+      h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="repeat" data-id="' + it.id + '">↻ もう一度やる</button></div>';
+    } else {
+      h += '<div class="yr-meta">🔒 ' + esc(timesText(it)) + '</div>';
+      h += '<div class="yr-fail-msg">開始リミットを過ぎたため、今日はもう開始できません。' + FAIL_MESSAGE + '</div>';
+      h += '<div class="yr-row"><button type="button" class="yr-btn danger" data-act="del-item" data-id="' + it.id + '">🗑 リストから消す</button></div>';
+    }
+    return h + '</div>';
+  }
+  function clock(t){ var d = new Date(t); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+
+  /* 1秒ごとに、画面を作り直さず数字だけ更新する */
+  function updateLive(){
+    var t = now(), i, el, list;
+    list = root.querySelectorAll('[data-elapsed]');
+    for (i = 0; i < list.length; i++){ el = list[i]; el.textContent = fmtDur(t - parseInt(el.getAttribute('data-elapsed'), 10)); }
+    list = root.querySelectorAll('[data-count]');
+    for (i = 0; i < list.length; i++){
+      el = list[i]; var st = timeToMs(el.getAttribute('data-count'), t);
+      if (st === null){ el.textContent = ''; el.className = 'yr-meta'; continue; }
+      var diff = st - t;
+      if (diff > 0){ el.textContent = '開始まで あと ' + fmtDur(diff); el.className = 'yr-meta'; }
+      else { el.textContent = '⚠ 開始予定を ' + Math.floor(-diff / 60000) + '分 過ぎています'; el.className = 'yr-meta late'; }
+    }
+    el = root.querySelector('[data-role="alive-next"]');
+    if (el) el.textContent = (alive && !alive.test && alive.mode === 'wait' && alive.nextAt) ? ('👁 次の生存確認 ' + clock(alive.nextAt) + ' ごろ') : '';
+    list = root.querySelectorAll('[data-esc-left]');
+    for (i = 0; i < list.length; i++){
+      el = list[i]; var df = parseInt(el.getAttribute('data-esc-left'), 10) - t;
+      el.textContent = df > 0 ? fmtDur(df) : '超過 ' + fmtDur(-df); el.classList.toggle('late', df <= 0);
+    }
+    list = root.querySelectorAll('[data-sum-for]');
+    for (i = 0; i < list.length; i++){
+      el = list[i]; var it2 = findItem(el.getAttribute('data-sum-for')); if (!it2) continue;
+      var D2 = daySummary([it2], t);
+      el.textContent = '作業 ' + mins(D2.work) + '分 ・ 脱線 ' + D2.escN + '回(' + mins(D2.esc + D2.over) + '分)';
+    }
+    el = root.querySelector('[data-role="day-sum"]');
+    if (el){ var D3 = daySummary(today.items, t); el.textContent = (D3.work || D3.escN) ? ('今日: 作業 ' + mins(D3.work) + '分 ・ 脱線 ' + mins(D3.esc + D3.over) + '分(' + D3.escN + '回)') : ''; }
+  }
+
+  /* ---------- そのうちやる事 ---------- */
+  function renderBacklog(){
+    var h = '<div class="yr-addrow"><input class="yr-input" data-role="bl-new" maxlength="60" placeholder="そのうちやる事を入力" autocomplete="off">' +
+            '<button type="button" class="yr-btn primary" data-act="bl-add">追加</button></div>';
+    if (!backlog.length) h += '<div class="yr-empty">まだありません。</div>';
+    backlog.forEach(function(b){
+      var added = items().some(function(i){ return i.fromId === b.id; });
+      h += '<div class="yr-card" data-id="' + b.id + '"><div class="yr-title">' + esc(b.title) + '</div>' +
+           (added ? '<div class="yr-meta">✔ 今日に追加済み</div>' : '') +
+           '<div class="yr-row"><button type="button" class="yr-btn" data-act="bl-edit" data-id="' + b.id + '">✎ 名前を変える / 削除</button></div></div>';
+    });
+    return h;
+  }
+
+  /* ---------- 設定 ---------- */
+  function stepper(name, val, unit){
+    var r = RANGES[name];
+    return '<div class="yr-step"><button type="button" data-act="step" data-name="' + name + '" data-d="-1">−</button>' +
+           '<input type="number" class="yr-swipe" inputmode="numeric" data-role="set-' + name + '" value="' + val + '" min="' + r[0] + '" max="' + r[1] + '">' +
+           '<button type="button" data-act="step" data-name="' + name + '" data-d="1">＋</button><span>' + unit + '</span></div>';
+  }
+  function renderSettings(){
+    var perm = host.permission();
+    var permTxt = perm === 'granted' ? '✔ 許可済み' : (perm === 'denied' ? '✖ ブロック中' : (perm === 'unsupported' ? 'この環境では使えません' : '未許可'));
+    var h = '<div class="yr-h">🔔 通知とアラーム</div><div class="yr-set g-base">' +
+      '<div class="yr-setrow"><div>開始前の通知<small>開始予定の何分前に知らせるか(0=開始時刻ちょうど)</small></div>' + stepper('leadMin', settings.leadMin, '分前') + '</div>' +
+      '<div class="yr-setrow"><div>「いつ始めますか？」の間隔<small>開始時刻を1つも決めていない時だけ、この間隔で催促します</small></div>' + stepper('nudgeMin', settings.nudgeMin, '分おき') + '</div>' +
+      '<div class="yr-setrow"><div>アラーム音<small>通知と一緒に鳴らします</small></div><label><input type="checkbox" data-role="set-sound"' + (settings.sound ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
+      '<div class="yr-setrow"><div>通知<small>' + esc(permTxt) + '</small></div>' + (perm === 'default' ? '<button type="button" class="yr-btn primary" data-act="allow-notif">許可する</button>' : '') + '</div>' +
+      '<div class="yr-setrow"><div>アラームのテスト<small>音と画面表示を確認します</small></div><button type="button" class="yr-btn" data-act="test-alarm">テスト</button></div>' +
+      '</div>';
+    /* 生存確認 */
+    var camOpts = '<option value="">既定のカメラ</option>';
+    camList.forEach(function(c){ camOpts += '<option value="' + esc(c.id) + '"' + (c.id === settings.cameraId ? ' selected' : '') + '>' + esc(c.label) + '</option>'; });
+    if (settings.cameraId && !camList.some(function(c){ return c.id === settings.cameraId; })) camOpts += '<option value="' + esc(settings.cameraId) + '" selected>(指定済みのカメラ)</option>';
+    h += '<div class="yr-h">👁 生存確認(カメラを手で塞いで「起きています」と報告)</div><div class="yr-set g-alive">' +
+      '<div class="yr-setrow"><div>生存確認を使う<small>「開始」から「完了」まで、数分おきに確認します。カメラは確認中だけ使い、映像は保存も送信もしません</small></div>' +
+        '<label><input type="checkbox" data-role="set-aliveEnabled"' + (settings.aliveEnabled ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
+      '<div class="yr-setrow"><div>確認の間隔<small>決まった間隔か、ランダムかを選べます</small></div>' +
+        '<div class="yr-seg"><button type="button" data-act="alive-mode" data-mode="fixed" class="' + (settings.aliveMode === 'fixed' ? 'on' : '') + '">固定</button>' +
+        '<button type="button" data-act="alive-mode" data-mode="random" class="' + (settings.aliveMode === 'random' ? 'on' : '') + '">ランダム</button></div></div>';
+    if (settings.aliveMode === 'fixed') h += '<div class="yr-setrow"><div>間隔</div>' + stepper('aliveFixedMin', settings.aliveFixedMin, '分おき') + '</div>';
+    else h += '<div class="yr-setrow"><div>間隔(最短)</div>' + stepper('aliveRandMin', settings.aliveRandMin, '分') + '</div>' +
+              '<div class="yr-setrow"><div>間隔(最長)</div>' + stepper('aliveRandMax', settings.aliveRandMax, '分') + '</div>';
+    h += '<div class="yr-setrow"><div>応答時間<small>この時間内に塞がないと、強いアラームと全面表示になります</small></div>' + stepper('aliveRespSec', settings.aliveRespSec, '秒') + '</div>' +
+      '<div class="yr-setrow"><div>カメラ<small>一覧の更新にはカメラの許可が必要です</small></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
+        '<select class="yr-input" style="width:auto;min-width:150px" data-role="set-camera">' + camOpts + '</select>' +
+        '<button type="button" class="yr-btn" data-act="refresh-cams">一覧を更新</button></div></div>' +
+      '<div class="yr-setrow"><div>感度・判定方式<small>' + esc(detectSummary()) + '</small></div><button type="button" class="yr-btn primary" data-act="adjust">調整・テスト</button></div>' +
+      '<div class="yr-setrow"><div>いますぐ試す<small>赤線→アラーム→全面表示の流れを体験できます(実行中のやる事は不要)</small></div><button type="button" class="yr-btn" data-act="alive-test">試す</button></div>' +
+      '</div>';
+    h += '<div class="yr-h">🌀 脱線モード(時間を区切った「合法的な逃避」)</div><div class="yr-set g-esc">' +
+      '<div class="yr-setrow"><div>脱線の時間<small>「脱線する」を押してから、自由にしてよい時間</small></div>' + stepper('escapeMin', settings.escapeMin, '分') + '</div>' +
+      '<div class="yr-setrow"><div>延長の長さ</div>' + stepper('extendMin', settings.extendMin, '分') + '</div>' +
+      '<div class="yr-setrow"><div>時間切れ後の猶予<small>過ぎると、強いアラームと全面表示で戻るよう促します</small></div>' + stepper('escapeGraceSec', settings.escapeGraceSec, '秒') + '</div>' +
+      '<div class="yr-setrow"><div>「おかえり！」の演出<small>時間内に戻れた時だけ、紙吹雪・花火・桜吹雪のどれかを出します<br>この端末の「動きを減らす」設定: ' + motionDiag() + '</small></div>' +
+        '<div style="display:flex;gap:8px;align-items:center"><label><input type="checkbox" data-role="set-effect"' + (settings.effect ? ' checked' : '') + ' style="width:26px;height:26px"></label>' +
+        '<button type="button" class="yr-btn" data-act="effect-test">見る</button></div></div>' +
+      '</div>';
+    h += '<div class="yr-h">🍺 褒める機能(Gemini)</div><div class="yr-set g-praise">' +
+      '<div class="yr-setrow"><div>褒める機能を使う<small>送る内容は、やる事の名前と時間・回数の集計だけです(カメラ映像は送りません)</small></div><label><input type="checkbox" data-role="set-praiseOn"' + (settings.praiseOn ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
+      '<div class="yr-setrow"><div>完了した時に自動で褒める</div><label><input type="checkbox" data-role="set-praiseOnDone"' + (settings.praiseOnDone ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
+      '<div class="yr-setrow" style="display:block"><div>APIキー<small>' + (gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します') + '</small></div>' +
+        '<div style="display:flex;gap:8px;margin-top:6px"><input type="password" class="yr-input" data-role="gkey" placeholder="AIza…" autocomplete="off">' + (gKey() ? '<button type="button" class="yr-btn danger" data-act="gkey-del">削除</button>' : '') + '</div></div>' +
+      '<div class="yr-setrow" style="display:block"><div>モデル名<small>空にすると最新の軽量版(gemini-flash-lite-latest)になります</small></div>' +
+        '<div style="display:flex;gap:8px;margin-top:6px"><input type="text" class="yr-input" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off"><button type="button" class="yr-btn" data-act="praise-models">候補を取得</button></div>' +
+        '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist></div>' +
+      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>自由に書き換えられます</small></div>' +
+        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:6px">' + esc(settings.praiseStyle) + '</textarea>' +
+        '<div class="yr-row"><button type="button" class="yr-btn" data-act="praise-style-reset">初期値に戻す</button></div></div>' +
+      '<div class="yr-setrow"><div>ばらつき(Temperature)<small>高いほど、毎回の言い回しが変わります(0〜2)</small></div>' +
+        '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div></div>' +
+      '<div class="yr-setrow"><div>褒め言葉を試す<small>例のデータで1回だけ呼び出します</small></div><button type="button" class="yr-btn primary" data-act="praise-test">試す</button></div>' +
+      '</div>';
+    h += '<div class="yr-h">🗂 データ</div><div class="yr-set g-data">' +
+      '<div class="yr-setrow"><div>今日の予定をすべて消す<small>そのうちやる事リストは消えません</small></div><button type="button" class="yr-btn danger" data-act="reset-today">消す</button></div>' +
+      '</div><div class="yr-meta" style="text-align:center">やらせるToDo v' + VERSION + '(単体版)</div>';
+    return h;
+  }
+
+  /* ---------- モーダル ---------- */
+  function openModal(html){ $r('modal').innerHTML = '<div class="yr-modal" data-act="modal-bg"><div>' + html + '</div></div>'; }
+  function closeModal(){
+    $r('modal').innerHTML = '';
+    $r('modal2').innerHTML = '';
+    if (adjustOpen){ adjustOpen = false; calib = null; try { camera.mount($r('camhold')); } catch(e){} camLoopStopIfIdle(); if (view === 'settings') render(); }   /* 感度の変更を設定画面の説明に反映 */
+  }
+  function mval(role){ var e = $r('modal').querySelector('[data-role="' + role + '"]'); return e ? e.value : ''; }
+
+  function openNewItem(){
+    openModal('<h2>新しい「やる事」</h2><label class="yr-lab">やる事</label><input class="yr-input" data-role="m-title" maxlength="60" autocomplete="off">' +
+      timeFields('', '') +
+      '<label class="yr-lab" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-role="m-save" style="width:24px;height:24px">「そのうちやる事」リストにも保存する</label>' +
+      '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="new-ok">追加</button><button type="button" class="yr-btn" data-act="modal-close">やめる</button></div>');
+  }
+  /* 時刻の入力部品: 「⏰ 14:30」のボタンを押すと専用の時刻入力画面が開く。値は隠し入力(data-role=role)に持つ */
+  function timeCtl(role, v, label){
+    return '<div class="yr-timectl"><input type="hidden" data-role="' + role + '" value="' + esc(v || '') + '">' +
+      '<button type="button" class="yr-btn yr-timebtn" data-act="pick-time" data-target="' + role + '" data-label="' + esc(label) + '">⏰ <span data-for="' + role + '">' + esc(v || '未設定(押して選ぶ)') + '</span></button>' +
+      '<button type="button" class="yr-btn" data-act="clear-time" data-target="' + role + '">クリア</button></div>';
+  }
+  function timeFields(st, lim){
+    return '<label class="yr-lab">開始予定時刻</label>' + timeCtl('m-start', st, '開始予定時刻') +
+           '<label class="yr-lab">最終開始リミット時刻</label>' + timeCtl('m-limit', lim, '最終開始リミット時刻') +
+           '<div class="yr-meta" style="margin-top:6px">リミットを過ぎても開始できていないと、その日は「本日終了」になり、もう開始できません。</div>';
+  }
+  function setTimeCtl(role, v){
+    var host2 = $r('modal'), inp = host2.querySelector('[data-role="' + role + '"]'), lab = host2.querySelector('[data-for="' + role + '"]');
+    if (inp) inp.value = v;
+    if (lab) lab.textContent = v || '未設定(押して選ぶ)';
+  }
+  var tp = null;
+  function openTimePicker(role, label){
+    var inp = $r('modal').querySelector('[data-role="' + role + '"]'), cur = inp ? inp.value : '', h, m;
+    if (/^\d{1,2}:\d{2}$/.test(cur)){ var p = cur.split(':'); h = +p[0]; m = +p[1]; }
+    else { var d = new Date(now()); d.setMinutes(Math.ceil((d.getMinutes() + 1) / 5) * 5, 0, 0); h = d.getHours(); m = d.getMinutes(); }   /* 未設定なら「次の5分区切り」から */
+    tp = {role: role, h: h, m: m};
+    var chip = function(min, text){ return '<button type="button" class="yr-btn" data-act="tp-quick" data-min="' + min + '">' + text + '</button>'; };
+    $r('modal2').innerHTML = '<div class="yr-modal" data-act="modal2-bg" style="z-index:95"><div>' +
+      '<h2>' + esc(label) + 'を選ぶ</h2>' +
+      '<div class="yr-tp"><div class="yr-tpcol"><button type="button" data-act="tp-h" data-d="1">▲</button><div class="yr-tpnum yr-swipe" data-role="tp-h">00</div><button type="button" data-act="tp-h" data-d="-1">▼</button><small>時</small></div>' +
+      '<div class="yr-tpcolon">:</div>' +
+      '<div class="yr-tpcol"><button type="button" data-act="tp-m" data-d="5">▲</button><div class="yr-tpnum yr-swipe" data-role="tp-m">00</div><button type="button" data-act="tp-m" data-d="-5">▼</button><small>分(5分ずつ)</small></div></div>' +
+      '<div class="yr-row" style="justify-content:center;margin-top:4px"><button type="button" class="yr-btn" data-act="tp-m" data-d="-1">分 −1</button><button type="button" class="yr-btn" data-act="tp-m" data-d="1">分 ＋1</button></div>' +
+      '<div class="yr-tphint" data-role="tp-hint"></div>' +
+      '<div class="yr-meta" style="text-align:center">数字の上で上下にスワイプ(パソコンはホイール)しても動かせます</div>' +
+      '<label class="yr-lab">いまから(押すと「いま＋○分」になります)</label>' +
+      '<div class="yr-row" style="margin-top:0">' + chip(5, '5分後') + chip(15, '15分後') + chip(30, '30分後') + chip(60, '1時間後') + '</div>' +
+      '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="tp-ok">決定</button><button type="button" class="yr-btn" data-act="tp-cancel">やめる</button></div>' +
+      '</div></div>';
+    tpRender();
+    tpBindSwipes();
+  }
+  function tpRender(){
+    var m2 = $r('modal2');
+    m2.querySelector('[data-role="tp-h"]').textContent = pad2(tp.h);
+    m2.querySelector('[data-role="tp-m"]').textContent = pad2(tp.m);
+    var h12 = tp.h % 12 === 0 ? 12 : tp.h % 12;
+    m2.querySelector('[data-role="tp-hint"]').textContent = (tp.h < 12 ? '午前 ' : '午後 ') + h12 + ':' + pad2(tp.m);
+  }
+  /* delta分だけ動かす(0時〜24時で一周する)。分を5分ずつ動かす時は、区切りの悪い分なら先に区切りの良い時刻へ揃える */
+  function tpMove(delta, byMin){
+    var total = tp.h * 60 + tp.m;
+    if (byMin && Math.abs(delta) === 5 && tp.m % 5 !== 0) total = delta > 0 ? Math.ceil(total / 5) * 5 : Math.floor(total / 5) * 5;
+    else total += delta;
+    total = ((total % 1440) + 1440) % 1440;
+    tp.h = Math.floor(total / 60); tp.m = total % 60; tpRender();
+  }
+  /* 時刻の入力チェック。問題があれば文言を返す */
+  function checkTimes(st, lim){
+    if (st && lim && lim < st) return 'リミット時刻は、開始予定時刻より後にしてください。';
+    if (lim){ var l = timeToMs(lim, now()); if (l !== null && l <= now()) return 'リミット時刻がすでに過ぎています。';}
+    return '';
+  }
+  function openEditItem(id){
+    var it = findItem(id); if (!it) return;
+    openModal('<h2>予定を設定</h2><label class="yr-lab">やる事</label><input class="yr-input" data-role="m-title" maxlength="60" value="' + esc(it.title) + '">' +
+      timeFields(it.startAt, it.limitAt) +
+      '<div class="yr-meta late" data-role="m-err" style="margin-top:6px"></div>' +
+      '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="edit-ok" data-id="' + id + '">保存</button>' +
+      '<button type="button" class="yr-btn danger" data-act="del-item" data-id="' + id + '">🗑 消す</button><button type="button" class="yr-btn" data-act="modal-close">やめる</button></div>');
+  }
+  function openPick(){
+    var h = '<h2>そのうちから追加</h2>';
+    if (!backlog.length) h += '<div class="yr-empty">「そのうちやる事」がまだありません。</div>';
+    backlog.forEach(function(b){
+      var n = items().filter(function(i){ return i.fromId === b.id; }).length;
+      var locked = items().some(function(i){ return i.fromId === b.id && i.status === 'fail'; });   /* 本日終了(Fail)にしたものは、番号を付けても今日はもう追加しない */
+      h += '<div class="yr-pick"><span>' + esc(b.title) + (n ? ' <small class="yr-meta">(今日 ' + n + '件)</small>' : '') + '</span>' +
+           (locked ? '<span class="yr-meta late">本日終了のため追加できません</span>'
+                   : '<button type="button" class="yr-btn primary" data-act="pick-add" data-id="' + b.id + '">' + (n ? '＋ もう1つ追加' : '＋ 追加') + '</button>') + '</div>';
+    });
+    openModal(h + '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">閉じる</button></div>');
+  }
+  /* 催促の通知をタップした時: 開始時間の入力モード */
+  function openStartPrompt(){
+    var todo = items().filter(function(i){ return i.status === 'todo'; });
+    var h = '<h2>いつ始めますか？</h2>';
+    if (!todo.length) h += '<div class="yr-empty">これから始める「やる事」がありません。</div>';
+    todo.forEach(function(it){
+      h += '<div class="yr-pick" style="flex-wrap:wrap" data-id="' + it.id + '"><b style="flex:1 1 100%">' + esc(it.title) + '</b>' +
+           '<div style="flex:1;min-width:150px">' + timeCtl('sp-time-' + it.id, it.startAt, '開始予定時刻') + '</div>' +
+           '<button type="button" class="yr-btn primary" data-act="sp-set" data-id="' + it.id + '">予約</button>' +
+           '<button type="button" class="yr-btn start" style="flex:none;min-height:48px;font-size:17px" data-act="start" data-id="' + it.id + '">▶ 今すぐ</button></div>';
+    });
+    openModal(h + '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">閉じる</button></div>');
+  }
+
+  /* ---------- アラート(画面上部)とアラーム音 ---------- */
+  var ac = null, alarmTimer = null, alarmEnd = null;
+  function unlockAudio(){
+    try {
+      var AC = global.AudioContext || global.webkitAudioContext; if (!AC) return;
+      ac = ac || new AC(); if (ac.state === 'suspended') ac.resume();
+    } catch(e){}
+  }
+  function beepOnce(){
+    if (!ac) return;
+    try {
+      var t0 = ac.currentTime;
+      for (var i = 0; i < 3; i++){
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'square'; o.frequency.value = i === 1 ? 1040 : 880;
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.22); g.gain.exponentialRampToValueAtTime(0.25, t0 + i * 0.22 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.22 + 0.18);
+        o.connect(g); g.connect(ac.destination); o.start(t0 + i * 0.22); o.stop(t0 + i * 0.22 + 0.2);
+      }
+    } catch(e){}
+    try { if (global.navigator.vibrate) global.navigator.vibrate([200, 100, 200]); } catch(e){}
+  }
+  /* アラーム: アラートが出ている間、約2秒おきに鳴る。最長30秒で自動停止 */
+  function startAlarm(){
+    if (!settings.sound || alarmTimer) return;
+    beepOnce();
+    alarmTimer = setInterval(beepOnce, 2000);
+    alarmEnd = setTimeout(stopAlarm, 30000);
+  }
+  function stopAlarm(){ if (alarmTimer){ clearInterval(alarmTimer); alarmTimer = null; } if (alarmEnd){ clearTimeout(alarmEnd); alarmEnd = null; } }
+  /* a: {key, title, body, kind, buttons:[{label, act, id, primary}]} 同じkeyの古いアラートは置き換える */
+  function showAlert(a){
+    var box = $r('alerts');
+    var old = box.querySelector('[data-key="' + a.key + '"]'); if (old) old.remove();
+    var el = document.createElement('div');
+    el.className = 'yr-alert' + (a.kind === 'fail' ? ' fail' : ''); el.setAttribute('data-key', a.key);
+    var btns = (a.buttons || []).map(function(b){
+      return '<button type="button" class="yr-btn' + (b.primary ? ' primary' : '') + '" data-act="' + b.act + '"' + (b.id ? ' data-id="' + b.id + '"' : '') + ' style="flex:1">' + esc(b.label) + '</button>';
+    }).join('');
+    el.innerHTML = '<h3>' + esc(a.title) + '</h3><p>' + esc(a.body) + '</p><div class="yr-row">' + btns +
+                   '<button type="button" class="yr-btn" data-act="alert-close" style="flex:none">閉じる</button></div>';
+    box.appendChild(el);
+    startAlarm();
+  }
+  function closeAlert(el){ if (el) el.remove(); if (!$r('alerts').children.length) stopAlarm(); }
+
+  /* 通知(画面外) + アラート(画面内) + アラーム音 をまとめて出す */
+  function fire(a){
+    host.notify({title: 'やらせるToDo', body: a.title + ' ' + a.body, tag: a.tag || a.key});
+    showAlert(a);
+  }
+
+  /* ================= 生存確認(カメラ遮蔽検知) =================
+     やる事を「開始」してから「完了」するまで、数分おきに「カメラを手で塞いでください」と求める。
+       wait(待機) → checking(確認中: 右端の赤線が縮む。通知と音) → 時間切れなら blocked(全面ブロック+強いアラーム)
+     どちらも「カメラが暗くなった状態が約1秒続く」と成功して、待機に戻る。
+     カメラは確認中だけ開く(普段はカメラを使わない)。映像は明るさを計算するだけで、保存も送信もしない。
+     状態は KEY.alive に保存するので、ページを開き直しても確認から逃げられない。 */
+  var HOLD_MS = 1000;                 /* 暗い状態がこの時間続いたら「塞いだ」と判定 */
+  var camTimer = null, darkSince = 0, lastM = null, adjustOpen = false, calib = null;
+  var lineEl = null, blockEl = null, strongTimer = null, emergTimer = null, camBusy = false;
+  var camList = [];
+
+  function camErrText(err){
+    var n = err && err.name;
+    if (n === 'NotAllowedError' || n === 'SecurityError') return 'カメラの使用が許可されていません。アドレスバーの設定から許可してください。';
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'カメラが見つかりません。設定でカメラを選び直してください。';
+    if (n === 'NotReadableError') return '他のアプリがカメラを使用中のようです。';
+    return 'カメラを開けませんでした' + (err && err.message ? '(' + err.message + ')' : '') + '。';
+  }
+  function aliveInterval(){
+    if (settings.aliveMode === 'random'){
+      var a = settings.aliveRandMin, b = Math.max(a, settings.aliveRandMax);
+      return (a + Math.random() * (b - a)) * 60000;
+    }
+    return settings.aliveFixedMin * 60000;
+  }
+  function aliveSave(){ save(KEY.alive, alive); }
+  function aliveChecking(){ return !!alive && (alive.mode === 'checking' || alive.mode === 'blocked'); }
+
+  /* カメラの測定(古い形のカメラ部品にも対応)と、「塞いだ」かどうかの判定 */
+  function measureCamera(){
+    if (camera.measure) return camera.measure();
+    var l = camera.luminance ? camera.luminance() : null;
+    return l === null ? null : {lum: l, contrast: 999};     /* ばらつきを測れないカメラ部品では、ばらつきは判定に使わない */
+  }
+  function isCovered(m){
+    if (!m) return false;
+    var dark = m.lum < settings.threshold, flat = m.contrast < settings.thrFlat;
+    return settings.detect === 'dark' ? dark : (settings.detect === 'flat' ? flat : (dark || flat));
+  }
+  function detectSummary(){
+    var d = settings.detect;
+    return '判定: ' + (d === 'dark' ? '暗さ(明るさが ' + settings.threshold + ' より暗い)' : d === 'flat' ? 'のっぺり(ばらつきが ' + settings.thrFlat + ' より小さい)' :
+      'どちらか(暗さ ' + settings.threshold + ' 未満、またはばらつき ' + settings.thrFlat + ' 未満)');
+  }
+  /* 200msごとの判定。「塞いだ」状態が HOLD_MS 続けば成功 */
+  function sampleCamera(){
+    var m = measureCamera();
+    lastM = m;
+    if (adjustOpen) updateAdjust(m);
+    if (calib) calibStep(m);
+    if (aliveChecking()){
+      var t = now();
+      if (isCovered(m)){
+        if (!darkSince) darkSince = t;
+        if (t - darkSince >= HOLD_MS) aliveSuccess();
+      } else darkSince = 0;
+    }
+  }
+  function camLoopStart(){ if (!camTimer) camTimer = setInterval(sampleCamera, 200); }
+  function camLoopStopIfIdle(){
+    if (adjustOpen || aliveChecking()) return;
+    if (camTimer){ clearInterval(camTimer); camTimer = null; }
+    darkSince = 0; camera.close();
+  }
+  function openCamera(){
+    if (camBusy) return;
+    camBusy = true;
+    camera.open(settings.cameraId).then(function(){ camBusy = false; camera.mount($r('camhold')); camLoopStart(); },
+      function(err){ camBusy = false; camFailed(err); });
+  }
+  /* カメラが使えない時は、確認も止める(ブロックして閉じ込めないため) */
+  function camFailed(err){
+    var test = alive && alive.test;
+    aliveStopUi();
+    if (alive){ alive.mode = 'wait'; alive.nextAt = now() + aliveInterval(); alive.deadline = 0; if (test) alive = null; aliveSave(); }
+    camLoopStopIfIdle();
+    showAlert({key: 'camfail', kind: 'fail', title: '生存確認をスキップしました', body: camErrText(err) + ' 設定の「生存確認」でカメラを確認してください。', buttons: []});
+  }
+
+  /* ---- 画面の部品: 右端の赤線 / 全面ブロック / 小さなメッセージ ---- */
+  function toast(msg){
+    var el = document.createElement('div'); el.className = 'yr-toast'; el.textContent = msg;
+    root.appendChild(el); setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 2800);
+  }
+  function showLine(){
+    if (lineEl) return;
+    lineEl = document.createElement('div'); lineEl.className = 'yr-line'; lineEl.style.height = '100vh';
+    root.appendChild(lineEl);
+  }
+  function showBlock(){
+    if (blockEl) return;
+    blockEl = document.createElement('div'); blockEl.className = 'yr-block';
+    blockEl.innerHTML = '<div><div class="yr-block-big">👁 起きていますか？</div>' +
+      '<p>カメラを手で塞ぐと解除されます。</p>' +
+      '<p class="yr-block-sub">確認の時間が切れています。いま取り組んでいることに戻りましょう。</p>' +
+      '<button type="button" class="yr-btn" data-role="emerg">緊急解除(5秒長押し)</button></div>';
+    root.appendChild(blockEl);
+  }
+  function aliveStopUi(){
+    if (lineEl){ lineEl.remove(); lineEl = null; }
+    if (blockEl){ blockEl.remove(); blockEl = null; }
+    stopStrong();
+    var a = $r('alerts').querySelector('[data-key="alive"]'); if (a) a.remove();
+    if (!$r('alerts').children.length) stopAlarm();
+  }
+
+  /* 強いアラーム: 全面ブロック中、止められない。音は「アラーム音」設定がONの時だけ */
+  function strongBeep(){
+    try { if (global.navigator.vibrate) global.navigator.vibrate([400, 150, 400, 150, 400]); } catch(e){}
+    if (!ac || !settings.sound) return;
+    try {
+      var t0 = ac.currentTime;
+      for (var i = 0; i < 4; i++){
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sawtooth'; o.frequency.value = i % 2 ? 1200 : 700;
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.15); g.gain.exponentialRampToValueAtTime(0.6, t0 + i * 0.15 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.15 + 0.13);
+        o.connect(g); g.connect(ac.destination); o.start(t0 + i * 0.15); o.stop(t0 + i * 0.15 + 0.14);
+      }
+    } catch(e){}
+  }
+  function startStrong(){ if (strongTimer) return; strongBeep(); strongTimer = setInterval(strongBeep, 900); }
+  function stopStrong(){ if (strongTimer){ clearInterval(strongTimer); strongTimer = null; } }
+
+  /* ---- 確認の進行 ---- */
+  function startCheck(t){
+    alive.mode = 'checking'; alive.deadline = t + settings.aliveRespSec * 1000; aliveSave();
+    darkSince = 0;
+    showLine();
+    fire({key: 'alive', tag: 'alive', title: '生存確認', body: 'カメラを手で塞いでください(残り ' + fmtDur(settings.aliveRespSec * 1000) + ')', buttons: []});
+    openCamera();
+  }
+  function enterBlocked(t){
+    alive.mode = 'blocked'; aliveSave();
+    var bi = alive.test ? null : findItem(alive.id); if (bi){ bi.aliveBlocked = (bi.aliveBlocked || 0) + 1; persist(); }
+    if (lineEl){ lineEl.remove(); lineEl = null; }
+    var a = $r('alerts').querySelector('[data-key="alive"]'); if (a) a.remove();
+    stopAlarm();
+    showBlock(); startStrong();
+    host.notify({title: 'やらせるToDo', body: '生存確認の時間が切れました。カメラを手で塞いでください。', tag: 'alive-block'});
+  }
+  function aliveSuccess(msg){
+    aliveStopUi();
+    var test = alive && alive.test;
+    if (!test && !msg && alive){ var ai = findItem(alive.id); if (ai){ ai.aliveOk = (ai.aliveOk || 0) + 1; persist(); } }   /* 緊急解除は成功に数えない */
+    if (test) alive = null;
+    else if (alive){ alive.mode = 'wait'; alive.nextAt = now() + aliveInterval(); alive.deadline = 0; }
+    aliveSave(); darkSince = 0;
+    camLoopStopIfIdle();
+    toast(msg || (test ? '生存確認のテスト: 成功です ✔' : '生存確認 OK ✔ 次は ' + Math.max(1, Math.round((alive.nextAt - now()) / 60000)) + '分後くらいです'));
+    if (view === 'today') render();
+  }
+  function aliveStop(){            /* やる事の完了・中止・設定OFF など */
+    aliveStopUi();
+    alive = null; aliveSave();
+    camLoopStopIfIdle();
+  }
+  function aliveTestNow(){
+    if (!camera.supported()){ showAlert({key: 'camfail', kind: 'fail', title: 'この環境ではカメラが使えません', body: 'カメラ付きの端末のブラウザで試してください。', buttons: []}); return; }
+    if (aliveChecking()) return;
+    unlockAudio();
+    if (alive && !alive.test) aliveStop();
+    alive = {id: 'test', test: true, mode: 'wait', nextAt: 0, deadline: 0};
+    go('today'); aliveTick(now());
+  }
+  /* 1秒ごとに tick から呼ばれる */
+  function aliveTick(t){
+    var r = null, i;
+    for (i = 0; i < items().length; i++) if (items()[i].status === 'running'){ r = items()[i]; break; }
+    if (!(alive && alive.test)){
+      if (!r || !settings.aliveEnabled){ if (alive) aliveStop(); return; }
+      if (r.esc && !aliveChecking()){        /* 脱線中は生存確認を止める(戻った直後にすぐ確認が来ないよう、次回を少し先へ送る) */
+        if (alive && alive.mode === 'wait') alive.nextAt = Math.max(alive.nextAt, t + 60000);
+        return;
+      }
+      if (!alive || alive.id !== r.id){
+        if (alive) aliveStop();
+        alive = {id: r.id, mode: 'wait', nextAt: t + aliveInterval(), deadline: 0}; aliveSave();
+      }
+    }
+    if (alive.mode === 'wait'){
+      if (t >= alive.nextAt) startCheck(t);
+      return;
+    }
+    /* ページを開き直した直後など、画面の部品やカメラが無ければ作り直す */
+    if (alive.mode === 'checking'){
+      showLine();
+      var rem = alive.deadline - t, total = settings.aliveRespSec * 1000;
+      lineEl.style.height = (Math.max(0, Math.min(1, rem / total)) * 100) + 'vh';
+      var p = $r('alerts').querySelector('[data-key="alive"] p');
+      if (p) p.textContent = 'カメラを手で塞いでください(残り ' + fmtDur(rem) + ')';
+      if (rem <= 0) enterBlocked(t);
+    } else if (alive.mode === 'blocked'){
+      showBlock(); startStrong();
+    }
+    if (aliveChecking() && !camTimer && !camBusy) openCamera();
+  }
+  /* 緊急解除(5秒長押し): カメラが使えない・しきい値が合わない時の逃げ道 */
+  function emergencyStart(){ if (emergTimer) return; emergTimer = setTimeout(function(){ emergTimer = null; aliveSuccess('緊急解除しました'); }, 5000); }
+  function emergencyEnd(){ if (emergTimer){ clearTimeout(emergTimer); emergTimer = null; } }
+
+  /* ---- カメラ感度テスト(設定画面から開く) ---- */
+  var CAL_OPEN_MS = 4000, CAL_COVER_MS = 6000;
+  function openAdjust(){
+    if (!camera.supported()){ showAlert({key: 'camfail', kind: 'fail', title: 'この環境ではカメラが使えません', body: 'カメラ付きの端末のブラウザで試してください。', buttons: []}); return; }
+    if (aliveChecking()){ showAlert({key: 'busy', title: '生存確認の最中です', body: '解除してからテストしてください。', buttons: []}); return; }
+    unlockAudio();
+    adjustOpen = true; calib = null;
+    var modeBtn = function(m, label){ return '<button type="button" data-act="adj-mode" data-mode="' + m + '">' + label + '</button>'; };
+    openModal('<h2>カメラ感度テスト</h2><div class="yr-prev" data-role="prev"><span class="yr-meta">カメラを起動しています…</span></div>' +
+      '<div class="yr-adj"><span data-role="adj-state" class="yr-state">—</span></div>' +
+      '<div class="yr-adjrow"><span>明るさ</span><b data-role="adj-lum">—</b><div class="yr-meter"><div data-role="adj-bar"></div><i data-role="adj-mark"></i></div></div>' +
+      '<div class="yr-adjrow"><span>ばらつき</span><b data-role="adj-con">—</b><div class="yr-meter"><div data-role="adj-bar2"></div><i data-role="adj-mark2"></i></div></div>' +
+      '<div class="yr-meta">「ばらつき」は小さいほど のっぺり(全体が同じ色)です。スマホは暗くなると自動で明るく補正するので、指で塞いでも明るさが下がらず、代わりにばらつきが小さくなることがあります。</div>' +
+      '<div class="yr-row"><button type="button" class="yr-btn primary wide" data-act="adj-calib" data-role="calib-btn">🎯 自動設定(塞がない時と塞いだ時を測る)</button></div>' +
+      '<div class="yr-meta" data-role="calib-msg" style="margin-top:6px"></div>' +
+      '<label class="yr-lab">判定方式(手で変える場合)</label><div class="yr-seg">' + modeBtn('dark', '暗さ') + modeBtn('flat', 'のっぺり') + modeBtn('either', 'どちらか') + '</div>' +
+      '<label class="yr-lab">暗さのしきい値 <b data-role="adj-thr"></b>(これより暗いと「塞いだ」)</label><input type="range" min="0" max="255" data-role="thr" style="width:100%;height:34px">' +
+      '<label class="yr-lab">ばらつきのしきい値 <b data-role="adj-thrf"></b>(これよりのっぺりだと「塞いだ」)</label><input type="range" min="0" max="80" data-role="thrf" style="width:100%;height:34px">' +
+      '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">閉じる</button></div>');
+    syncAdjustUi();
+    camBusy = true;
+    camera.open(settings.cameraId).then(function(){
+      camBusy = false;
+      var prev = $r('modal').querySelector('[data-role="prev"]');
+      if (!prev){ camLoopStopIfIdle(); return; }
+      prev.innerHTML = ''; camera.mount(prev); camLoopStart();
+    }, function(err){
+      camBusy = false;
+      var prev = $r('modal').querySelector('[data-role="prev"]');
+      if (prev) prev.innerHTML = '<span class="yr-meta late">' + esc(camErrText(err)) + '</span>';
+    });
+  }
+  /* しきい値・判定方式の表示を、現在の設定に合わせる */
+  function syncAdjustUi(){
+    var m = $r('modal'); if (!m.querySelector('[data-role="thr"]')) return;
+    m.querySelector('[data-role="thr"]').value = settings.threshold; m.querySelector('[data-role="adj-thr"]').textContent = settings.threshold;
+    m.querySelector('[data-role="thrf"]').value = settings.thrFlat; m.querySelector('[data-role="adj-thrf"]').textContent = settings.thrFlat;
+    var bs = m.querySelectorAll('[data-act="adj-mode"]');
+    for (var i = 0; i < bs.length; i++) bs[i].className = bs[i].getAttribute('data-mode') === settings.detect ? 'on' : '';
+    updateAdjust(lastM);
+  }
+  function updateAdjust(mm){
+    var m = $r('modal'); if (!m) return;
+    var lum = m.querySelector('[data-role="adj-lum"]'); if (!lum) return;
+    var cov = isCovered(mm);
+    lum.textContent = mm ? String(Math.round(mm.lum)) : '—';
+    m.querySelector('[data-role="adj-con"]').textContent = mm ? (mm.contrast >= 900 ? '—' : String(Math.round(mm.contrast))) : '—';
+    var st = m.querySelector('[data-role="adj-state"]');
+    st.textContent = !mm ? '(映像待ち)' : (cov ? '■ 塞いだ と判定' : '□ 塞いでいない'); st.className = 'yr-state' + (cov ? ' dark' : '');
+    m.querySelector('[data-role="adj-bar"]').style.width = (mm ? Math.min(100, mm.lum / 255 * 100) : 0) + '%';
+    m.querySelector('[data-role="adj-mark"]').style.left = (settings.threshold / 255 * 100) + '%';
+    m.querySelector('[data-role="adj-bar2"]').style.width = (mm && mm.contrast < 900 ? Math.min(100, mm.contrast / 80 * 100) : 0) + '%';
+    m.querySelector('[data-role="adj-mark2"]').style.left = (settings.thrFlat / 80 * 100) + '%';
+  }
+
+  /* 自動設定: ①塞がない状態 ②塞いだ状態 を順に測り、その端末で区別できる方法としきい値を決める */
+  function median(a){ var b = a.slice().sort(function(x, y){ return x - y; }), n = b.length; return n ? (n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2) : null; }
+  function calibStart(){
+    if (!adjustOpen || calib) return;
+    calib = {phase: 'open', start: now(), open: [], cover: []};
+    beepOnce(); calibUi();
+  }
+  function calibUi(){
+    var e = $r('modal').querySelector('[data-role="calib-msg"]'), btn = $r('modal').querySelector('[data-role="calib-btn"]');
+    if (!e) return;
+    if (!calib){ if (btn) btn.disabled = false; return; }
+    var total = calib.phase === 'open' ? CAL_OPEN_MS : CAL_COVER_MS, left = Math.max(1, Math.ceil((total - (now() - calib.start)) / 1000));
+    e.className = 'yr-meta';
+    e.innerHTML = calib.phase === 'open' ? '<b>① カメラを塞がないで、いつもの姿勢でいてください</b>(あと ' + left + ' 秒)'
+                                         : '<b>② いま、カメラを手で塞いでください</b>(あと ' + left + ' 秒)';
+    if (btn) btn.disabled = true;
+  }
+  function calibStep(mm){
+    var t = now(), el = t - calib.start;
+    if (calib.phase === 'open'){
+      if (mm && el >= 1000) calib.open.push(mm);
+      if (el >= CAL_OPEN_MS){ calib.phase = 'cover'; calib.start = t; beepOnce(); }
+    } else {
+      if (mm && el >= 2500) calib.cover.push(mm);
+      if (el >= CAL_COVER_MS){ calibFinish(); return; }
+    }
+    calibUi();
+  }
+  function calibFinish(){
+    var o = calib.open, c = calib.cover, msg, ok = false;
+    calib = null;
+    if (o.length < 3 || c.length < 3){
+      msg = '映像をうまく取得できませんでした。もう一度試してください。';
+    } else {
+      var oL = median(o.map(function(x){ return x.lum; })), oC = median(o.map(function(x){ return x.contrast; }));
+      var cL = median(c.map(function(x){ return x.lum; })), cC = median(c.map(function(x){ return x.contrast; }));
+      var nums = '塞がない: 明るさ ' + Math.round(oL) + '・ばらつき ' + Math.round(oC) + ' / 塞いだ: 明るさ ' + Math.round(cL) + '・ばらつき ' + Math.round(cC) + '。';
+      var darkOK = (oL - cL) >= 30;                                                  /* 塞ぐと十分に暗くなる */
+      var flatOK = oC >= 15 && cC <= oC * 0.6 && (oC - cC) >= 8;                     /* 塞ぐと十分にのっぺりする(塞がない時にある程度の模様がある前提) */
+      if (darkOK){ settings.threshold = Math.max(0, Math.min(255, Math.round((oL + cL) / 2))); }
+      if (flatOK){ settings.thrFlat = Math.max(1, Math.min(80, Math.round((oC + cC) / 2))); }
+      if (darkOK || flatOK){
+        settings.detect = darkOK && flatOK ? 'either' : (darkOK ? 'dark' : 'flat');
+        persist(); ok = true;
+        msg = nums + '→「' + (settings.detect === 'either' ? 'どちらか' : (settings.detect === 'dark' ? '暗さ' : 'のっぺり')) + '」で判定するよう設定しました。右上の表示が「塞いだ と判定」に変わるか、試してください。';
+      } else {
+        msg = nums + '塞いだ時と塞がない時の差が小さく、自動では区別できませんでした。別のカメラを選ぶ、明るい場所で試す、または下のスライダーで手動調整してください。';
+      }
+    }
+    var e = $r('modal').querySelector('[data-role="calib-msg"]');
+    if (e){ e.className = 'yr-meta' + (ok ? '' : ' late'); e.textContent = msg; }
+    var btn = $r('modal').querySelector('[data-role="calib-btn"]'); if (btn) btn.disabled = false;
+    beepOnce(); syncAdjustUi();
+  }
+
+  function refreshCameras(){
+    if (!camera.supported()){ showAlert({key: 'camfail', kind: 'fail', title: 'この環境ではカメラが使えません', body: 'カメラ付きの端末のブラウザで試してください。', buttons: []}); return; }
+    if (camTimer || camBusy) return;
+    camBusy = true;
+    camera.open('').then(function(){ return camera.list(); }).then(function(list){
+      camList = list; camBusy = false; camera.close(); render();
+    }, function(err){
+      camBusy = false; camera.close();
+      showAlert({key: 'camfail', kind: 'fail', title: 'カメラ一覧を取得できません', body: camErrText(err), buttons: []});
+    });
+  }
+
+  /* ================= 脱線(エスケープ)モード =================
+     実行中のやる事で「🌀 脱線する」を押すと、設定した時間(初期5分)だけ「合法的な逃避」が許される。
+       脱線中 → 時間切れ(overdue: 通知とアラーム + 右端の赤線で猶予が縮む) → 猶予切れ(強いアラーム + 全面表示。「戻る」で解除)
+     「早期復帰」で戻ると「おかえり！」の演出。時間切れ後に戻った場合は演出なし(超過した分を記録する)。
+     「延長」はいつでも押せる。脱線している間は、生存確認(カメラ)は止まる。
+     記録: it.escapes = [{start, end, planned, over, early}] と it.esc(いま脱線中の分)に残し、日付が変わると履歴(KEY.history)へ移る */
+  var escLineEl = null, escBlockEl = null, escStrong = false, escUi = false;
+  function escList(it){ return Array.isArray(it.escapes) ? it.escapes : []; }
+  function runningItem(){
+    for (var i = 0; i < items().length; i++) if (items()[i].status === 'running') return items()[i];
+    return null;
+  }
+  function clearEscUi(){
+    if (escLineEl){ escLineEl.remove(); escLineEl = null; }
+    if (escBlockEl){ escBlockEl.remove(); escBlockEl = null; }
+    if (escStrong){ stopStrong(); escStrong = false; }
+    var a = $r('alerts').querySelector('[data-key="esc-end"]'); if (a) a.remove();
+    if (!$r('alerts').children.length) stopAlarm();
+    escUi = false;
+  }
+  function escStart(id){
+    var it = findItem(id); if (!it || it.status !== 'running' || it.esc) return;
+    if (aliveChecking()){ showAlert({key: 'busy', title: '生存確認の最中です', body: '確認を済ませてから脱線しましょう。', buttons: []}); return; }
+    var t = now();
+    it.esc = {start: t, endAt: t + settings.escapeMin * 60000, ext: 0, overdue: false, overAt: 0};
+    persist(); render();
+    toast('脱線スタート。' + settings.escapeMin + '分間は自由です');
+  }
+  /* 脱線を終わらせて記録に残す。戻り値: 記録(なければ null) */
+  function closeEscape(it, t){
+    var e = it.esc; if (!e) return null;
+    var rec = {start: e.start, end: t, planned: e.endAt - e.start, over: Math.max(0, t - e.endAt), early: t <= e.endAt, ext: e.ext || 0};
+    if (!Array.isArray(it.escapes)) it.escapes = [];
+    it.escapes.push(rec); it.esc = null;
+    return rec;
+  }
+  function escReturn(id, silent){
+    var it = findItem(id); if (!it || !it.esc) return;
+    var rec = closeEscape(it, now());
+    clearEscUi(); persist(); render();
+    if (silent) return;
+    if (rec.early) welcomeBack();
+    else toast('戻りました(超過 ' + fmtDur(rec.over) + ')');
+  }
+  function escExtend(id){
+    var it = findItem(id); if (!it || !it.esc) return;
+    var e = it.esc, t = now();
+    e.endAt = Math.max(e.endAt, t) + settings.extendMin * 60000;    /* 時間切れ後でも「いまから」延長分を数える */
+    e.overdue = false; e.overAt = 0; e.ext = (e.ext || 0) + 1;
+    clearEscUi(); persist(); render();
+    toast('＋' + settings.extendMin + '分 延長しました');
+  }
+  /* 1秒ごとに tick から呼ばれる */
+  function escTick(t){
+    var r = runningItem();
+    if (!r || !r.esc){ if (escUi) clearEscUi(); return; }
+    var e = r.esc;
+    if (t < e.endAt){ if (escUi) clearEscUi(); return; }
+    var grace = settings.escapeGraceSec * 1000;
+    if (!e.overdue){                       /* ちょうど時間切れになった */
+      e.overdue = true; e.overAt = e.endAt; persist();
+      escUi = true;
+      fire({key: 'esc-end', tag: 'esc-end', title: '脱線の時間が終わりました', body: '「' + r.title + '」に戻りましょう。',
+            buttons: [{label: '↩ 戻る', act: 'esc-return', id: r.id, primary: true}, {label: '＋' + settings.extendMin + '分', act: 'esc-extend', id: r.id}]});
+      if (view === 'today') render();
+    }
+    escUi = true;
+    var rem = e.overAt + grace - t;
+    if (rem > 0){                          /* 猶予の間: 右端の赤線が縮む */
+      if (!escLineEl){ escLineEl = document.createElement('div'); escLineEl.className = 'yr-line'; root.appendChild(escLineEl); }
+      escLineEl.style.height = (Math.max(0, Math.min(1, rem / grace)) * 100) + 'vh';
+    } else {                               /* 猶予切れ: 強いアラームと全面表示。「戻る」で解除 */
+      if (escLineEl){ escLineEl.remove(); escLineEl = null; }
+      if (!escBlockEl){
+        escBlockEl = document.createElement('div'); escBlockEl.className = 'yr-block';
+        escBlockEl.innerHTML = '<div><div class="yr-block-big">🌀 脱線の時間が終わっています</div>' +
+          '<p>「' + esc(r.title) + '」に戻りましょう。</p>' +
+          '<div class="yr-row" style="justify-content:center"><button type="button" class="yr-btn start" style="flex:none;min-width:200px" data-act="esc-return" data-id="' + r.id + '">↩ 戻る</button>' +
+          '<button type="button" class="yr-btn" style="background:rgba(255,255,255,.25);color:#fff" data-act="esc-extend" data-id="' + r.id + '">＋' + settings.extendMin + '分</button></div></div>';
+        root.appendChild(escBlockEl);
+        var a = $r('alerts').querySelector('[data-key="esc-end"]'); if (a) a.remove();
+        stopAlarm();
+      }
+      if (!escStrong){
+        escStrong = true; startStrong();
+        host.notify({title: 'やらせるToDo', body: '脱線の猶予が切れました。「' + r.title + '」に戻りましょう。', tag: 'esc-block'});
+      }
+    }
+  }
+
+  /* ================= 作業・脱線時間の集計(記録・振り返り用) ================= */
+  function dayEnd(dateStr){ var p = dateStr.split('-'); return new Date(+p[0], +p[1] - 1, +p[2], 23, 59, 59).getTime(); }
+  /* 1つのやる事を「作業 / 脱線 / 超過(時間切れ後の脱線)」の時間帯に分ける */
+  function itemSegs(it, tEnd){
+    if (!it.startedAt) return [];
+    var end = it.doneAt || tEnd, segs = [], cur = it.startedAt;
+    var list = escList(it).slice();
+    if (it.esc) list.push({start: it.esc.start, end: tEnd, over: Math.max(0, tEnd - it.esc.endAt)});
+    list.sort(function(a, b){ return a.start - b.start; });
+    list.forEach(function(x){
+      var s0 = Math.max(x.start, cur), e0 = Math.min(x.end, end); if (e0 <= s0) return;
+      if (s0 > cur) segs.push({from: cur, to: s0, kind: 'work'});
+      var over = Math.min(x.over || 0, e0 - s0);
+      if (e0 - over > s0) segs.push({from: s0, to: e0 - over, kind: 'esc'});
+      if (over > 0) segs.push({from: e0 - over, to: e0, kind: 'over'});
+      cur = e0;
+    });
+    if (end > cur) segs.push({from: cur, to: end, kind: 'work'});
+    return segs;
+  }
+  function daySummary(list, tEnd){
+    var o = {work: 0, esc: 0, over: 0, escN: 0, done: 0, fail: 0, total: list.length, items: [], segs: [], escStarts: []};
+    list.forEach(function(it){
+      var w = 0, e = 0, v = 0;
+      itemSegs(it, tEnd).forEach(function(s){
+        var d = s.to - s.from; o.segs.push(s);
+        if (s.kind === 'work') w += d; else if (s.kind === 'esc') e += d; else v += d;
+      });
+      var n = escList(it).length + (it.esc ? 1 : 0);
+      escList(it).forEach(function(x){ o.escStarts.push(x.start); }); if (it.esc) o.escStarts.push(it.esc.start);
+      o.work += w; o.esc += e; o.over += v; o.escN += n;
+      if (it.status === 'done') o.done++; if (it.status === 'fail') o.fail++;
+      o.items.push({title: it.title, status: it.status, work: w, esc: e + v, escN: n});
+    });
+    return o;
+  }
+  function dataFor(dateStr){
+    if (dateStr === today.date) return daySummary(today.items, now());
+    var h = load(KEY.history, []); if (!Array.isArray(h)) h = [];
+    for (var i = h.length - 1; i >= 0; i--) if (h[i].date === dateStr) return daySummary(h[i].items || [], dayEnd(dateStr));
+    return daySummary([], now());
+  }
+  function mins(ms){ return Math.round(ms / 60000); }
+
+  /* ================= 記録・振り返り画面 ================= */
+  var statDate = null;
+  function timelineHtml(segs){
+    if (!segs.length) return '<div class="yr-meta" style="margin-top:8px">この日は、開始した記録がありません。</div>';
+    var from = Infinity, to = 0;
+    segs.forEach(function(s){ from = Math.min(from, s.from); to = Math.max(to, s.to); });
+    var span = Math.max(to - from, 30 * 60000);
+    var h = '<div class="yr-tl">';
+    segs.forEach(function(s){
+      h += '<i class="' + s.kind + '" style="left:' + ((s.from - from) / span * 100) + '%;width:' + Math.max(0.6, (s.to - s.from) / span * 100) + '%"></i>';
+    });
+    return h + '</div><div class="yr-tlab"><span>' + clock(from) + '</span><span>' + clock(from + span) + '</span></div>';
+  }
+  function renderStats(){
+    var days = [], base = new Date(now()), i, w = ['日','月','火','水','木','金','土'];
+    for (i = 13; i >= 0; i--){
+      var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
+      var ds = dayStr(d.getTime());
+      days.push({date: ds, d: d, data: dataFor(ds)});
+    }
+    if (!statDate || !days.some(function(x){ return x.date === statDate; })) statDate = today.date;
+    var max = 60, totDone = 0, totFail = 0, totWork = 0, totEsc = 0, totN = 0, hours = [];
+    for (i = 0; i < 24; i++) hours.push(0);
+    days.forEach(function(x){
+      var tot = mins(x.data.work + x.data.esc + x.data.over); if (tot > max) max = tot;
+      totDone += x.data.done; totFail += x.data.fail; totWork += x.data.work; totEsc += x.data.esc + x.data.over; totN += x.data.escN;
+      x.data.escStarts.forEach(function(t0){ hours[new Date(t0).getHours()]++; });
+    });
+    var h = '<div class="yr-h">直近14日(縦棒 = 1日の分数)</div><div class="yr-chart">';
+    days.forEach(function(x){
+      var wk = mins(x.data.work), es = mins(x.data.esc), ov = mins(x.data.over);
+      h += '<div class="yr-col' + (x.date === statDate ? ' sel' : '') + '" data-act="stat-day" data-date="' + x.date + '"><div class="yr-cbar">' +
+           '<i class="over" style="height:' + (ov / max * 100) + '%"></i><i class="esc" style="height:' + (es / max * 100) + '%"></i><i class="work" style="height:' + (wk / max * 100) + '%"></i></div>' +
+           '<small>' + (x.d.getMonth() + 1) + '/' + x.d.getDate() + '</small></div>';
+    });
+    h += '</div><div class="yr-legend"><span class="work">作業</span><span class="esc">脱線</span><span class="over">超過(時間切れ後)</span></div>';
+    h += '<div class="yr-meta" style="margin:6px 4px">14日の合計: 作業 ' + mins(totWork) + '分 / 脱線 ' + mins(totEsc) + '分(' + totN + '回) / 完了 ' + totDone + '件 / 本日終了 ' + totFail + '件</div>';
+    /* 選んだ日の詳しい内容 */
+    var sel = days.filter(function(x){ return x.date === statDate; })[0], D = sel.data;
+    h += '<div class="yr-card"><div class="yr-title">' + (sel.d.getMonth() + 1) + '/' + sel.d.getDate() + '(' + w[sel.d.getDay()] + ')' + (sel.date === today.date ? ' 今日' : '') + '</div>' +
+         '<div class="yr-meta">作業 ' + mins(D.work) + '分 / 脱線 ' + mins(D.esc + D.over) + '分(' + D.escN + '回' + (D.over ? '・うち超過 ' + mins(D.over) + '分' : '') + ') / 完了 ' + D.done + ' / 本日終了 ' + D.fail + '</div>' +
+         timelineHtml(D.segs);
+    if (D.items.length){
+      h += '<div style="margin-top:8px">';
+      D.items.forEach(function(x){
+        h += '<div class="yr-pick"><span>' + (x.status === 'done' ? '✅' : x.status === 'fail' ? '🔒' : x.status === 'running' ? '▶' : '・') + ' ' + esc(x.title) + '</span>' +
+             '<span class="yr-meta">' + (x.work || x.esc ? '作業 ' + mins(x.work) + '分' + (x.escN ? ' / 脱線 ' + x.escN + '回' : '') : STATUS_LABEL[x.status]) + '</span></div>';
+      });
+      h += '</div>';
+    }
+    if (settings.praiseOn && gKey()) h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="praise-day" data-date="' + statDate + '">🍺 この日を褒めてもらう</button></div>';
+    h += '</div>';
+    /* 脱線しやすい時間帯 */
+    var sum = hours.reduce(function(a, b){ return a + b; }, 0);
+    h += '<div class="yr-h">脱線しやすい時間帯(直近14日の脱線の開始)</div><div class="yr-card">';
+    if (!sum) h += '<div class="yr-meta">まだ脱線の記録がありません。</div>';
+    else {
+      var lo = 8, hi = 20, hmax = 1;
+      hours.forEach(function(c, k){ if (c){ lo = Math.min(lo, k); hi = Math.max(hi, k); if (c > hmax) hmax = c; } });
+      h += '<div class="yr-hist">';
+      for (i = lo; i <= hi; i++) h += '<div><b>' + (hours[i] || '') + '</b><i style="height:' + (hours[i] / hmax * 100) + '%"></i><small>' + i + '</small></div>';
+      h += '</div>';
+    }
+    h += '</div>';
+    var pl = praiseLog().slice(-5).reverse();
+    if (pl.length){
+      h += '<div class="yr-h">最近の褒め言葉</div><div class="yr-card">';
+      pl.forEach(function(x){
+        var dt = new Date(x.t);
+        h += '<div class="yr-pick" style="display:block"><div class="yr-meta">' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + clock(x.t) + (x.kind === 'day' ? '(総評)' : '') + '</div>' + esc(x.text) + '</div>';
+      });
+      h += '</div>';
+    }
+    h += '<div class="yr-meta" style="text-align:center;margin-top:8px">記録は、この端末の中に最大90日分保存されます。</div>';
+    return h;
+  }
+
+  /* ================= 「おかえり！」の演出(3パターンからランダム、4.5秒) =================
+     ① 紙吹雪(カラフル) ② 花火(夜空) ③ 桜吹雪(淡いピンク)。軽くするため、粒の数を抑えた単純な描画だけを使う。
+     画面をタップすると途中で消える。「動きを減らす」設定の端末や canvas が使えない環境では、文字だけを出す */
+  var fxEl = null, fxTimer = null, fxRaf = null, fxNext = 0;
+  function removeEffect(){
+    if (fxTimer){ clearTimeout(fxTimer); fxTimer = null; }
+    if (fxRaf && global.cancelAnimationFrame){ try { global.cancelAnimationFrame(fxRaf); } catch(e){} }
+    fxRaf = null;
+    if (fxEl){ fxEl.remove(); fxEl = null; }
+  }
+  function welcomeBack(){
+    if (!settings.effect){ toast('おかえり！'); return; }
+    runEffect(Math.floor(Math.random() * 3));
+  }
+  function runEffect(p){
+    removeEffect();
+    fxEl = document.createElement('div'); fxEl.className = 'yr-fx fx' + p;
+    fxEl.innerHTML = '<canvas></canvas><div class="yr-fx-text">おかえり！</div>';
+    fxEl.addEventListener('click', removeEffect);
+    root.appendChild(fxEl);
+    fxTimer = setTimeout(removeEffect, 4000);
+    /* 端末の「動きを減らす/アニメーションを削除」設定は見ない(Androidで演出が出なくなるため)。使いたくない人は設定のスイッチでOFFにする */
+    var cv = fxEl.querySelector('canvas'), ctx = null;
+    try { ctx = cv.getContext && cv.getContext('2d'); } catch(e){}
+    if (!ctx || !global.requestAnimationFrame) return;
+    var W = cv.width = Math.min(global.innerWidth || 800, 1400), H = cv.height = Math.min(global.innerHeight || 600, 1000);
+    var parts = [], bursts = [], t0 = Date.now(), last = t0, lastBurst = -1000, i;
+    function rnd(a, b){ return a + Math.random() * (b - a); }
+    var confettiColors = ['#ff4d6d', '#ffb703', '#06d6a0', '#4cc9f0', '#a06cd5'], petalColors = ['#ffc2d1', '#ffb3c6', '#fff0f3', '#ffd6e0'];
+    if (p === 0) for (i = 0; i < 140; i++) parts.push({x: rnd(0, W), y: rnd(-H * 0.5, 0), vx: rnd(-1, 1), vy: rnd(3, 6), s: rnd(6, 12), r: rnd(0, 6.3), vr: rnd(-0.2, 0.2), c: confettiColors[i % 5]});
+    if (p === 2) for (i = 0; i < 90; i++) parts.push({x: rnd(0, W), y: rnd(-H * 0.3, H * 0.4), vy: rnd(2.2, 4.2), sw: rnd(0, 6.3), sx: rnd(0.02, 0.05), s: rnd(8, 16), r: rnd(0, 6.3), vr: rnd(-0.05, 0.05), c: petalColors[i % 4]});
+    function step(){
+      var t = Date.now(), el = t - t0, dt = Math.min(40, t - last) / 16.7, k, q;
+      last = t;
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalAlpha = el > 3300 ? Math.max(0, 1 - (el - 3300) / 700) : 1;
+      if (p === 0){
+        for (k = 0; k < parts.length; k++){
+          q = parts[k]; q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.vr * dt;
+          ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r); ctx.fillStyle = q.c; ctx.fillRect(-q.s / 2, -q.s / 4, q.s, q.s / 2); ctx.restore();
+        }
+      } else if (p === 1){
+        if (el < 2800 && el - lastBurst > 420){
+          lastBurst = el;
+          var cx = rnd(W * 0.15, W * 0.85), cy = rnd(H * 0.12, H * 0.5), hue = Math.floor(rnd(0, 360));
+          for (k = 0; k < 56; k++){ var a = rnd(0, 6.283), sp = rnd(1.5, 5.5); bursts.push({x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, age: 0, life: rnd(900, 1400), h: hue + rnd(-20, 20)}); }
+        }
+        for (k = bursts.length - 1; k >= 0; k--){
+          q = bursts[k]; q.age += dt * 16.7;
+          if (q.age > q.life){ bursts.splice(k, 1); continue; }
+          q.vy += 0.045 * dt; q.vx *= 0.992; q.x += q.vx * dt; q.y += q.vy * dt;
+          ctx.globalAlpha = (el > 3300 ? Math.max(0, 1 - (el - 3300) / 700) : 1) * (1 - q.age / q.life);
+          ctx.fillStyle = 'hsl(' + q.h + ',100%,65%)'; ctx.beginPath(); ctx.arc(q.x, q.y, 2.6, 0, 6.283); ctx.fill();
+        }
+      } else {
+        for (k = 0; k < parts.length; k++){
+          q = parts[k]; q.sw += q.sx * dt; q.x += Math.sin(q.sw) * 1.2 * dt; q.y += q.vy * dt; q.r += q.vr * dt;
+          ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r); ctx.fillStyle = q.c; ctx.beginPath(); ctx.ellipse(0, 0, q.s, q.s * 0.55, 0, 0, 6.283); ctx.fill(); ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
+      if (el < 4000 && fxEl) fxRaf = global.requestAnimationFrame(step);
+    }
+    fxRaf = global.requestAnimationFrame(step);
+  }
+
+  /* ================= スクロール＆スワイプで数値を動かす =================
+     (スクロール＆スワイプ仕様書の bindNode 相当) マウスホイールと縦スワイプを、
+     「移動量が閾値を超えるたびに1段階だけ動かす」で統一。sens: 1=ホイール50・スワイプ20px / 2=100・40px
+     対象要素には touch-action: pan-x を付ける(CSSの .yr-swipe)。1段階ごとに短い操作音(アラーム音の設定に従う)。
+     opt.wheelNeedsFocus: 入力欄を選択している時だけホイールで動かす(設定画面のように、ページ自体をスクロールする場所でホイールが奪われないように) */
+  function tickSound(){
+    if (!settings.sound || !ac) return;
+    try {
+      if (ac.state === 'suspended') ac.resume();
+      var t0 = ac.currentTime, len = Math.floor(ac.sampleRate * 0.03);
+      var buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      var src = ac.createBufferSource(); src.buffer = buf;
+      var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2800; bp.Q.value = 0.9;
+      var g = ac.createGain(); g.gain.value = 0.6;
+      src.connect(bp); bp.connect(g); g.connect(ac.destination); src.start(t0);
+    } catch(e){}
+  }
+  function bindSwipe(el, actUp, actDn, sens, opt){
+    opt = opt || {};
+    var st = {moved: false}, wAcc = 0, tY = 0, locked = false;
+    function up(){ actUp(); tickSound(); }
+    function dn(){ actDn(); tickSound(); }
+    el.addEventListener('wheel', function(e){
+      if (opt.wheelNeedsFocus && document.activeElement !== el) return;
+      e.preventDefault();
+      wAcc += e.deltaY;
+      var th = 50 * sens;
+      if (wAcc > th){ dn(); wAcc = 0; } else if (wAcc < -th){ up(); wAcc = 0; }
+    }, {passive: false});
+    el.addEventListener('touchstart', function(e){
+      st.moved = false;
+      if (el.tagName === 'INPUT' && document.activeElement === el){ locked = true; return; }   /* 入力中はスワイプ無効 */
+      locked = false; tY = e.touches[0].clientY; el.classList.add('touch-active');
+    }, {passive: true});
+    el.addEventListener('touchmove', function(e){
+      if (locked) return;
+      var cY = e.touches[0].clientY, diff = tY - cY;                  /* 上スワイプで正 */
+      if (Math.abs(diff) > 20 * sens){
+        if (diff > 0) up(); else dn();
+        tY = cY; st.moved = true;
+        if (e.cancelable) e.preventDefault();
+      }
+    }, {passive: false});
+    function end(){ el.classList.remove('touch-active'); locked = false; }
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+    return st;
+  }
+  /* 設定画面の数値(分・秒)を1段階動かす。画面は作り直さず、入力欄の数字だけ書き換える(スワイプ中の要素が消えないように) */
+  function applySetting(name, dir){
+    var rg = RANGES[name]; if (!rg) return;
+    settings[name] = Math.max(rg[0], Math.min(rg[1], settings[name] + dir * rg[2]));
+    if (settings.aliveRandMax < settings.aliveRandMin){ if (name === 'aliveRandMin') settings.aliveRandMax = settings.aliveRandMin; else settings.aliveRandMin = settings.aliveRandMax; }
+    persist(); syncSettingInputs();
+  }
+  function applyTemp(dir){
+    settings.praiseTemp = Math.max(0, Math.min(2, Math.round((settings.praiseTemp + dir * 0.1) * 10) / 10));
+    persist(); syncSettingInputs();
+  }
+  function syncSettingInputs(){
+    var list = root.querySelectorAll('input[data-role^="set-"]');
+    for (var i = 0; i < list.length; i++){
+      if (document.activeElement === list[i]) continue;
+      var nm = list[i].getAttribute('data-role').slice(4);
+      if (RANGES[nm]) list[i].value = settings[nm]; else if (nm === 'praiseTemp') list[i].value = settings.praiseTemp.toFixed(1);
+    }
+  }
+  function bindSettingsSwipes(){
+    var list = root.querySelectorAll('.yr-step input.yr-swipe'), i;
+    for (i = 0; i < list.length; i++){
+      (function(inp){
+        var nm = inp.getAttribute('data-role').slice(4);
+        if (nm === 'praiseTemp') bindSwipe(inp, function(){ applyTemp(1); }, function(){ applyTemp(-1); }, 1, {wheelNeedsFocus: true});
+        else bindSwipe(inp, function(){ applySetting(nm, 1); }, function(){ applySetting(nm, -1); }, 1, {wheelNeedsFocus: true});
+      })(list[i]);
+    }
+  }
+  function tpBindSwipes(){
+    var m2 = $r('modal2'), h = m2.querySelector('[data-role="tp-h"]'), mn = m2.querySelector('[data-role="tp-m"]');
+    if (h) bindSwipe(h, function(){ tpMove(60, false); }, function(){ tpMove(-60, false); }, 1);
+    if (mn) bindSwipe(mn, function(){ tpMove(5, true); }, function(){ tpMove(-5, true); }, 1);
+  }
+
+  /* ================= 褒める機能(Gemini API) =================
+     やる事を完了した時(設定でON)と、記録画面の「この日を褒めてもらう」で、短い褒め言葉をもらう。
+     ・渡すのは「やる事の名前」と、時間・回数の集計だけ(カメラ映像は渡さない)
+     ・称賛の大きさは「努力量の目安(1〜4)」をこちらで計算して渡し、モデルに決めさせない(大げさな褒め言葉を防ぐ)
+     ・前回より良くなった点だけを渡す。悪くなった点は渡さない(触れさせない)
+     ・口調は設定(praiseStyle)。APIキーは設定の別キー(SECRET_KEY)に保存し、バックアップ等の対象にしない */
+  var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/';
+  var modelList = [];
+  function gKey(){ try { return store.getItem(SECRET_KEY) || ''; } catch(e){ return ''; } }
+  function setGKey(v){ try { if (v) store.setItem(SECRET_KEY, v); else store.removeItem(SECRET_KEY); } catch(e){} }
+  function praiseLog(){ var a = load(KEY.praise, []); return Array.isArray(a) ? a : []; }
+  function pushPraise(kind, text){ var a = praiseLog(); a.push({t: now(), kind: kind, text: text}); save(KEY.praise, a.slice(-30)); }
+  function baseTitle(t){ return String(t).replace(/ \(\d+\)$/, ''); }
+
+  /* 1つのやる事の集計。delay: 開始予定より何分遅れて開始したか(予定なしは null) */
+  function itemMetrics(it, tEnd){
+    var D = daySummary([it], tEnd);
+    var m = {title: it.title, work: mins(D.work), escN: D.escN, esc: mins(D.esc + D.over), over: mins(D.over),
+             delay: null, ok: it.aliveOk || 0, blocked: it.aliveBlocked || 0};
+    if (it.startAt && it.startedAt){
+      var st = timeToMs(it.startAt, it.startedAt);
+      if (st !== null) m.delay = Math.round((it.startedAt - st) / 60000);
+    }
+    return m;
+  }
+  /* 同じ名前の「前回」の記録(今日の完了済み → 過去の日の順に探す) */
+  function prevMetrics(it){
+    var b = baseTitle(it.title), best = null, i, j;
+    today.items.forEach(function(x){
+      if (x !== it && x.status === 'done' && x.startedAt && x.doneAt && baseTitle(x.title) === b && x.doneAt <= (it.doneAt || now()) && (!best || x.doneAt > best.doneAt)) best = x;
+    });
+    if (best) return itemMetrics(best, best.doneAt);
+    var h = load(KEY.history, []); if (!Array.isArray(h)) return null;
+    for (i = h.length - 1; i >= 0; i--){
+      var list = h[i].items || [];
+      for (j = list.length - 1; j >= 0; j--){
+        var x2 = list[j];
+        if (x2.status === 'done' && x2.startedAt && baseTitle(x2.title) === b) return itemMetrics(x2, dayEnd(h[i].date));
+      }
+    }
+    return null;
+  }
+  function itemLevel(m){
+    var lv = m.work < 10 ? 1 : (m.work < 30 ? 2 : (m.work < 60 ? 3 : 4));
+    if (m.work >= 10 && m.escN === 0 && m.delay !== null && m.delay <= 2) lv = Math.min(4, lv + 1);
+    if (m.over > 0 || m.blocked > 0) lv = Math.max(1, lv - 1);
+    return lv;
+  }
+  function delayText(d){ return d > 0 ? '開始予定時刻より ' + d + '分遅れて開始' : (d < 0 ? '開始予定時刻より ' + (-d) + '分早く開始' : '開始予定時刻ちょうどに開始'); }
+  function itemFacts(m){
+    var L = ['やる事: 「' + m.title + '」', '作業した時間: ' + m.work + '分'];
+    if (m.delay !== null) L.push(delayText(m.delay));
+    L.push('脱線: ' + m.escN + '回' + (m.escN ? '(合計 ' + m.esc + '分' + (m.over ? '、うち時間切れ後の超過 ' + m.over + '分' : '') + ')' : ''));
+    if (m.ok || m.blocked) L.push('生存確認: 成功 ' + m.ok + '回' + (m.blocked ? '、時間切れ ' + m.blocked + '回' : ''));
+    return L;
+  }
+  /* 前回より「良くなった」点だけを文にして返す(悪くなった点は返さない) */
+  function improveItem(c, p){
+    var f = [];
+    if (!p) return f;
+    if (c.delay !== null && p.delay !== null && p.delay > 0 && p.delay - c.delay >= 3) f.push('開始の遅れが、前回の ' + p.delay + '分から ' + Math.max(0, c.delay) + '分に縮んだ');
+    if (p.escN >= 1 && c.escN < p.escN) f.push('脱線の回数が、前回の ' + p.escN + '回から ' + c.escN + '回に減った');
+    if (p.esc - c.esc >= 3) f.push('脱線した時間が、前回の ' + p.esc + '分から ' + c.esc + '分に減った');
+    if (c.work - p.work >= 5 && c.work >= p.work * 1.1) f.push('作業時間が、前回の ' + p.work + '分から ' + c.work + '分に伸びた');
+    if (p.over >= 1 && c.over === 0) f.push('前回あった「脱線の時間切れ後の超過」が、今回はなかった');
+    return f;
+  }
+
+  /* 1日の集計と、前の記録がある日との比較 */
+  function historyItems(dateStr){
+    var h = load(KEY.history, []); if (!Array.isArray(h)) return [];
+    for (var i = h.length - 1; i >= 0; i--) if (h[i].date === dateStr) return h[i].items || [];
+    return [];
+  }
+  function dayMetrics(dateStr){
+    var isToday = dateStr === today.date, list = isToday ? today.items : historyItems(dateStr), tEnd = isToday ? now() : dayEnd(dateStr);
+    var D = daySummary(list, tEnd), delays = [], ok = 0, blocked = 0;
+    list.forEach(function(it){ var m = itemMetrics(it, tEnd); if (m.delay !== null) delays.push(m.delay); ok += m.ok; blocked += m.blocked; });
+    return {date: dateStr, work: mins(D.work), esc: mins(D.esc + D.over), over: mins(D.over), escN: D.escN, done: D.done, fail: D.fail, total: D.total,
+            delayAvg: delays.length ? Math.round(delays.reduce(function(a, b){ return a + b; }, 0) / delays.length) : null, ok: ok, blocked: blocked,
+            titles: D.items.filter(function(x){ return x.status === 'done'; }).map(function(x){ return x.title; })};
+  }
+  function prevDayMetrics(dateStr){
+    var p = dateStr.split('-');
+    for (var i = 1; i <= 60; i++){
+      var d = new Date(+p[0], +p[1] - 1, +p[2] - i), ds = dayStr(d.getTime());
+      var m = dayMetrics(ds);
+      if (m.work > 0) return m;
+    }
+    return null;
+  }
+  function dayLevel(m){
+    var lv = m.work < 30 ? 1 : (m.work < 90 ? 2 : (m.work < 180 ? 3 : 4));
+    if (m.done >= 3) lv = Math.min(4, lv + 1);
+    if (m.over > 0 || m.blocked > 0) lv = Math.max(1, lv - 1);
+    return lv;
+  }
+  function dayFacts(m){
+    var L = ['日付: ' + m.date, '完了したやる事: ' + (m.titles.length ? m.titles.slice(0, 8).map(function(t){ return '「' + t + '」'; }).join('、') : 'なし') + '(' + m.done + '件)',
+             '合計の作業時間: ' + m.work + '分',
+             '脱線: ' + m.escN + '回' + (m.escN ? '(合計 ' + m.esc + '分' + (m.over ? '、うち時間切れ後の超過 ' + m.over + '分' : '') + ')' : '')];
+    if (m.delayAvg !== null) L.push('開始の遅れ(平均): ' + (m.delayAvg > 0 ? m.delayAvg + '分遅れ' : (m.delayAvg < 0 ? (-m.delayAvg) + '分早く' : '予定どおり')));
+    if (m.ok || m.blocked) L.push('生存確認: 成功 ' + m.ok + '回' + (m.blocked ? '、時間切れ ' + m.blocked + '回' : ''));
+    return L;
+  }
+  function improveDay(c, p){
+    var f = [];
+    if (!p) return f;
+    if (c.work - p.work >= 10 && c.work >= p.work * 1.1) f.push('合計の作業時間が、前の記録(' + p.date + ')の ' + p.work + '分から ' + c.work + '分に伸びた');
+    if (p.escN >= 1 && c.escN < p.escN) f.push('脱線の回数が、前の記録の ' + p.escN + '回から ' + c.escN + '回に減った');
+    if (p.esc - c.esc >= 5) f.push('脱線した時間が、前の記録の ' + p.esc + '分から ' + c.esc + '分に減った');
+    if (c.done > p.done) f.push('完了した件数が、前の記録の ' + p.done + '件から ' + c.done + '件に増えた');
+    if (c.delayAvg !== null && p.delayAvg !== null && p.delayAvg > 0 && p.delayAvg - c.delayAvg >= 3) f.push('開始の遅れ(平均)が、前の記録の ' + p.delayAvg + '分から ' + Math.max(0, c.delayAvg) + '分に縮んだ');
+    return f;
+  }
+
+  /* プロンプトの組み立て */
+  var LV_TXT = {1: '1(軽く一言だけ)', 2: '2(ふつうに)', 3: '3(しっかり)', 4: '4(大きく)'};
+  function buildPraise(kind, facts, imps, level){
+    var isDay = kind === 'day';
+    var sys = 'あなたは、ユーザーが作業をやり遂げた時に、ねぎらいの言葉をかける役です。次の人物像になりきって話してください。\n人物像: ' + settings.praiseStyle + '\n\n' +
+      '守ること:\n' +
+      '- 根拠にしてよいのは【事実】に書かれたことだけ。数字(分・回数)は書かれた値だけを使い、作り話や推測を足さない。\n' +
+      '- 称賛の大きさは【称賛の大きさの目安】に合わせる(1=軽く一言、2=ふつうに、3=しっかり、4=大きく)。実際より大げさに持ち上げたり、媚びたり、おだてたりしない。\n' +
+      '- 【前回より良くなった点】が書かれている時だけ、そこに触れてよい。書かれていない比較には触れない。悪い点・できなかったこと・脱線の多さなどには触れない(責めない)。\n' +
+      '- 説教、助言、次の予定の提案はしない。質問で終わらない。\n' +
+      '- 日本語で、' + (isDay ? '2〜4文、220字以内' : '1〜2文、120字以内') + '。絵文字は使わない。\n' +
+      '- 【最近の返答】と同じ言い回し・書き出しは避ける。\n' +
+      '返答の本文だけを出力すること。前置きや説明は不要。';
+    var recent = praiseLog().slice(-3).map(function(x){ return x.text; });
+    var user = '【事実】\n' + facts.map(function(x){ return '- ' + x; }).join('\n') +
+      '\n\n【称賛の大きさの目安】' + LV_TXT[level] +
+      '\n\n【前回より良くなった点】\n' + (imps.length ? imps.map(function(x){ return '- ' + x; }).join('\n') : 'なし(比較には触れないこと)') +
+      '\n\n【最近の返答(同じ言い回しを避ける)】\n' + (recent.length ? recent.map(function(x){ return '- ' + x; }).join('\n') : 'なし');
+    return {sys: sys, user: user};
+  }
+
+  /* API呼び出し。通信そのものが失敗した時だけ、キーをURLに付ける形で1回やり直す */
+  function geminiErr(status, j){
+    var msg = (j && j.error && j.error.message) ? String(j.error.message) : '';
+    if (status === 400) return /API key/i.test(msg) ? 'APIキーが正しくありません。' : ('リクエストが受け付けられませんでした' + (msg ? '(' + msg.slice(0, 80) + ')' : '') + '。');
+    if (status === 401 || status === 403) return 'このAPIキーは使えません(無効、利用制限、地域の制限など)。';
+    if (status === 404) return 'モデル「' + settings.geminiModel + '」が見つかりません。設定のモデル名を確認してください。';
+    if (status === 429) return '利用上限に達しました。少し待ってからお試しください。';
+    if (status >= 500) return 'Gemini側の一時的なエラーです(' + status + ')。';
+    return 'エラーが返りました(' + status + ')。';
+  }
+  function errText(e){
+    if (e && e.friendly) return e.friendly;
+    if (e && e.name === 'AbortError') return '時間切れでした(25秒)。';
+    return '通信できませんでした(オフライン、またはAPIキーの制限など)。';
+  }
+  function callGemini(sys, user){
+    var key = gKey();
+    if (!key) return Promise.reject({friendly: 'APIキーが設定されていません。'});
+    var model = settings.geminiModel.replace(/^models\//, '');
+    var url = GEMINI_BASE + 'models/' + encodeURIComponent(model) + ':generateContent';
+    var body = JSON.stringify({systemInstruction: {parts: [{text: sys}]}, contents: [{role: 'user', parts: [{text: user}]}],
+                               generationConfig: {temperature: settings.praiseTemp, maxOutputTokens: 2048}});
+    function post(u, headers){
+      var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timer = setTimeout(function(){ if (ctl) ctl.abort(); }, 25000);
+      return global.fetch(u, {method: 'POST', headers: headers, body: body, signal: ctl ? ctl.signal : undefined})
+        .then(function(r){ clearTimeout(timer); return r; }, function(e){ clearTimeout(timer); throw e; });
+    }
+    return post(url, {'Content-Type': 'application/json', 'x-goog-api-key': key})
+      .catch(function(e){
+        if (e && e.name === 'AbortError') throw e;
+        return post(url + '?key=' + encodeURIComponent(key), {'Content-Type': 'application/json'});
+      })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if (!r.ok) throw {friendly: geminiErr(r.status, j)};
+          return j;
+        });
+      })
+      .then(function(j){
+        var c = j.candidates && j.candidates[0], parts = c && c.content && c.content.parts, text = '';
+        if (parts) text = parts.filter(function(p){ return !p.thought && typeof p.text === 'string'; }).map(function(p){ return p.text; }).join('').trim();
+        if (!text) throw {friendly: '返答が空でした(安全フィルタや長さ制限などの可能性)。モデルを変えて試してください。'};
+        return text;
+      });
+  }
+  function showPraise(text, kind){
+    var old = root.querySelector('.yr-praise'); if (old) old.remove();
+    var el = document.createElement('div'); el.className = 'yr-praise';
+    el.innerHTML = '<div class="yr-praise-h">🍺 ' + (kind === 'day' ? 'この日の総評' : 'ひとこと') + '</div><div class="yr-praise-t"></div>' +
+                   '<div class="yr-row"><button type="button" class="yr-btn primary wide" data-act="praise-close">閉じる</button></div>';
+    el.querySelector('.yr-praise-t').textContent = text;
+    root.appendChild(el);
+  }
+  /* kind: 'item' | 'day' | 'test'。test はエラーを画面に残し、記録にも残さない */
+  function runPraise(kind, facts, imps, level){
+    if (!gKey()) return Promise.resolve(null);
+    toast('🍺 いま考え中…');
+    var p = buildPraise(kind, facts, imps, level);
+    return callGemini(p.sys, p.user).then(function(text){
+      if (kind !== 'test') pushPraise(kind, text);
+      showPraise(text, kind === 'day' ? 'day' : 'item');
+      if (view === 'stats') render();
+      return text;
+    }).catch(function(e){
+      if (kind === 'test') showAlert({key: 'praise-err', kind: 'fail', title: '褒め言葉を取得できませんでした', body: errText(e), buttons: []});
+      else toast('褒め言葉を取得できませんでした: ' + errText(e));
+      return null;
+    });
+  }
+  function praiseItem(it, tEnd){
+    var m = itemMetrics(it, tEnd || now());
+    return runPraise('item', itemFacts(m), improveItem(m, prevMetrics(it)), itemLevel(m));
+  }
+  function praiseDay(dateStr){
+    if (!gKey()) return Promise.resolve(null);
+    var m = dayMetrics(dateStr);
+    if (!m.work && !m.done){ toast('この日は作業の記録がないため、褒められません'); return Promise.resolve(null); }
+    return runPraise('day', dayFacts(m), improveDay(m, prevDayMetrics(dateStr)), dayLevel(m));
+  }
+  function praiseTest(){
+    if (!gKey()){ showAlert({key: 'praise-err', kind: 'fail', title: 'APIキーがありません', body: '先にAPIキーを入力してください。', buttons: []}); return; }
+    var cur = {title: 'ユーフォ練習(テスト用の例)', work: 45, escN: 1, esc: 4, over: 0, delay: 2, ok: 2, blocked: 0};
+    var prev = {title: 'ユーフォ練習', work: 30, escN: 3, esc: 12, over: 2, delay: 9, ok: 1, blocked: 0};
+    runPraise('test', itemFacts(cur), improveItem(cur, prev), itemLevel(cur));
+  }
+  function fetchModels(){
+    var key = gKey();
+    if (!key){ showAlert({key: 'praise-err', kind: 'fail', title: 'APIキーがありません', body: '先にAPIキーを入力してください。', buttons: []}); return; }
+    global.fetch(GEMINI_BASE + 'models?pageSize=200', {headers: {'x-goog-api-key': key}}).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok) throw {friendly: geminiErr(r.status, j)}; return j; });
+    }).then(function(j){
+      modelList = (j.models || []).filter(function(m){
+        return (m.supportedGenerationMethods || []).indexOf('generateContent') !== -1 && /gemini/.test(m.name) && !/image|tts|embedding|live|audio|robotics/.test(m.name);
+      }).map(function(m){ return m.name.replace(/^models\//, ''); });
+      toast('モデル候補を ' + modelList.length + ' 件取得しました');
+      render();
+    }).catch(function(e){ showAlert({key: 'praise-err', kind: 'fail', title: 'モデル一覧を取得できません', body: errText(e), buttons: []}); });
+  }
+
+  function motionDiag(){
+    try { return (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'ON(この設定は無視して演出を出します)' : 'OFF'; } catch(e){ return '不明'; }
+  }
+
+  /* ---------- 時間の見張り(1秒ごと) ---------- */
+  function failItem(it, t){
+    it.status = 'fail'; it.failAt = t;
+    var pre = $r('alerts').querySelector('[data-key="pre-' + it.id + '"]'); if (pre) pre.remove();   /* 残っている「開始前」の通知は消す(もう開始できないため) */
+    fire({key: 'fail-' + it.id, kind: 'fail', tag: 'fail', title: '「' + it.title + '」は本日終了です', body: FAIL_MESSAGE, buttons: []});
+  }
+  function checkNudge(t){
+    var todo = items().some(function(i){ return i.status === 'todo'; });
+    var timed = items().some(function(i){ return i.status === 'todo' && i.startAt; });
+    var running = items().some(function(i){ return i.status === 'running'; });
+    if (todo && !timed && !running){
+      if (!nudge.last){ nudge.last = t; save(KEY.nudge, nudge); return; }     /* 条件が整った時点から数え始める */
+      if (t - nudge.last >= settings.nudgeMin * 60000){
+        nudge.last = t; save(KEY.nudge, nudge);
+        fire({key: 'nudge', tag: 'nudge', title: 'いつ始めますか？', body: '今日やる事の開始時刻がまだ決まっていません。',
+              buttons: [{label: '開始時間を入力', act: 'open-start-prompt', primary: true}]});
+      }
+    } else if (nudge.last){ nudge.last = 0; save(KEY.nudge, nudge); }
+  }
+  function tick(){
+    var t = now(), changed = ensureToday();
+    items().forEach(function(it){
+      if (it.status !== 'todo') return;
+      var st = timeToMs(it.startAt, t), lim = timeToMs(it.limitAt, t);
+      if (lim !== null && t >= lim){ failItem(it, t); changed = true; return; }          /* 強制ギブアップ */
+      if (st !== null && !it.preNotified && t >= st - settings.leadMin * 60000){
+        it.preNotified = true; changed = true;
+        var mins = Math.ceil((st - t) / 60000);
+        fire({key: 'pre-' + it.id, tag: 'pre', title: it.startAt + '「' + it.title + '」',
+              body: mins > 0 ? (mins + '分後に開始予定です') : '開始予定の時刻です',
+              buttons: [{label: '▶ 今すぐ開始', act: 'start', id: it.id, primary: true}]});
+      }
+    });
+    checkNudge(t);
+    escTick(t);
+    aliveTick(t);
+    if (changed){ persist(); if (view === 'today') render(); } else if (view === 'today') updateLive();
+  }
+
+  /* ---------- 操作 ---------- */
+  function startItem(id){
+    var it = findItem(id); if (!it || it.status !== 'todo') return;
+    var other = items().filter(function(i){ return i.status === 'running'; })[0];
+    if (other){ showAlert({key: 'busy', title: '実行中の「やる事」があります', body: '「' + other.title + '」を完了してから始めましょう。', buttons: []}); return; }
+    var lim = timeToMs(it.limitAt, now());
+    if (lim !== null && now() >= lim){ tick(); return; }
+    it.status = 'running'; it.startedAt = now();
+    nudge.last = 0; persist(); closeModal(); clearAlertsFor(id); render();
+  }
+  function clearAlertsFor(id){
+    ['pre-' + id, 'nudge', 'busy'].forEach(function(k){
+      var e = $r('alerts').querySelector('[data-key="' + k + '"]'); if (e) e.remove();
+    });
+    if (!$r('alerts').children.length) stopAlarm();
+  }
+  function finishItem(id){
+    var it = findItem(id); if (!it || it.status !== 'running') return;
+    closeEscape(it, now()); clearEscUi();                    /* 脱線中のまま完了した場合も、脱線を記録して終える */
+    it.status = 'done'; it.doneAt = now(); persist(); aliveStop(); render();
+    if (settings.praiseOn && settings.praiseOnDone && gKey()) praiseItem(it, it.doneAt);   /* 完了時に褒めてもらう */
+  }
+  function removeItem(id){
+    today.items = today.items.filter(function(i){ return i.id !== id; });
+    persist(); closeModal(); render();
+  }
+
+  var armedReset = false, armTimer = null;
+  function handle(act, el){
+    var id = el.getAttribute('data-id');
+    switch (act){
+      case 'back': go('today'); break;
+      case 'goto-settings': go('settings'); break;
+      case 'goto-backlog': go('backlog'); break;
+      case 'allow-notif': unlockAudio(); host.requestPermission().then(function(){ render(); }); break;
+      case 'test-alarm': unlockAudio(); fire({key: 'test', tag: 'test', title: 'テスト', body: 'このように通知とアラームでお知らせします。', buttons: []}); break;
+      case 'start': startItem(id); break;
+      case 'finish': finishItem(id); break;
+      case 'new-item': openNewItem(); break;
+      case 'new-ok': {
+        var title = mval('m-title').trim(); if (!title){ return; }
+        var st = mval('m-start'), lim = mval('m-limit'), err = checkTimes(st, lim);
+        if (err){ showAlert({key: 'err', title: '入力を確認してください', body: err, buttons: []}); return; }
+        var it = newItem(title); it.startAt = st || null; it.limitAt = lim || null;
+        if ($r('modal').querySelector('[data-role="m-save"]').checked){ var b = {id: uid(), title: title}; backlog.push(b); it.fromId = b.id; }
+        today.items.push(it); nudge.last = 0; persist(); closeModal(); render(); break;
+      }
+      case 'edit-item': openEditItem(id); break;
+      case 'edit-ok': {
+        var e = findItem(id); if (!e) break;
+        var t2 = mval('m-title').trim(), s2 = mval('m-start'), l2 = mval('m-limit'), er = checkTimes(s2, l2);
+        if (!t2) break;
+        if (er){ $r('modal').querySelector('[data-role="m-err"]').textContent = er; break; }
+        e.title = t2; if (e.startAt !== (s2 || null)) e.preNotified = false;
+        e.startAt = s2 || null; e.limitAt = l2 || null;
+        nudge.last = 0; persist(); closeModal(); render(); break;
+      }
+      case 'del-item': if (el.closest('.yr-modal') || global.confirm('このやる事をリストから消しますか？')) removeItem(id); break;
+      case 'pick-backlog': openPick(); break;
+      case 'pick-add': {
+        var b2 = findBacklog(id); if (!b2) break;
+        if (items().some(function(i){ return i.fromId === b2.id && i.status === 'fail'; })) break;
+        today.items.push(newItem(uniqueTitle(b2.title), b2.id)); nudge.last = 0; persist(); render(); openPick(); break;
+      }
+      case 'repeat': {   /* 完了したものを、通し番号を付けてもう一度登録する */
+        var src = findItem(id); if (!src || src.status !== 'done') break;
+        today.items.push(newItem(uniqueTitle(src.title.replace(/ \(\d+\)$/, '')), src.fromId)); nudge.last = 0; persist(); render(); break;
+      }
+      case 'bl-add': {
+        var inp = root.querySelector('[data-role="bl-new"]'), v = inp.value.trim(); if (!v) break;
+        backlog.push({id: uid(), title: v}); persist(); render();
+        var again = root.querySelector('[data-role="bl-new"]'); if (again) again.focus(); break;
+      }
+      case 'bl-edit': {
+        var bb = findBacklog(id); if (!bb) break;
+        openModal('<h2>そのうちやる事</h2><label class="yr-lab">名前</label><input class="yr-input" data-role="m-title" maxlength="60" value="' + esc(bb.title) + '">' +
+          '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="bl-save" data-id="' + id + '">保存</button>' +
+          '<button type="button" class="yr-btn danger" data-act="bl-del" data-id="' + id + '">🗑 消す</button><button type="button" class="yr-btn" data-act="modal-close">やめる</button></div>');
+        break;
+      }
+      case 'bl-save': { var b3 = findBacklog(id), nv = mval('m-title').trim(); if (b3 && nv){ b3.title = nv; persist(); closeModal(); render(); } break; }
+      case 'bl-del': backlog = backlog.filter(function(b){ return b.id !== id; }); persist(); closeModal(); render(); break;
+      case 'step': applySetting(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
+      case 'alive-mode': settings.aliveMode = el.getAttribute('data-mode') === 'random' ? 'random' : 'fixed'; persist(); render(); break;
+      case 'refresh-cams': refreshCameras(); break;
+      case 'adjust': openAdjust(); break;
+      case 'alive-test': aliveTestNow(); break;
+      case 'adj-calib': calibStart(); break;
+      case 'adj-mode': settings.detect = el.getAttribute('data-mode'); persist(); syncAdjustUi(); break;
+      /* 時刻入力 */
+      case 'pick-time': openTimePicker(el.getAttribute('data-target'), el.getAttribute('data-label')); break;
+      case 'clear-time': setTimeCtl(el.getAttribute('data-target'), ''); break;
+      case 'tp-h': tpMove(parseInt(el.getAttribute('data-d'), 10) * 60, false); break;
+      case 'tp-m': tpMove(parseInt(el.getAttribute('data-d'), 10), true); break;
+      case 'tp-quick': { var q = new Date(now() + parseInt(el.getAttribute('data-min'), 10) * 60000); tp.h = q.getHours(); tp.m = q.getMinutes(); tpRender(); break; }
+      case 'tp-ok': setTimeCtl(tp.role, pad2(tp.h) + ':' + pad2(tp.m)); $r('modal2').innerHTML = ''; break;
+      case 'tp-cancel': $r('modal2').innerHTML = ''; break;
+      /* 脱線モード・記録・演出 */
+      case 'esc-start': escStart(id); break;
+      case 'esc-return': escReturn(id); break;
+      case 'esc-extend': escExtend(id); break;
+      case 'goto-stats': go('stats'); break;
+      case 'stat-day': statDate = el.getAttribute('data-date'); render(); break;
+      case 'effect-test': unlockAudio(); runEffect(fxNext++ % 3); break;
+      /* 褒める機能 */
+      case 'temp-step': applyTemp(parseInt(el.getAttribute('data-d'), 10)); break;
+      case 'gkey-del': setGKey(''); render(); break;
+      case 'praise-models': fetchModels(); break;
+      case 'praise-test': unlockAudio(); praiseTest(); break;
+      case 'praise-style-reset': settings.praiseStyle = PRAISE_STYLE_DEFAULT; persist(); render(); break;
+      case 'praise-day': unlockAudio(); praiseDay(el.getAttribute('data-date')); break;
+      case 'praise-close': { var pr = root.querySelector('.yr-praise'); if (pr) pr.remove(); break; }
+      case 'unused': {
+      }
+      case 'reset-today':
+        if (!armedReset){ armedReset = true; el.textContent = 'もう一度タップ'; armTimer = setTimeout(function(){ armedReset = false; if (view === 'settings') render(); }, 4000); break; }
+        armedReset = false; clearTimeout(armTimer);
+        today.items = []; nudge.last = 0; persist(); aliveStop(); render(); break;
+      case 'open-start-prompt': closeAlert(el.closest('.yr-alert')); openStartPrompt(); break;
+      case 'sp-set': {
+        var it3 = findItem(id), tv = mval('sp-time-' + id); if (!it3 || !tv) break;
+        var er3 = checkTimes(tv, it3.limitAt); if (er3){ showAlert({key: 'err', title: '入力を確認してください', body: er3, buttons: []}); break; }
+        it3.startAt = tv; it3.preNotified = false; nudge.last = 0; persist(); closeModal(); render(); tick(); break;
+      }
+      case 'alert-close': closeAlert(el.closest('.yr-alert')); break;
+      case 'modal-close': closeModal(); break;
+    }
+  }
+  root.addEventListener('click', function(e){
+    unlockAudio();
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    if (el.getAttribute('data-act') === 'modal-bg'){ if (e.target === el) closeModal(); return; }
+    if (el.getAttribute('data-act') === 'modal2-bg'){ if (e.target === el) $r('modal2').innerHTML = ''; return; }
+    /* アラートのボタンを押したら、そのアラートも閉じる(「閉じる」以外) */
+    var al = el.closest('.yr-alert'); var act = el.getAttribute('data-act');
+    handle(act, el);
+    if (al && act !== 'open-start-prompt' && act !== 'alert-close') closeAlert(al);
+  });
+  /* 設定の直接入力・チェック */
+  root.addEventListener('change', function(e){
+    var r = e.target.getAttribute && e.target.getAttribute('data-role');
+    if (!r) return;
+    var nm = r.indexOf('set-') === 0 ? r.slice(4) : '';
+    if (nm && RANGES[nm]){
+      settings[nm] = int(e.target.value, RANGES[nm][0], RANGES[nm][1], settings[nm]);
+      if (settings.aliveRandMax < settings.aliveRandMin){ if (nm === 'aliveRandMin') settings.aliveRandMax = settings.aliveRandMin; else settings.aliveRandMin = settings.aliveRandMax; }
+    }
+    else if (r === 'set-sound') settings.sound = e.target.checked;
+    else if (r === 'set-effect') settings.effect = e.target.checked;
+    else if (r === 'set-praiseOn') settings.praiseOn = e.target.checked;
+    else if (r === 'set-praiseOnDone') settings.praiseOnDone = e.target.checked;
+    else if (r === 'set-geminiModel') settings.geminiModel = e.target.value.trim().slice(0, 80) || 'gemini-flash-lite-latest';
+    else if (r === 'set-praiseTemp'){ var tv = parseFloat(e.target.value); if (!isNaN(tv)) settings.praiseTemp = Math.max(0, Math.min(2, Math.round(tv * 10) / 10)); }
+    else if (r === 'praise-style') settings.praiseStyle = e.target.value.trim().slice(0, 300) || PRAISE_STYLE_DEFAULT;
+    else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
+    else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!settings.aliveEnabled && alive && !alive.test) aliveStop(); }
+    else if (r === 'set-camera') settings.cameraId = e.target.value;
+    else return;
+    persist(); if (view === 'settings') render();
+  });
+  /* 感度のスライダー(動かしている間もすぐ反映) */
+  root.addEventListener('input', function(e){
+    var r = e.target.getAttribute && e.target.getAttribute('data-role');
+    if (r === 'thr') settings.threshold = int(e.target.value, 0, 255, settings.threshold);
+    else if (r === 'thrf') settings.thrFlat = int(e.target.value, 0, 80, settings.thrFlat);
+    else return;
+    persist(); syncAdjustUi();
+  });
+  /* 緊急解除ボタンは5秒間押し続ける */
+  ['pointerdown', 'touchstart', 'mousedown'].forEach(function(n){
+    root.addEventListener(n, function(e){ if (e.target.getAttribute && e.target.getAttribute('data-role') === 'emerg') emergencyStart(); });
+  });
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(function(n){
+    root.addEventListener(n, function(e){ if (e.target.getAttribute && e.target.getAttribute('data-role') === 'emerg') emergencyEnd(); });
+  });
+
+  /* ---------- 起動 ---------- */
+  host.init(function(tag){ if (tag === 'nudge') openStartPrompt(); go('today'); });
+  if (!embedded && global.location && global.location.hash === '#nudge') openStartPrompt();
+  go('today');
+  var timer = setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) tick(); });
+  tick();
+
+
+  return {
+    tick: tick, render: render, go: go,
+    view: function(){ return view; },
+    canGoBack: function(){ return view !== 'today'; },
+    back: function(){ if (view === 'today') return false; go('today'); return true; },
+    destroy: function(){ clearInterval(timer); stopAlarm(); stopStrong(); aliveStopUi(); clearEscUi(); removeEffect(); camLoopStopIfIdle(); },
+    _effect: runEffect,
+    _sample: sampleCamera, _emergency: function(){ aliveSuccess('緊急解除しました'); }, _aliveTest: aliveTestNow,
+    _state: function(){ return {settings: settings, backlog: backlog, today: today, nudge: nudge, alive: alive, view: view}; }
+  };
+}
+
+global.Yaraseru = {mount: mount, version: VERSION, createStandaloneHost: createStandaloneHost};
+
+})(window);
+/* ========== やらせるToDo 合体ここまで ========== */
+</script>
+<script>
 (function(){
 "use strict";
 
@@ -1582,6 +3526,7 @@ var MENU_ITEMS = [
   {id:'days',   icon:'📅', label:'日数計算機',            title:'日数計算機'},
   {id:'year',   icon:'🎂', label:'「年」計算機',          title:'「年」計算機'},
   {id:'todo',   icon:'⏱️', label:'逆算ToDo',             title:'逆算ToDo'},
+  {id:'yaraseru', icon:'🎯', label:'やらせるToDo',       title:'やらせるToDo'},
   {id:'stopwatch', icon:'⏲️', label:'NamaStopwatch なます', title:'NamaStopwatch なます'},
   {id:'budget', icon:'💰', label:'予算収支計算機',        title:'予算収支計算機'},
   {id:'warikan', icon:'🍺', label:'ワリカン🍷',           title:'🍺ワリカン🍷'},
@@ -1620,6 +3565,7 @@ function renderPage(id){
   if (id === 'stopwatch') openStopwatchFrame();
   if (id === 'counter') { renderCt(); fitCt(); }
   if (id === 'warikan') wkFit();
+  if (id === 'yaraseru') yrOnShow();
   var backBtn = document.getElementById('btn-back');
   var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
@@ -2837,9 +4783,9 @@ var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 9;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
-var NAKA_VERSION = 6;
+var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261012-1';
+var APP_BUILD = '20261018-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -3244,8 +5190,10 @@ window.addEventListener('message', function(ev){
   if (msg.__namaBridgeNotifTap){
     if (msg.actionId === TODO_STOP_ACTION_ID){
       requestTodoAlarmStop();                       /* 通知の「完了にする(アラーム停止)」ボタン */
+    } else if (yrIsNotifId(msg.id)){
+      yrHandleNotifTap(yrTagFromId(msg.id));        /* やらせるToDoの通知(ID 80000番台)のタップ → やらせるToDoを開く */
     } else {
-      /* 通知本体のタップ。このアプリの通知はすべて逆算ToDoのもの(アラーム／常時表示)なので、どれをタップしてもToDo画面を開く */
+      /* 通知本体のタップ。やらせるToDo以外の通知は逆算ToDoのもの(アラーム／常時表示)なので、どれをタップしてもToDo画面を開く */
       if (msg.id >= TODO_PERSISTENT_NOTIF_ID && msg.id <= TODO_PERSISTENT_NOTIF_ID + 2) resyncTodoPersistentSoon(true);   /* 常時表示の通知は、タップで消える仕様なので出し直す */
       openTodoPageIfNeeded();
     }
@@ -4847,6 +6795,13 @@ var BACKUP_GROUPS = [
     {id:'todo_fullsets', label:'フルセット',                               keys:[TODO_FULLSETS_KEY]},
     {id:'todo_current',  label:'現在のスケジュール(すること・完了予定時刻)', keys:[TODO_CURRENT_KEY]},
     {id:'todo_alarm',    label:'通知設定(APK版)',                          keys:[TODO_ALARM_ENABLED_KEY, TODO_ALARM_SOUND_KEY, TODO_ALARM_SOUND_ON_KEY, TODO_ALARM_TYPE_KEY, TODO_PERSISTENT_ENABLED_KEY], defaultOff:true}
+  ]},
+  /* やらせるToDo。Gemini APIキー(yaraseru_secret_gemini)と、生存確認の進行状態(yaraseru_v1_alive。古い期限が復元されると全面表示が出てしまう)は入れない */
+  {id:'yaraseru', label:'🎯 やらせるToDo', children:[
+    {id:'yr_settings', label:'設定',                       keys:['yaraseru_v1_settings']},
+    {id:'yr_backlog',  label:'そのうちやる事',             keys:['yaraseru_v1_backlog']},
+    {id:'yr_today',    label:'今日やる事・過去の記録',     keys:['yaraseru_v1_today', 'yaraseru_v1_history', 'yaraseru_v1_nudge']},
+    {id:'yr_praise',   label:'褒め言葉の記録',             keys:['yaraseru_v1_praise']}
   ]}
 ];
 /* 中身が配列であるべきキー(読み込み時の形式チェック用) */
@@ -4933,6 +6888,8 @@ function validateBackupValue(k, v){
   if (k === STOPWATCH_KEY) return !!parsed && Array.isArray(parsed.lists);
   if (k === WARIKAN_KEY) return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.groups);
   if (BACKUP_ARRAY_KEYS.indexOf(k) !== -1) return Array.isArray(parsed);
+  if (k === 'yaraseru_v1_backlog' || k === 'yaraseru_v1_history' || k === 'yaraseru_v1_praise') return Array.isArray(parsed);
+  if (k === 'yaraseru_v1_settings' || k === 'yaraseru_v1_today' || k === 'yaraseru_v1_nudge') return parsed === null || (typeof parsed === 'object' && !Array.isArray(parsed));
   return true;
 }
 function formatBackupDate(iso){
@@ -5152,6 +7109,165 @@ document.getElementById('settings-install-btn').addEventListener('click', functi
     '<div style="opacity:0.7;">※ Firefoxはインストールに対応していません。</div>');
 });
 
+/* ============ やらせるToDo(合体) ============
+   ・画面とロジックは別の script(window.Yaraseru。区切りコメント「やらせるToDo 合体ここから」の間)にある。ここは本体側の接続部分だけ
+   ・起動: 画面を初めて開いた時に mount を1回だけ呼ぶ。ページを離れても destroy は呼ばない(別のメニューを開いている間も、通知や確認のタイマーを動かし続けるため)。
+          今日の「これから/実行中」の項目が残っていれば、アプリを開いた時点で自動的に mount する(ホームにいても確認・通知が動くように)
+   ・戻る: やらせるToDoの内側の画面(そのうち/記録/設定)を開くたびに履歴を1つ積む。ヘッダーの「←」もAndroidの戻るボタンも、そのまま1つ戻る動きになる
+   ・通知: APK版はガワ(LocalNotifications)の「今すぐ表示」(チャンネル notif_yaraseru_v1)。PWA版は Service Worker(sw.js)経由の通知
+          通知IDは 80000〜80999(逆算ToDoの常時通知 89990〜89992・アラーム 90000以降と重ならない範囲)
+   ・「アプリが閉じていても鳴る予約通知」は、まだない(アプリを開いている間だけ通知・アラームが働く) */
+var YR_NOTIF_BASE = 80000;
+var YR_NOTIF_COUNT = 1000;
+var YR_NOTIF_NUDGE_ID = 80001;          /* 「いつ始めますか？」の催促だけは固定ID(タップで開始時間の入力画面を開くため) */
+var YR_CHANNEL_ID = 'notif_yaraseru_v1';   /* alarm_ で始めない = 通常の通知として扱われる */
+var YR_TODAY_KEY = 'yaraseru_v1_today';
+var yrApi = null;          /* Yaraseru.mount の戻り値 */
+var yrSync = false;        /* 履歴の変化に合わせて内側の画面を切り替えている最中は true(履歴を二重に積まないため) */
+var yrPerm = 'default';    /* APK版の通知許可の状態(ガワに問い合わせた結果を覚えておく) */
+var yrChannelReady = false;
+var yrClickCb = null;      /* Yaraseru が渡してくる「通知をタップした時の処理」 */
+
+function yrIsNotifId(id){ return typeof id === 'number' && id >= YR_NOTIF_BASE && id < YR_NOTIF_BASE + YR_NOTIF_COUNT; }
+function yrNotifId(tag){
+  if (tag === 'nudge') return YR_NOTIF_NUDGE_ID;
+  var h = 0, s = String(tag || '');
+  for (var i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) % 900; }
+  return YR_NOTIF_BASE + 100 + h;       /* 80100〜80999。同じ種類の通知は同じIDになり、新しい通知で置き換わる */
+}
+function yrTagFromId(id){ return id === YR_NOTIF_NUDGE_ID ? 'nudge' : 'open'; }
+
+function yrApplyApkPerm(res){
+  var d = res && res.display;
+  yrPerm = d === 'granted' ? 'granted' : (d === 'denied' ? 'denied' : 'default');
+}
+function yrNotifyApk(o){
+  if (yrPerm !== 'granted') return;
+  var ready = yrChannelReady ? Promise.resolve() : callNativeBridge('createChannel', {
+    id: YR_CHANNEL_ID,
+    name: 'やらせるToDo通知',
+    description: 'やらせるToDoの開始前・催促・確認の通知です',
+    importance: 5,
+    visibility: 1,
+    vibration: true
+  }).then(function(){ yrChannelReady = true; });
+  ready.then(function(){
+    /* schedule を付けない = 今すぐ表示 */
+    return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: YR_CHANNEL_ID}]});
+  }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
+}
+function yrNotifyFallback(o){
+  try {
+    var n = new Notification(o.title, {body: o.body, tag: o.tag});
+    n.onclick = function(){ try { window.focus(); } catch(e){} yrHandleNotifTap(o.tag); };
+    return true;
+  } catch(e){ return false; }
+}
+function yrNotifyWeb(o){
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+  if ('serviceWorker' in navigator && navigator.serviceWorker.ready){
+    /* Service Worker が使えるならそちら経由(タップした時にアプリへ戻せる)。2秒待っても準備できなければ通常の通知にする */
+    var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, 2000); });
+    Promise.race([navigator.serviceWorker.ready, timeout]).then(function(reg){
+      if (reg && reg.showNotification){
+        reg.showNotification(o.title, {body: o.body, tag: o.tag, requireInteraction: true, renotify: true, data: {app: 'yaraseru', tag: o.tag}});
+      } else {
+        yrNotifyFallback(o);
+      }
+    }).catch(function(){ yrNotifyFallback(o); });
+    return true;
+  }
+  return yrNotifyFallback(o);
+}
+/* Yaraseru.mount に渡す「通知の窓口」(単体版の createStandaloneHost の差し替え) */
+function createYaraseruHost(){
+  return {
+    name: 'nama',
+    init: function(onClick){ yrClickCb = onClick; },
+    permission: function(){
+      if (isApkPlatform()) return yrPerm;
+      return ('Notification' in window) ? Notification.permission : 'unsupported';
+    },
+    requestPermission: function(){
+      if (isApkPlatform()){
+        return callNativeBridge('requestPermissions', {}).then(function(res){ yrApplyApkPerm(res); return yrPerm; }).catch(function(){ return yrPerm; });
+      }
+      if (!('Notification' in window)) return Promise.resolve('unsupported');
+      return Promise.resolve(Notification.requestPermission());
+    },
+    /* o: {title, body, tag} */
+    notify: function(o){
+      if (isApkPlatform()){ yrNotifyApk(o); return true; }
+      return yrNotifyWeb(o);
+    }
+  };
+}
+
+/* 起動(1回だけ) */
+function yrEnsure(){
+  if (yrApi) return yrApi;
+  if (!window.Yaraseru) return null;
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate});
+  return yrApi;
+}
+/* アプリを開いた時: 今日の「これから/実行中」が残っていれば、画面を開かなくても動かし始める(それ以外は、画面を開くまで何もしない) */
+function yrAutoMount(){
+  try {
+    var t = loadJSON(YR_TODAY_KEY, null);
+    var d = new Date();
+    var today = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    if (t && t.date === today && Array.isArray(t.items) && t.items.some(function(i){ return i && (i.status === 'todo' || i.status === 'running'); })) yrEnsure();
+  } catch(e){}
+}
+/* ガワとの接続が確認できた後: 通知の許可状態を調べて、画面に反映する */
+function yrAfterBridge(){
+  if (!isApkPlatform()) return;
+  callNativeBridge('checkPermissions', {}).then(function(res){
+    yrApplyApkPerm(res);
+    if (yrApi) yrApi.render();
+  }).catch(function(){});
+}
+
+/* 戻るボタンとの連携。内側の画面が「今日」以外になった時に履歴を1つ積み、「今日」に戻った時に1つ消費する */
+function yrOnNavigate(v){
+  if (yrSync) return;
+  var st = history.state;
+  if (!st || st.page !== 'yaraseru') return;      /* やらせるToDoのページを開いていない時は、履歴を触らない */
+  if (v === 'today'){
+    if (st.sub) history.back();
+  } else if (st.sub){
+    history.replaceState({page: 'yaraseru', sub: v}, '', '#yaraseru');
+  } else {
+    history.pushState({page: 'yaraseru', sub: v}, '', '#yaraseru');
+  }
+}
+/* ページが表示された時(メニューから開いた時・戻る/進むで来た時): 履歴の状態に合わせて内側の画面を切り替える */
+function yrOnShow(){
+  var api = yrEnsure();
+  if (!api) return;
+  var st = history.state;
+  var sub = (st && st.page === 'yaraseru' && st.sub) ? st.sub : 'today';
+  yrSync = true;
+  try {
+    if (api.view() !== sub) api.go(sub); else api.render();
+  } finally { yrSync = false; }
+}
+
+/* 通知をタップした時(ガワ経由・SW経由どちらも): やらせるToDoを開く。tag='nudge' なら開始時間の入力画面まで開く */
+function yrHandleNotifTap(tag){
+  if (!yrEnsure()) return;
+  if (!(history.state && history.state.page === 'yaraseru')) navigateTo('yaraseru');
+  if (yrClickCb) yrClickCb(tag);
+}
+/* PWA版で、アプリが閉じている時に通知をタップすると「?yr=○○」付きで開かれる(sw.js の notificationclick) */
+function yrOpenFromQuery(){
+  var q = '';
+  try { q = new URLSearchParams(location.search).get('yr') || ''; } catch(e){}
+  if (!q) return;
+  try { history.replaceState({page: 'home'}, '', location.pathname); } catch(e){}
+  yrHandleNotifTap(q);
+}
+
 /* ============ 初期化 ============ */
 renderMenu();
 renderPage('home');
@@ -5167,7 +7283,10 @@ confirmNativeBridge().then(function(){
   renderTodoAlarmBox();
   syncTodoAlarms();
   syncTodoPersistentNotif();
+  yrAfterBridge();
 });
+yrAutoMount();
+yrOpenFromQuery();
 renderTodoSchedule();
 initTimeDiffDefaults();
 renderTimeDiffAll();
@@ -5799,6 +7918,8 @@ if ('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', function(event){
     if (event.data && event.data.type === 'sw_updated'){
       showToast('新しいバージョンを適用しました。設定の「アプリ全般」にある「リロード」を押してください', 7000);
+    } else if (event.data && event.data.type === 'yr-notif-click'){
+      yrHandleNotifTap(event.data.tag);   /* PWA版: やらせるToDoの通知をタップした(sw.js から届く) */
     }
   });
 }

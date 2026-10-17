@@ -80,6 +80,30 @@ self.addEventListener('activate', event => {
 });
 
 // ============================================================
+// 通知のタップ(やらせるToDo・PWA版)
+// 本体(index.html)が showNotification した通知(data.app === 'yaraseru')をタップした時、
+// 開いているアプリへ「どの通知か(tag)」を伝えて前面に出す。アプリが閉じていれば「?yr=<tag>」付きで開く。
+// (APK版はガワ側が通知のタップを受け取るので、ここは使われない)
+// ============================================================
+self.addEventListener('notificationclick', event => {
+  const d = event.notification.data;
+  if (!d || d.app !== 'yaraseru') return;
+  const tag = d.tag || 'open';
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if ('focus' in c) {
+          c.postMessage({ type: 'yr-notif-click', tag });
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow('./?yr=' + encodeURIComponent(tag));
+    })
+  );
+});
+
+// ============================================================
 // Fetch: 戦略の使い分け（HTMLはNetwork-First, 他はSWR）
 // ============================================================
 self.addEventListener('fetch', event => {
