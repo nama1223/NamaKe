@@ -46,7 +46,7 @@
 
  【よく触る場所・共通部品(検索する言葉)】
   ・メニュー定義(新しいページを足す時に触る): 「var MENU_ITEMS =」
-  ・やらせるToDoの通知ID範囲(逆算ToDoの89990〜と重ならない): 「var YR_NOTIF_BASE」
+  ・やらせるToDoの通知ID範囲(逆算ToDoの89990〜と重ならない): 「var YR_NOTIF_BASE」 / 予約通知(アプリが閉じていても鳴る分): 「予約通知(アプリが閉じていても鳴らす分。APK版のみ)」
   ・バックアップ対象のキー群: 「var BACKUP_GROUPS」
   ・バックアップ値の形式チェック: 「function validateBackupValue」
   ・ビルド番号(更新確認用。index.htmlを変えたら手で上げる): 「var APP_BUILD = '2026」
@@ -1735,6 +1735,7 @@ select.plain{
      now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
      storage … localStorage 互換の保存先
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
+     onStateChange … 状態を保存するたびに呼ばれる(本体が予約通知を作り直す合図)。戻り値の schedule() が「これから鳴るはずの通知」{sound, events:[{tag, at(ms), title, body}]} を返す
      embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
      onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
    戻り値の back() / canGoBack() / view(): 内側の画面が「今日」以外なら back() で「今日」へ戻る(戻れたら true)
@@ -1880,6 +1881,8 @@ function mount(root, opts){
       escapeMin: int(s.escapeMin, 1, 60, 5),                       /* 脱線の時間 */
       extendMin: int(s.extendMin, 1, 60, 5),                       /* 延長の長さ */
       escapeGraceSec: int(s.escapeGraceSec, 10, 600, 60),          /* 脱線の時間切れ後、強いアラームになるまでの猶予 */
+      resetHour: int(s.resetHour, 1, 23, 12),                      /* 「本日終了」のロックが解除される2回目のリセット時刻(0時と、この時刻の1日2回) */
+      startDialog: s.startDialog !== false,                        /* 「開始する」で確認画面を出し、生存確認・脱線の時間をその回だけ変えられるようにする */
       effect: s.effect !== false,
       praiseOn: s.praiseOn !== false,                              /* 褒める機能を使う */
       praiseOnDone: s.praiseOnDone !== false,                      /* 完了した時に自動で褒める */
@@ -1890,7 +1893,7 @@ function mount(root, opts){
     if (o.aliveRandMax < o.aliveRandMin) o.aliveRandMax = o.aliveRandMin;
     return o;
   })();
-  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10]};
+  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10], resetHour: [1, 23, 1]};
   var backlog = load(KEY.backlog, []);
   var today = load(KEY.today, null);
   var nudge = load(KEY.nudge, {last: 0});
@@ -1928,9 +1931,23 @@ function mount(root, opts){
     return base + ' (' + n + ')';
   }
   function items(){ return today.items; }
+  /* 生存確認・脱線の設定値。「開始」の時にその回だけ変えた値(it.opt)があればそれ、なければ設定画面の値(デフォルト) */
+  var OPT_KEYS = ['aliveEnabled', 'aliveMode', 'aliveFixedMin', 'aliveRandMin', 'aliveRandMax', 'aliveRespSec', 'escapeMin', 'extendMin', 'escapeGraceSec'];
+  function cfg(it, k){ return (it && it.opt && it.opt[k] !== undefined) ? it.opt[k] : settings[k]; }
+  /* 「本日終了」のロックは、0時と settings.resetHour 時の1日2回リセットされる。t より前で一番近いリセット時刻 / t より後で一番近いリセット時刻 */
+  function resetBounds(t){
+    var d = new Date(t); d.setHours(0, 0, 0, 0);
+    var mid = d.getTime(), second = mid + settings.resetHour * 3600000;
+    return t >= second ? {last: second, next: mid + 86400000} : {last: mid, next: second};
+  }
+  function isLocked(it){ return it.status === 'fail' && it.failAt != null && it.failAt >= resetBounds(now()).last; }
+  function nextResetText(){ var n = resetBounds(now()).next; return (n >= dayEnd(today.date) ? '翌' : '') + clock(n); }
   function findItem(id){ for (var i = 0; i < today.items.length; i++) if (today.items[i].id === id) return today.items[i]; return null; }
   function findBacklog(id){ for (var i = 0; i < backlog.length; i++) if (backlog[i].id === id) return backlog[i]; return null; }
-  function persist(){ save(KEY.today, today); save(KEY.backlog, backlog); save(KEY.settings, settings); save(KEY.nudge, nudge); }
+  function persist(){
+    save(KEY.today, today); save(KEY.backlog, backlog); save(KEY.settings, settings); save(KEY.nudge, nudge);
+    if (opts.onStateChange){ try { opts.onStateChange(); } catch(e){} }   /* 本体が「予約通知の作り直し」をするための合図 */
+  }
 
   /* "HH:MM" → 今日のその時刻(ms)。未設定は null */
   function timeToMs(hhmm, base){
@@ -2032,19 +2049,26 @@ function mount(root, opts){
       if (it.esc){
         h += '<div class="yr-esc"><div class="yr-meta" style="font-weight:700">🌀 脱線中</div><div class="yr-big amber" data-esc-left="' + it.esc.endAt + '">0:00</div>' +
              '<div class="yr-row"><button type="button" class="yr-btn start" data-act="esc-return" data-id="' + it.id + '">↩ 早期復帰</button>' +
-             '<button type="button" class="yr-btn" data-act="esc-extend" data-id="' + it.id + '">＋' + settings.extendMin + '分</button></div></div>';
+             '<button type="button" class="yr-btn" data-act="esc-extend" data-id="' + it.id + '">＋' + cfg(it, 'extendMin') + '分</button></div></div>';
         h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="finish" data-id="' + it.id + '">✔ 完了した</button></div>';
       } else {
         h += '<div class="yr-row"><button type="button" class="yr-btn start" data-act="finish" data-id="' + it.id + '">✔ 完了した</button>' +
-             '<button type="button" class="yr-btn amber" data-act="esc-start" data-id="' + it.id + '">🌀 脱線する(' + settings.escapeMin + '分)</button></div>';
+             '<button type="button" class="yr-btn amber" data-act="esc-start" data-id="' + it.id + '">🌀 脱線する(' + cfg(it, 'escapeMin') + '分)</button></div>';
       }
     } else if (it.status === 'done'){
       h += '<div class="yr-meta">✅ 完了' + (it.startedAt && it.doneAt ? '(所要 ' + Math.max(1, Math.round((it.doneAt - it.startedAt) / 60000)) + '分)' : '') + '</div>';
       h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="repeat" data-id="' + it.id + '">↻ もう一度やる</button></div>';
     } else {
-      h += '<div class="yr-meta">🔒 ' + esc(timesText(it)) + '</div>';
-      h += '<div class="yr-fail-msg">開始リミットを過ぎたため、今日はもう開始できません。' + FAIL_MESSAGE + '</div>';
-      h += '<div class="yr-row"><button type="button" class="yr-btn danger" data-act="del-item" data-id="' + it.id + '">🗑 リストから消す</button></div>';
+      if (isLocked(it)){
+        h += '<div class="yr-meta">🔒 ' + esc(timesText(it)) + '</div>';
+        h += '<div class="yr-fail-msg">開始リミットを過ぎたため、' + nextResetText() + ' のリセットまで開始できません。' + FAIL_MESSAGE + '</div>';
+        h += '<div class="yr-row"><button type="button" class="yr-btn danger" data-act="del-item" data-id="' + it.id + '">🗑 リストから消す</button></div>';
+      } else {
+        h += '<div class="yr-meta">🔓 ' + esc(timesText(it)) + '</div>';
+        h += '<div class="yr-fail-msg">リセットされました。もう一度やれます(新しい「やる事」として登録されます)。</div>';
+        h += '<div class="yr-row"><button type="button" class="yr-btn start" data-act="repeat" data-id="' + it.id + '">↻ もう一度やる</button>' +
+             '<button type="button" class="yr-btn danger" data-act="del-item" data-id="' + it.id + '">🗑 リストから消す</button></div>';
+      }
     }
     return h + '</div>';
   }
@@ -2104,9 +2128,11 @@ function mount(root, opts){
   function renderSettings(){
     var perm = host.permission();
     var permTxt = perm === 'granted' ? '✔ 許可済み' : (perm === 'denied' ? '✖ ブロック中' : (perm === 'unsupported' ? 'この環境では使えません' : '未許可'));
-    var h = '<div class="yr-h">🔔 通知とアラーム</div><div class="yr-set g-base">' +
+    var h = '<div class="yr-h">🔔 通知・アラーム・リセット</div><div class="yr-set g-base">' +
       '<div class="yr-setrow"><div>開始前の通知<small>開始予定の何分前に知らせるか(0=開始時刻ちょうど)</small></div>' + stepper('leadMin', settings.leadMin, '分前') + '</div>' +
       '<div class="yr-setrow"><div>「いつ始めますか？」の間隔<small>開始時刻を1つも決めていない時だけ、この間隔で催促します</small></div>' + stepper('nudgeMin', settings.nudgeMin, '分おき') + '</div>' +
+      '<div class="yr-setrow"><div>開始リミットのリセット(1日2回)<small>0時と、ここで決めた時刻にリセットされ、「本日終了」にしたやる事をもう一度やれるようになります</small></div>' + stepper('resetHour', settings.resetHour, '時') + '</div>' +
+      '<div class="yr-setrow"><div>開始する時に確認画面を出す<small>生存確認・脱線の時間を、その回だけ変えられます(下の設定はデフォルト)</small></div><label><input type="checkbox" data-role="set-startDialog"' + (settings.startDialog ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
       '<div class="yr-setrow"><div>アラーム音<small>通知と一緒に鳴らします</small></div><label><input type="checkbox" data-role="set-sound"' + (settings.sound ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
       '<div class="yr-setrow"><div>通知<small>' + esc(permTxt) + '</small></div>' + (perm === 'default' ? '<button type="button" class="yr-btn primary" data-act="allow-notif">許可する</button>' : '') + '</div>' +
       '<div class="yr-setrow"><div>アラームのテスト<small>音と画面表示を確認します</small></div><button type="button" class="yr-btn" data-act="test-alarm">テスト</button></div>' +
@@ -2247,9 +2273,9 @@ function mount(root, opts){
     if (!backlog.length) h += '<div class="yr-empty">「そのうちやる事」がまだありません。</div>';
     backlog.forEach(function(b){
       var n = items().filter(function(i){ return i.fromId === b.id; }).length;
-      var locked = items().some(function(i){ return i.fromId === b.id && i.status === 'fail'; });   /* 本日終了(Fail)にしたものは、番号を付けても今日はもう追加しない */
+      var locked = items().some(function(i){ return i.fromId === b.id && isLocked(i); });   /* 本日終了(Fail)にしたものは、次のリセット(0時と2回目の時刻)まで、番号を付けても追加しない */
       h += '<div class="yr-pick"><span>' + esc(b.title) + (n ? ' <small class="yr-meta">(今日 ' + n + '件)</small>' : '') + '</span>' +
-           (locked ? '<span class="yr-meta late">本日終了のため追加できません</span>'
+           (locked ? '<span class="yr-meta late">' + nextResetText() + ' のリセットまで追加できません</span>'
                    : '<button type="button" class="yr-btn primary" data-act="pick-add" data-id="' + b.id + '">' + (n ? '＋ もう1つ追加' : '＋ 追加') + '</button>') + '</div>';
     });
     openModal(h + '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">閉じる</button></div>');
@@ -2340,12 +2366,14 @@ function mount(root, opts){
     if (n === 'NotReadableError') return '他のアプリがカメラを使用中のようです。';
     return 'カメラを開けませんでした' + (err && err.message ? '(' + err.message + ')' : '') + '。';
   }
+  /* 生存確認の設定値: 「いますぐ試す」は設定画面の値、実行中のやる事の確認は、その回の値(開始時に変えていれば) */
+  function aliveCfg(k){ return (alive && alive.test) ? settings[k] : cfg(runningItem(), k); }
   function aliveInterval(){
-    if (settings.aliveMode === 'random'){
-      var a = settings.aliveRandMin, b = Math.max(a, settings.aliveRandMax);
+    if (aliveCfg('aliveMode') === 'random'){
+      var a = aliveCfg('aliveRandMin'), b = Math.max(a, aliveCfg('aliveRandMax'));
       return (a + Math.random() * (b - a)) * 60000;
     }
-    return settings.aliveFixedMin * 60000;
+    return aliveCfg('aliveFixedMin') * 60000;
   }
   function aliveSave(){ save(KEY.alive, alive); }
   function aliveChecking(){ return !!alive && (alive.mode === 'checking' || alive.mode === 'blocked'); }
@@ -2447,10 +2475,10 @@ function mount(root, opts){
 
   /* ---- 確認の進行 ---- */
   function startCheck(t){
-    alive.mode = 'checking'; alive.deadline = t + settings.aliveRespSec * 1000; aliveSave();
+    alive.mode = 'checking'; alive.deadline = t + aliveCfg('aliveRespSec') * 1000; aliveSave();
     darkSince = 0;
     showLine();
-    fire({key: 'alive', tag: 'alive', title: '生存確認', body: 'カメラを手で塞いでください(残り ' + fmtDur(settings.aliveRespSec * 1000) + ')', buttons: []});
+    fire({key: 'alive', tag: 'alive', title: '生存確認', body: 'カメラを手で塞いでください(残り ' + fmtDur(aliveCfg('aliveRespSec') * 1000) + ')', buttons: []});
     openCamera();
   }
   function enterBlocked(t){
@@ -2491,7 +2519,7 @@ function mount(root, opts){
     var r = null, i;
     for (i = 0; i < items().length; i++) if (items()[i].status === 'running'){ r = items()[i]; break; }
     if (!(alive && alive.test)){
-      if (!r || !settings.aliveEnabled){ if (alive) aliveStop(); return; }
+      if (!r || !cfg(r, 'aliveEnabled')){ if (alive) aliveStop(); return; }
       if (r.esc && !aliveChecking()){        /* 脱線中は生存確認を止める(戻った直後にすぐ確認が来ないよう、次回を少し先へ送る) */
         if (alive && alive.mode === 'wait') alive.nextAt = Math.max(alive.nextAt, t + 60000);
         return;
@@ -2508,7 +2536,7 @@ function mount(root, opts){
     /* ページを開き直した直後など、画面の部品やカメラが無ければ作り直す */
     if (alive.mode === 'checking'){
       showLine();
-      var rem = alive.deadline - t, total = settings.aliveRespSec * 1000;
+      var rem = alive.deadline - t, total = aliveCfg('aliveRespSec') * 1000;
       lineEl.style.height = (Math.max(0, Math.min(1, rem / total)) * 100) + 'vh';
       var p = $r('alerts').querySelector('[data-key="alive"] p');
       if (p) p.textContent = 'カメラを手で塞いでください(残り ' + fmtDur(rem) + ')';
@@ -2668,9 +2696,9 @@ function mount(root, opts){
     var it = findItem(id); if (!it || it.status !== 'running' || it.esc) return;
     if (aliveChecking()){ showAlert({key: 'busy', title: '生存確認の最中です', body: '確認を済ませてから脱線しましょう。', buttons: []}); return; }
     var t = now();
-    it.esc = {start: t, endAt: t + settings.escapeMin * 60000, ext: 0, overdue: false, overAt: 0};
+    it.esc = {start: t, endAt: t + cfg(it, 'escapeMin') * 60000, ext: 0, overdue: false, overAt: 0};
     persist(); render();
-    toast('脱線スタート。' + settings.escapeMin + '分間は自由です');
+    toast('脱線スタート。' + cfg(it, 'escapeMin') + '分間は自由です');
   }
   /* 脱線を終わらせて記録に残す。戻り値: 記録(なければ null) */
   function closeEscape(it, t){
@@ -2691,10 +2719,10 @@ function mount(root, opts){
   function escExtend(id){
     var it = findItem(id); if (!it || !it.esc) return;
     var e = it.esc, t = now();
-    e.endAt = Math.max(e.endAt, t) + settings.extendMin * 60000;    /* 時間切れ後でも「いまから」延長分を数える */
+    e.endAt = Math.max(e.endAt, t) + cfg(it, 'extendMin') * 60000;    /* 時間切れ後でも「いまから」延長分を数える */
     e.overdue = false; e.overAt = 0; e.ext = (e.ext || 0) + 1;
     clearEscUi(); persist(); render();
-    toast('＋' + settings.extendMin + '分 延長しました');
+    toast('＋' + cfg(it, 'extendMin') + '分 延長しました');
   }
   /* 1秒ごとに tick から呼ばれる */
   function escTick(t){
@@ -2702,12 +2730,12 @@ function mount(root, opts){
     if (!r || !r.esc){ if (escUi) clearEscUi(); return; }
     var e = r.esc;
     if (t < e.endAt){ if (escUi) clearEscUi(); return; }
-    var grace = settings.escapeGraceSec * 1000;
+    var grace = cfg(r, 'escapeGraceSec') * 1000;
     if (!e.overdue){                       /* ちょうど時間切れになった */
       e.overdue = true; e.overAt = e.endAt; persist();
       escUi = true;
       fire({key: 'esc-end', tag: 'esc-end', title: '脱線の時間が終わりました', body: '「' + r.title + '」に戻りましょう。',
-            buttons: [{label: '↩ 戻る', act: 'esc-return', id: r.id, primary: true}, {label: '＋' + settings.extendMin + '分', act: 'esc-extend', id: r.id}]});
+            buttons: [{label: '↩ 戻る', act: 'esc-return', id: r.id, primary: true}, {label: '＋' + cfg(r, 'extendMin') + '分', act: 'esc-extend', id: r.id}]});
       if (view === 'today') render();
     }
     escUi = true;
@@ -2722,7 +2750,7 @@ function mount(root, opts){
         escBlockEl.innerHTML = '<div><div class="yr-block-big">🌀 脱線の時間が終わっています</div>' +
           '<p>「' + esc(r.title) + '」に戻りましょう。</p>' +
           '<div class="yr-row" style="justify-content:center"><button type="button" class="yr-btn start" style="flex:none;min-width:200px" data-act="esc-return" data-id="' + r.id + '">↩ 戻る</button>' +
-          '<button type="button" class="yr-btn" style="background:rgba(255,255,255,.25);color:#fff" data-act="esc-extend" data-id="' + r.id + '">＋' + settings.extendMin + '分</button></div></div>';
+          '<button type="button" class="yr-btn" style="background:rgba(255,255,255,.25);color:#fff" data-act="esc-extend" data-id="' + r.id + '">＋' + cfg(r, 'extendMin') + '分</button></div></div>';
         root.appendChild(escBlockEl);
         var a = $r('alerts').querySelector('[data-key="esc-end"]'); if (a) a.remove();
         stopAlarm();
@@ -3245,6 +3273,41 @@ function mount(root, opts){
     try { return (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'ON(この設定は無視して演出を出します)' : 'OFF'; } catch(e){ return '不明'; }
   }
 
+  /* ---------- 予約通知(アプリが閉じていても鳴らす分)の計算 ----------
+     今の状態から「これから鳴るはずの通知」を計算して返す。実際の予約は本体(opts.onStateChange を受けて schedule() を呼ぶ側)が行う。
+     対象は tick が鳴らす3種類: 開始前(pre) / 催促(nudge) / 脱線の時間切れ(esc-end)と猶予切れ(esc-block)。生存確認はカメラ操作が要るので対象外。
+     tick と同じ文面・同じ条件にしてある(文面を変えたら、ここも直す)。*/
+  var NUDGE_SCHEDULE_MAX = 4;          /* 催促は、アプリが開かれるまでの分として、先の4回分まで */
+  function computeSchedule(){
+    var t = now(), ev = [], endOfDay = dayEnd(today.date);
+    function add(tag, at, body){ ev.push({tag: tag, at: Math.round(at / 1000) * 1000, title: 'やらせるToDo', body: body}); }
+    items().forEach(function(it){                               /* 開始前 */
+      if (it.status !== 'todo' || it.preNotified) return;
+      var st = timeToMs(it.startAt, t), lim = timeToMs(it.limitAt, t);
+      if (st === null) return;
+      var at = st - settings.leadMin * 60000;
+      if (at <= t || at > endOfDay || (lim !== null && at >= lim)) return;      /* すでに時刻を過ぎた分は、アプリを開いた時に tick が鳴らす */
+      add('pre', at, it.startAt + '「' + it.title + '」 ' + (settings.leadMin > 0 ? settings.leadMin + '分後に開始予定です' : '開始予定の時刻です'));
+    });
+    var todo = items().some(function(i){ return i.status === 'todo'; });          /* 催促 */
+    var timed = items().some(function(i){ return i.status === 'todo' && i.startAt; });
+    var running = items().some(function(i){ return i.status === 'running'; });
+    if (todo && !timed && !running){
+      var step = settings.nudgeMin * 60000, at2 = (nudge.last || t) + step;
+      while (at2 <= t) at2 += step;
+      for (var k = 0; k < NUDGE_SCHEDULE_MAX && at2 <= endOfDay; k++, at2 += step) add('nudge', at2, 'いつ始めますか？ 今日やる事の開始時刻がまだ決まっていません。');
+    }
+    var r = runningItem();                                                         /* 脱線の時間切れ・猶予切れ */
+    if (r && r.esc){
+      var e = r.esc, grace = cfg(r, 'escapeGraceSec') * 1000;
+      if (!e.overdue && e.endAt > t) add('esc-end', e.endAt, '脱線の時間が終わりました 「' + r.title + '」に戻りましょう。');
+      var blockAt = (e.overdue ? e.overAt : e.endAt) + grace;
+      if (blockAt > t && !escStrong) add('esc-block', blockAt, '脱線の猶予が切れました。「' + r.title + '」に戻りましょう。');
+    }
+    ev.sort(function(a, b){ return a.at - b.at; });
+    return {sound: settings.sound, events: ev};
+  }
+
   /* ---------- 時間の見張り(1秒ごと) ---------- */
   function failItem(it, t){
     it.status = 'fail'; it.failAt = t;
@@ -3294,6 +3357,58 @@ function mount(root, opts){
     it.status = 'running'; it.startedAt = now();
     nudge.last = 0; persist(); closeModal(); clearAlertsFor(id); render();
   }
+  /* ---------- 開始の確認画面(生存確認・脱線の時間を、その回だけ変える) ----------
+     設定画面の値がデフォルト。確認画面で変えた値は、そのやる事(it.opt)にだけ保存され、完了するまでその値で動く。
+     設定で「開始する時に確認画面を出す」をオフにすると、これまでどおり確認なしで開始する */
+  var startDraft = null;
+  function startSummary(v){
+    var a = v.aliveEnabled ? ('オン(' + (v.aliveMode === 'random' ? 'ランダム ' + v.aliveRandMin + '〜' + v.aliveRandMax + '分おき' : v.aliveFixedMin + '分おき') + '・応答 ' + v.aliveRespSec + '秒)') : 'オフ';
+    return '👁 生存確認: ' + a + '<br>🌀 脱線: ' + v.escapeMin + '分(延長 ' + v.extendMin + '分・猶予 ' + v.escapeGraceSec + '秒)';
+  }
+  function sdRow(label, name, unit){
+    return '<div class="yr-setrow"><div>' + label + '</div><div class="yr-step"><button type="button" data-act="sd-step" data-name="' + name + '" data-d="-1">−</button>' +
+           '<b style="min-width:3.2em;text-align:center">' + startDraft.v[name] + '</b>' +
+           '<button type="button" data-act="sd-step" data-name="' + name + '" data-d="1">＋</button><span>' + unit + '</span></div></div>';
+  }
+  function renderStartDialog(){
+    var d = startDraft, it = d ? findItem(d.id) : null;
+    if (!it){ closeModal(); return; }
+    var v = d.v, h = '<h2>「' + esc(it.title) + '」を開始</h2>';
+    h += '<div class="yr-meta" style="margin-bottom:10px;line-height:1.7">' + startSummary(v) + '</div>';
+    if (d.open){
+      h += '<div class="yr-set" style="margin-bottom:10px">' +
+        '<div class="yr-setrow"><div>生存確認を使う</div><label><input type="checkbox" data-role="sd-aliveEnabled"' + (v.aliveEnabled ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>';
+      if (v.aliveEnabled){
+        h += '<div class="yr-setrow"><div>確認の間隔</div><div class="yr-seg"><button type="button" data-act="sd-mode" data-mode="fixed" class="' + (v.aliveMode === 'fixed' ? 'on' : '') + '">固定</button>' +
+             '<button type="button" data-act="sd-mode" data-mode="random" class="' + (v.aliveMode === 'random' ? 'on' : '') + '">ランダム</button></div></div>';
+        h += v.aliveMode === 'fixed' ? sdRow('間隔', 'aliveFixedMin', '分おき') : sdRow('間隔(最短)', 'aliveRandMin', '分') + sdRow('間隔(最長)', 'aliveRandMax', '分');
+        h += sdRow('応答時間', 'aliveRespSec', '秒');
+      }
+      h += sdRow('脱線の時間', 'escapeMin', '分') + sdRow('延長の長さ', 'extendMin', '分') + sdRow('時間切れ後の猶予', 'escapeGraceSec', '秒') + '</div>';
+      h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="sd-reset">デフォルトに戻す</button></div>';
+    }
+    h += '<div class="yr-row"><button type="button" class="yr-btn start" style="flex:1" data-act="sd-go">▶ 開始</button>' +
+         (d.open ? '' : '<button type="button" class="yr-btn" data-act="sd-open">⚙ この回だけ変える</button>') + '</div>' +
+         '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">やめる</button></div>';
+    openModal(h);
+  }
+  function requestStart(id){
+    var it = findItem(id); if (!it || it.status !== 'todo') return;
+    var busy = items().some(function(i){ return i.status === 'running'; });
+    var lim = timeToMs(it.limitAt, now());
+    /* 確認画面を使わない設定、または今は開始できない状態(実行中がある・リミット超過)の時は、これまでどおり startItem に任せる(警告や本日終了の処理もそちらで行う) */
+    if (!settings.startDialog || busy || (lim !== null && now() >= lim)){ startItem(id); return; }
+    var v = {}; OPT_KEYS.forEach(function(k){ v[k] = settings[k]; });
+    startDraft = {id: id, open: false, v: v};
+    renderStartDialog();
+  }
+  function sdStep(name, dir){
+    var rg = RANGES[name]; if (!rg || !startDraft) return;
+    var v = startDraft.v;
+    v[name] = Math.max(rg[0], Math.min(rg[1], v[name] + dir * rg[2]));
+    if (v.aliveRandMax < v.aliveRandMin){ if (name === 'aliveRandMin') v.aliveRandMax = v.aliveRandMin; else v.aliveRandMin = v.aliveRandMax; }
+    renderStartDialog();
+  }
   function clearAlertsFor(id){
     ['pre-' + id, 'nudge', 'busy'].forEach(function(k){
       var e = $r('alerts').querySelector('[data-key="' + k + '"]'); if (e) e.remove();
@@ -3320,7 +3435,19 @@ function mount(root, opts){
       case 'goto-backlog': go('backlog'); break;
       case 'allow-notif': unlockAudio(); host.requestPermission().then(function(){ render(); }); break;
       case 'test-alarm': unlockAudio(); fire({key: 'test', tag: 'test', title: 'テスト', body: 'このように通知とアラームでお知らせします。', buttons: []}); break;
-      case 'start': startItem(id); break;
+      case 'start': requestStart(id); break;
+      case 'sd-open': if (startDraft){ startDraft.open = true; renderStartDialog(); } break;
+      case 'sd-step': sdStep(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
+      case 'sd-mode': if (startDraft){ startDraft.v.aliveMode = el.getAttribute('data-mode') === 'random' ? 'random' : 'fixed'; renderStartDialog(); } break;
+      case 'sd-reset': if (startDraft){ OPT_KEYS.forEach(function(k){ startDraft.v[k] = settings[k]; }); renderStartDialog(); } break;
+      case 'sd-go': {
+        if (!startDraft) break;
+        var sit = findItem(startDraft.id), sid = startDraft.id; if (!sit) break;
+        sit.opt = JSON.parse(JSON.stringify(startDraft.v)); startDraft = null;
+        startItem(sid);
+        if (sit.status !== 'running') sit.opt = null;     /* 開始できなかった時は、その回の設定も捨てる */
+        break;
+      }
       case 'finish': finishItem(id); break;
       case 'new-item': openNewItem(); break;
       case 'new-ok': {
@@ -3345,11 +3472,11 @@ function mount(root, opts){
       case 'pick-backlog': openPick(); break;
       case 'pick-add': {
         var b2 = findBacklog(id); if (!b2) break;
-        if (items().some(function(i){ return i.fromId === b2.id && i.status === 'fail'; })) break;
+        if (items().some(function(i){ return i.fromId === b2.id && isLocked(i); })) break;
         today.items.push(newItem(uniqueTitle(b2.title), b2.id)); nudge.last = 0; persist(); render(); openPick(); break;
       }
       case 'repeat': {   /* 完了したものを、通し番号を付けてもう一度登録する */
-        var src = findItem(id); if (!src || src.status !== 'done') break;
+        var src = findItem(id); if (!src || !(src.status === 'done' || (src.status === 'fail' && !isLocked(src)))) break;
         today.items.push(newItem(uniqueTitle(src.title.replace(/ \(\d+\)$/, '')), src.fromId)); nudge.last = 0; persist(); render(); break;
       }
       case 'bl-add': {
@@ -3426,12 +3553,14 @@ function mount(root, opts){
   root.addEventListener('change', function(e){
     var r = e.target.getAttribute && e.target.getAttribute('data-role');
     if (!r) return;
+    if (r === 'sd-aliveEnabled'){ if (startDraft){ startDraft.v.aliveEnabled = e.target.checked; renderStartDialog(); } return; }   /* 開始の確認画面のチェック */
     var nm = r.indexOf('set-') === 0 ? r.slice(4) : '';
     if (nm && RANGES[nm]){
       settings[nm] = int(e.target.value, RANGES[nm][0], RANGES[nm][1], settings[nm]);
       if (settings.aliveRandMax < settings.aliveRandMin){ if (nm === 'aliveRandMin') settings.aliveRandMax = settings.aliveRandMin; else settings.aliveRandMin = settings.aliveRandMax; }
     }
     else if (r === 'set-sound') settings.sound = e.target.checked;
+    else if (r === 'set-startDialog') settings.startDialog = e.target.checked;
     else if (r === 'set-effect') settings.effect = e.target.checked;
     else if (r === 'set-praiseOn') settings.praiseOn = e.target.checked;
     else if (r === 'set-praiseOnDone') settings.praiseOnDone = e.target.checked;
@@ -3439,7 +3568,7 @@ function mount(root, opts){
     else if (r === 'set-praiseTemp'){ var tv = parseFloat(e.target.value); if (!isNaN(tv)) settings.praiseTemp = Math.max(0, Math.min(2, Math.round(tv * 10) / 10)); }
     else if (r === 'praise-style') settings.praiseStyle = e.target.value.trim().slice(0, 300) || PRAISE_STYLE_DEFAULT;
     else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
-    else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!settings.aliveEnabled && alive && !alive.test) aliveStop(); }
+    else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!cfg(runningItem(), 'aliveEnabled') && alive && !alive.test) aliveStop(); }
     else if (r === 'set-camera') settings.cameraId = e.target.value;
     else return;
     persist(); if (view === 'settings') render();
@@ -3472,6 +3601,7 @@ function mount(root, opts){
   return {
     tick: tick, render: render, go: go,
     view: function(){ return view; },
+    schedule: computeSchedule,
     canGoBack: function(){ return view !== 'today'; },
     back: function(){ if (view === 'today') return false; go('today'); return true; },
     destroy: function(){ clearInterval(timer); stopAlarm(); stopStrong(); aliveStopUi(); clearEscUi(); removeEffect(); camLoopStopIfIdle(); },
@@ -4796,7 +4926,7 @@ var REQUIRED_SHELL_VERSION = 11;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261021-2';
+var APP_BUILD = '20261022-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7159,44 +7289,58 @@ document.getElementById('settings-install-btn').addEventListener('click', functi
    ・戻る: やらせるToDoの内側の画面(そのうち/記録/設定)を開くたびに履歴を1つ積む。ヘッダーの「←」もAndroidの戻るボタンも、そのまま1つ戻る動きになる
    ・通知: APK版はガワ(LocalNotifications)の「今すぐ表示」(チャンネル notif_yaraseru_v1)。PWA版は Service Worker(sw.js)経由の通知
           通知IDは 80000〜80999(逆算ToDoの常時通知 89990〜89992・アラーム 90000以降と重ならない範囲)
-   ・「アプリが閉じていても鳴る予約通知」は、まだない(アプリを開いている間だけ通知・アラームが働く) */
+   ・アプリが閉じていても鳴る予約通知(APK版のみ): 開始前・催促・脱線の時間切れ/猶予切れの3種類を、通常の通知音で予約する(「予約通知」の節)。生存確認は対象外 */
 var YR_NOTIF_BASE = 80000;
 var YR_NOTIF_COUNT = 1000;
-var YR_NOTIF_NUDGE_ID = 80001;          /* 「いつ始めますか？」の催促だけは固定ID(タップで開始時間の入力画面を開くため) */
+var YR_NOTIF_NUDGE_ID = 80001;          /* 「いつ始めますか？」の催促(今すぐ表示)だけは固定ID */
+var YR_SCHED_ID_BASE = 80500;           /* 予約通知(アプリが閉じていても鳴らす分)のID: 80500〜80999。今すぐ表示の 80000〜80499 とは分けてある */
+var YR_SCHED_ID_COUNT = 500;
+var YR_SCHED_KEY = 'yaraseru_sched';        /* 予約済みの通知の控え [{id, at, tag}](バックアップ対象外) */
+var YR_SCHED_SEQ_KEY = 'yaraseru_schedseq'; /* 次に使う予約通知IDの位置(バックアップ対象外) */
+var YR_SCHED_TAGS = {'pre': 1, 'nudge': 1, 'esc-end': 1, 'esc-block': 1};   /* 予約通知にしている種類 */
+var YR_CHANNEL_SILENT_ID = 'notif_yaraseru_silent_v1';   /* 「通知音」をオフにしている時用(バイブのみ) */
 var YR_CHANNEL_ID = 'notif_yaraseru_v1';   /* alarm_ で始めない = 通常の通知として扱われる */
 var YR_TODAY_KEY = 'yaraseru_v1_today';
 var yrApi = null;          /* Yaraseru.mount の戻り値 */
 var yrSync = false;        /* 履歴の変化に合わせて内側の画面を切り替えている最中は true(履歴を二重に積まないため) */
 var yrPerm = 'default';    /* APK版の通知許可の状態(ガワに問い合わせた結果を覚えておく) */
-var yrChannelReady = false;
+var yrChannelsReady = {};
+var yrSchedSig = null, yrSchedTimer = null, yrSchedBusy = false, yrSchedAgain = false, yrSchedActive = {};
+var yrSchedInterval = null;
 var yrClickCb = null;      /* Yaraseru が渡してくる「通知をタップした時の処理」 */
 
 function yrIsNotifId(id){ return typeof id === 'number' && id >= YR_NOTIF_BASE && id < YR_NOTIF_BASE + YR_NOTIF_COUNT; }
 function yrNotifId(tag){
   if (tag === 'nudge') return YR_NOTIF_NUDGE_ID;
   var h = 0, s = String(tag || '');
-  for (var i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) % 900; }
-  return YR_NOTIF_BASE + 100 + h;       /* 80100〜80999。同じ種類の通知は同じIDになり、新しい通知で置き換わる */
+  for (var i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) % 400; }
+  return YR_NOTIF_BASE + 100 + h;       /* 80100〜80499。同じ種類の通知は同じIDになり、新しい通知で置き換わる */
 }
-function yrTagFromId(id){ return id === YR_NOTIF_NUDGE_ID ? 'nudge' : 'open'; }
+/* 通知のIDから、その通知の種類(tag)を調べる。予約通知は、予約した時の控えから引く */
+function yrTagFromId(id){
+  if (id === YR_NOTIF_NUDGE_ID) return 'nudge';
+  var list = loadJSON(YR_SCHED_KEY, []);
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i].tag || 'open';
+  return 'open';
+}
 
 function yrApplyApkPerm(res){
   var d = res && res.display;
   yrPerm = d === 'granted' ? 'granted' : (d === 'denied' ? 'denied' : 'default');
 }
+/* 通知チャンネルを作る(作成済みなら何もしない)。silent=true なら音なし(バイブのみ)のチャンネル。戻り値: チャンネルID */
+function yrEnsureChannel(silent){
+  var id = silent ? YR_CHANNEL_SILENT_ID : YR_CHANNEL_ID;
+  if (yrChannelsReady[id]) return Promise.resolve(id);
+  var args = {id: id, name: silent ? 'やらせるToDo通知(音なし)' : 'やらせるToDo通知', description: 'やらせるToDoの開始前・催促・脱線の時間切れなどの通知です', importance: 5, visibility: 1, vibration: true};
+  if (silent) args.sound = 'silent.wav';
+  return callNativeBridge('createChannel', args).then(function(){ yrChannelsReady[id] = true; return id; });
+}
 function yrNotifyApk(o){
   if (yrPerm !== 'granted') return;
-  var ready = yrChannelReady ? Promise.resolve() : callNativeBridge('createChannel', {
-    id: YR_CHANNEL_ID,
-    name: 'やらせるToDo通知',
-    description: 'やらせるToDoの開始前・催促・確認の通知です',
-    importance: 5,
-    visibility: 1,
-    vibration: true
-  }).then(function(){ yrChannelReady = true; });
-  ready.then(function(){
+  yrEnsureChannel(false).then(function(chId){
     /* schedule を付けない = 今すぐ表示 */
-    return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: YR_CHANNEL_ID}]});
+    return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId}]});
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
 }
 function yrNotifyFallback(o){
@@ -7233,17 +7377,82 @@ function createYaraseruHost(){
     },
     requestPermission: function(){
       if (isApkPlatform()){
-        return callNativeBridge('requestPermissions', {}).then(function(res){ yrApplyApkPerm(res); return yrPerm; }).catch(function(){ return yrPerm; });
+        return callNativeBridge('requestPermissions', {}).then(function(res){ yrApplyApkPerm(res); yrScheduleSoon(); return yrPerm; }).catch(function(){ return yrPerm; });
       }
       if (!('Notification' in window)) return Promise.resolve('unsupported');
       return Promise.resolve(Notification.requestPermission());
     },
     /* o: {title, body, tag} */
     notify: function(o){
-      if (isApkPlatform()){ yrNotifyApk(o); return true; }
+      if (isApkPlatform()){
+        if (YR_SCHED_TAGS[o.tag] && yrSchedActive[o.tag]) return true;   /* 同じ種類の通知を予約済み(これから/いま予約通知が出る)ので、二重に出さない */
+        yrNotifyApk(o); return true;
+      }
       return yrNotifyWeb(o);
     }
   };
+}
+
+/* ============ 予約通知(アプリが閉じていても鳴らす分。APK版のみ) ============
+   やらせるToDoの状態が変わるたびに(onStateChange → 0.8秒まとめて)、Yaraseru の schedule() が返す「これから鳴るはずの通知」と
+   前回の予約を見比べ、変わっていたら「未来分の予約を取り消して → 登録し直す」。変わっていなければ何もしない。
+   ・取り消すのは「まだ鳴っていない分」だけ(cancel は、すでに表示中の通知も消してしまうため)
+   ・予約の控え(ID・時刻・種類)は YR_SCHED_KEY に保存。通知タップの振り分け(催促なら開始時間の入力画面)に使う
+   ・鳴らし方: 通常の通知音(チャンネル notif_yaraseru_v1)。やらせるToDoの設定で通知音がオフなら、音なし(バイブのみ)のチャンネル */
+function yrScheduleSoon(){
+  if (!yrApi || !isApkPlatform()) return;
+  clearTimeout(yrSchedTimer);
+  yrSchedTimer = setTimeout(yrScheduleSync, 800);
+}
+function yrNextSchedId(used){
+  var n = parseInt(localStorage.getItem(YR_SCHED_SEQ_KEY) || '0', 10) || 0;
+  for (var i = 0; i < YR_SCHED_ID_COUNT; i++){
+    var id = YR_SCHED_ID_BASE + ((n + i) % YR_SCHED_ID_COUNT);
+    if (!used[id]){ try { localStorage.setItem(YR_SCHED_SEQ_KEY, String((n + i + 1) % YR_SCHED_ID_COUNT)); } catch(e){} used[id] = true; return id; }
+  }
+  return YR_SCHED_ID_BASE;
+}
+function yrScheduleApply(plan, events){
+  var nowMs = Date.now();
+  var prev = loadJSON(YR_SCHED_KEY, []);
+  if (!Array.isArray(prev)) prev = [];
+  var future = prev.filter(function(p){ return p && p.at > nowMs; });
+  var delivered = prev.filter(function(p){ return p && p.at <= nowMs; }).slice(-20);   /* 鳴った分の控えは、タップの振り分け用に少し残す */
+  var cancelP = future.length ? callNativeBridge('cancel', {notifications: future.map(function(p){ return {id: p.id}; })}).catch(function(){}) : Promise.resolve();
+  return cancelP.then(function(){
+    if (!events.length){ saveJSON(YR_SCHED_KEY, delivered); yrSchedActive = {}; return; }
+    return yrEnsureChannel(plan.sound === false).then(function(chId){
+      var used = {}; delivered.forEach(function(p){ used[p.id] = true; });
+      var notifs = [], record = [];
+      events.forEach(function(ev){
+        var id = yrNextSchedId(used);
+        notifs.push({id: id, title: ev.title, body: ev.body, channelId: chId, schedule: {at: new Date(ev.at), allowWhileIdle: true}});
+        record.push({id: id, at: ev.at, tag: ev.tag});
+      });
+      saveJSON(YR_SCHED_KEY, delivered.concat(record));
+      return callNativeBridge('schedule', {notifications: notifs}).then(function(){
+        yrSchedActive = {};
+        events.forEach(function(ev){ yrSchedActive[ev.tag] = true; });
+      });
+    });
+  });
+}
+function yrScheduleSync(){
+  if (!yrApi || !isApkPlatform()) return Promise.resolve();
+  if (yrSchedBusy){ yrSchedAgain = true; return Promise.resolve(); }
+  var p;
+  try {
+    var plan = yrApi.schedule();
+    var events = (yrPerm === 'granted') ? plan.events : [];     /* 通知の許可が無ければ予約しない(画面内の通知だけ) */
+    var sig = JSON.stringify([plan.sound, events.map(function(e){ return [e.tag, e.at, e.body]; })]);
+    if (sig === yrSchedSig) return Promise.resolve();            /* 前回と同じ内容なら何もしない */
+    yrSchedBusy = true;
+    p = yrScheduleApply(plan, events).then(function(){ yrSchedSig = sig; });
+  } catch(e){ p = Promise.reject(e); yrSchedBusy = true; }
+  return p.catch(function(e){ yrSchedActive = {}; console.warn('やらせるToDoの予約通知に失敗:', e); }).then(function(){
+    yrSchedBusy = false;
+    if (yrSchedAgain){ yrSchedAgain = false; yrScheduleSoon(); }
+  });
 }
 
 /* 起動(1回だけ) */
@@ -7321,7 +7530,9 @@ function yrCameraDiagnose(){
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon});
+  if (!yrSchedInterval) yrSchedInterval = setInterval(yrScheduleSoon, 30000);   /* 念のための定期チェック(内容が同じなら何もしない) */
+  yrScheduleSoon();
   return yrApi;
 }
 /* アプリを開いた時: 今日の「これから/実行中」が残っていれば、画面を開かなくても動かし始める(それ以外は、画面を開くまで何もしない) */
@@ -7339,6 +7550,7 @@ function yrAfterBridge(){
   callNativeBridge('checkPermissions', {}).then(function(res){
     yrApplyApkPerm(res);
     if (yrApi) yrApi.render();
+    yrScheduleSoon();
   }).catch(function(){});
 }
 
