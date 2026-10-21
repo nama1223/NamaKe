@@ -1727,6 +1727,7 @@ select.plain{
      host    … 通知など実行環境ごとに違う処理(省略すると単体版用の createStandaloneHost)
      now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
      storage … localStorage 互換の保存先
+     cameraDiagnose   … 設定のカメラ欄の「診断」ボタンが呼ぶ関数。診断結果の文字列(のPromise)を返す
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
      embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
      onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
@@ -2120,7 +2121,8 @@ function mount(root, opts){
     h += '<div class="yr-setrow"><div>応答時間<small>この時間内に塞がないと、強いアラームと全面表示になります</small></div>' + stepper('aliveRespSec', settings.aliveRespSec, '秒') + '</div>' +
       '<div class="yr-setrow"><div>カメラ<small>一覧の更新にはカメラの許可が必要です</small></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
         '<select class="yr-input" style="width:auto;min-width:150px" data-role="set-camera">' + camOpts + '</select>' +
-        '<button type="button" class="yr-btn" data-act="refresh-cams">一覧を更新</button></div></div>' +
+        '<button type="button" class="yr-btn" data-act="refresh-cams">一覧を更新</button>' +
+        (typeof opts.cameraDiagnose === 'function' ? '<button type="button" class="yr-btn" data-act="cam-diag">診断</button>' : '') + '</div></div>' +
       '<div class="yr-setrow"><div>感度・判定方式<small>' + esc(detectSummary()) + '</small></div><button type="button" class="yr-btn primary" data-act="adjust">調整・テスト</button></div>' +
       '<div class="yr-setrow"><div>いますぐ試す<small>赤線→アラーム→全面表示の流れを体験できます(実行中のやる事は不要)</small></div><button type="button" class="yr-btn" data-act="alive-test">試す</button></div>' +
       '</div>';
@@ -2159,6 +2161,26 @@ function mount(root, opts){
     $r('modal').innerHTML = '';
     $r('modal2').innerHTML = '';
     if (adjustOpen){ adjustOpen = false; calib = null; try { camera.mount($r('camhold')); } catch(e){} camLoopStopIfIdle(); if (view === 'settings') render(); }   /* 感度の変更を設定画面の説明に反映 */
+  }
+  /* カメラ診断(本体が opts.cameraDiagnose を渡した時だけ使う): 原因の切り分け用に、環境の情報とカメラ取得の結果を一覧にしてコピーできるようにする */
+  function openCamDiag(){
+    openModal('<h2>カメラ診断</h2><div style="font-size:13px;opacity:.75;margin-bottom:6px">結果をコピーして、Claudeに貼ってください(映像は保存も送信もしません)。</div>' +
+      '<textarea class="yr-input" data-role="diag-out" readonly rows="14" style="width:100%;font-size:12px;line-height:1.4;font-family:monospace">診断中…(数秒かかります)</textarea>' +
+      '<div class="yr-row"><button type="button" class="yr-btn primary" style="flex:1" data-act="diag-copy">コピー</button><button type="button" class="yr-btn" data-act="modal-close">閉じる</button></div>');
+    var ta = $r('modal').querySelector('[data-role="diag-out"]');
+    var run;
+    try { run = Promise.resolve(opts.cameraDiagnose()); } catch(e){ run = Promise.reject(e); }
+    run.then(function(text){ if (ta) ta.value = text; }, function(e){ if (ta) ta.value = '診断に失敗: ' + (e && (e.message || e)); });
+  }
+  function copyDiag(){
+    var ta = $r('modal').querySelector('[data-role="diag-out"]');
+    if (!ta) return;
+    var text = ta.value;
+    function fallback(){ try { ta.focus(); ta.select(); document.execCommand('copy'); toast('コピーしました'); } catch(e){ toast('コピーできませんでした。枠を長押しして選択してください'); } }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function(){ toast('コピーしました'); }, fallback);
+      else fallback();
+    } catch(e){ fallback(); }
   }
   function mval(role){ var e = $r('modal').querySelector('[data-role="' + role + '"]'); return e ? e.value : ''; }
 
@@ -3362,6 +3384,8 @@ function mount(root, opts){
       case 'step': applySetting(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
       case 'alive-mode': settings.aliveMode = el.getAttribute('data-mode') === 'random' ? 'random' : 'fixed'; persist(); render(); break;
       case 'refresh-cams': refreshCameras(); break;
+      case 'cam-diag': openCamDiag(); break;
+      case 'diag-copy': copyDiag(); break;
       case 'adjust': openAdjust(); break;
       case 'alive-test': aliveTestNow(); break;
       case 'adj-calib': calibStart(); break;
@@ -4789,7 +4813,7 @@ var REQUIRED_SHELL_VERSION = 10;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261019-2';
+var APP_BUILD = '20261019-3';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7214,10 +7238,75 @@ function yrCameraDeniedText(err){
   var detail = err ? '(' + [err.name, err.message].filter(Boolean).join(': ') + ')' : '';
   return 'カメラの使用が許可されていません。端末の「設定」→「アプリ」→このアプリ→「権限」→「カメラ」を「許可」にしてから、もう一度試してください。' + detail;
 }
+/* カメラ診断: 「端末では許可済みなのに、アプリ内で getUserMedia が拒否される」原因の切り分け用。
+   見るもの: ①どのURL・どの親の中で動いているか ②ブラウザ側の許可ポリシーが camera を許しているか ③許可の状態 ④実際に取得してみた結果と所要時間 */
+function yrCameraDiagnose(){
+  var L = [];
+  function add(k, v){ L.push(k + ': ' + v); }
+  function errStr(e){ return e ? ((e.name || 'Error') + ' / ' + (e.message || '')) : '(不明)'; }
+  var md = navigator.mediaDevices;
+  var chain = Promise.resolve();
+  function step(fn){ chain = chain.then(fn).catch(function(e){ add('  (診断の途中でエラー)', errStr(e)); }); }
+
+  add('日時', new Date().toISOString());
+  add('本体', 'Naka v' + NAKA_VERSION + ' / build ' + APP_BUILD);
+  add('APK判定', isApkPlatform());
+  add('URL', location.href);
+  add('origin', location.origin);
+  add('isSecureContext', window.isSecureContext);
+  add('配置', window.top === window ? 'トップ画面' : 'iframeの中');
+  try { add('親のorigin', location.ancestorOrigins ? Array.prototype.join.call(location.ancestorOrigins, ' , ') || '(なし)' : '(取得不可)'); } catch(e){ add('親のorigin', errStr(e)); }
+  add('referrer', document.referrer || '(なし)');
+  add('UA', navigator.userAgent);
+  var fp = document.permissionsPolicy || document.featurePolicy;
+  if (fp && fp.allowsFeature){
+    try { add('許可ポリシー camera', fp.allowsFeature('camera')); } catch(e){ add('許可ポリシー camera', errStr(e)); }
+    try { add('許可ポリシー screen-wake-lock', fp.allowsFeature('screen-wake-lock')); } catch(e){}
+    try { add('許可ポリシー clipboard-write', fp.allowsFeature('clipboard-write')); } catch(e){}
+    try { add('許可されている機能の数', fp.allowedFeatures().length); } catch(e){}
+  } else {
+    add('許可ポリシー', '(このWebViewでは取得できません)');
+  }
+  add('mediaDevices', md ? 'あり' : 'なし');
+  add('getUserMedia', (md && md.getUserMedia) ? 'あり' : 'なし');
+
+  if (isApkPlatform()){
+    step(function(){
+      return callNativeBridge('info', {}).then(function(r){ add('ガワ情報', JSON.stringify(r)); });
+    });
+  }
+  step(function(){
+    if (!(navigator.permissions && navigator.permissions.query)){ add('permissions.query(camera)', '(APIなし)'); return; }
+    return navigator.permissions.query({name: 'camera'}).then(function(r){ add('permissions.query(camera)', r.state); }, function(e){ add('permissions.query(camera)', errStr(e)); });
+  });
+  function tryGum(label, constraints){
+    step(function(){
+      if (!(md && md.getUserMedia)){ add(label, '(getUserMediaなし)'); return; }
+      var t0 = Date.now();
+      return md.getUserMedia(constraints).then(function(stream){
+        var tr = stream.getVideoTracks()[0];
+        add(label, '成功 ' + (Date.now() - t0) + 'ms / ' + (tr ? (tr.label || '(ラベルなし)') : '(映像なし)'));
+        stream.getTracks().forEach(function(t){ t.stop(); });
+      }, function(e){
+        add(label, '失敗 ' + (Date.now() - t0) + 'ms / ' + errStr(e));
+      });
+    });
+  }
+  tryGum('取得テスト video:true', {video: true, audio: false});
+  tryGum('取得テスト 前面カメラ', {video: {facingMode: 'user'}, audio: false});
+  step(function(){
+    if (!(md && md.enumerateDevices)){ add('enumerateDevices', '(APIなし)'); return; }
+    return md.enumerateDevices().then(function(ds){
+      var v = ds.filter(function(d){ return d.kind === 'videoinput'; });
+      add('カメラ一覧', v.length + '台' + (v.length ? ' / ' + v.map(function(d){ return d.label || '(ラベルなし)'; }).join(' | ') : ''));
+    }, function(e){ add('カメラ一覧', errStr(e)); });
+  });
+  return chain.then(function(){ return L.join('\n'); });
+}
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, cameraDiagnose: yrCameraDiagnose});
   return yrApi;
 }
 /* アプリを開いた時: 今日の「これから/実行中」が残っていれば、画面を開かなくても動かし始める(それ以外は、画面を開くまで何もしない) */
