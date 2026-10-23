@@ -928,7 +928,7 @@ select.plain{
 .yr-alert .yr-row{margin-top:8px;}
 .yr-alert .yr-btn{min-height:44px;}
 /* モーダル */
-.yr-modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;}
+.yr-modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;overscroll-behavior:contain;}   /* contain: モーダル上のスワイプで、下のメイン画面までスクロールしない */
 .yr-modal>div{background:#fff;border-radius:16px;padding:16px;width:100%;max-width:520px;margin-top:6vh;}
 .yr-modal h2{margin:0 0 6px;font-size:19px;}
 .yr-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #edf0f4;}
@@ -1017,6 +1017,7 @@ select.plain{
 
 /* 設定のジャンル別の色分け・スワイプ・褒め言葉(第4段階) */
 .yr-set.g-base{background:#dbe9fb;}
+.yr-set.g-vib{background:#fbe3e3;}
 .yr-set.g-alive{background:#dcf1e3;}
 .yr-set.g-esc{background:#fdf0c4;}
 .yr-set.g-praise{background:#f1e3fb;}
@@ -1735,6 +1736,7 @@ select.plain{
      now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
      storage … localStorage 互換の保存先
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
+     onVibTest … 設定の「試す」ボタンが呼ぶ関数 function(kind: 'pre'|'nudge'|'esc')。表示するメッセージ(のPromise)を返す
      onStateChange … 状態を保存するたびに呼ばれる(本体が予約通知を作り直す合図)。戻り値の schedule() が「これから鳴るはずの通知」{sound, events:[{tag, at(ms), title, body}]} を返す
      embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
      onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
@@ -1865,6 +1867,34 @@ function mount(root, opts){
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function int(v, min, max, def){ var n = parseInt(v, 10); if (isNaN(n)) return def; return Math.max(min, Math.min(max, n)); }
 
+  /* ---------- バイブのリズム ----------
+     記号で書く: ・=短い振動(約0.15秒) / ー=長い振動(約0.5秒) / ＿=休み(約0.2秒)。続けて振動する間には、自動で約0.1秒のすき間が入る。例: ・・＿・
+     Android用の数値の配列([待ち, 振動, 待ち, 振動, ...](ミリ秒))に変換して、通知チャンネルに渡す */
+  var RHYTHM_DEFAULT = {pre: '・・＿・', nudge: '・・＿・＿＿・・＿・＿＿・・＿・', esc: 'ーー＿・・・・＿ーー＿・・・・'};
+  function normRhythm(v){
+    var out = '', i, c, has = false;
+    v = String(v == null ? '' : v);
+    for (i = 0; i < v.length && out.length < 40; i++){
+      c = v.charAt(i);
+      if ('・･.·•●'.indexOf(c) >= 0){ out += '・'; has = true; }
+      else if ('ーｰ-−―—－─'.indexOf(c) >= 0){ out += 'ー'; has = true; }
+      else if ('＿_ 　、,'.indexOf(c) >= 0) out += '＿';
+    }
+    return has ? out : '';
+  }
+  function rhythmToPattern(str, tailMs){
+    var s = normRhythm(str) || '・', arr = [0], lastOn = false, rest = 0, i, c, dur;
+    for (i = 0; i < s.length; i++){
+      c = s.charAt(i);
+      if (c === '＿'){ rest += 200; continue; }
+      dur = c === 'ー' ? 500 : 150;
+      if (lastOn) arr.push(100 + rest); else arr[arr.length - 1] += rest;
+      arr.push(dur); lastOn = true; rest = 0;
+    }
+    if (rest + (tailMs || 0) > 0) arr.push(rest + (tailMs || 0));          /* 末尾の休み(繰り返す時の、1回ごとの間) */
+    return arr;
+  }
+
   /* ---------- データ ---------- */
   var settings = (function(){
     var s = load(KEY.settings, {}) || {};
@@ -1883,6 +1913,11 @@ function mount(root, opts){
       escapeGraceSec: int(s.escapeGraceSec, 10, 600, 60),          /* 脱線の時間切れ後、強いアラームになるまでの猶予 */
       resetHour: int(s.resetHour, 1, 23, 12),                      /* 「本日終了」のロックが解除される2回目のリセット時刻(0時と、この時刻の1日2回) */
       startDialog: s.startDialog !== false,                        /* 「開始する」で確認画面を出し、生存確認・脱線の時間をその回だけ変えられるようにする */
+      vibPre: normRhythm(s.vibPre) || RHYTHM_DEFAULT.pre,          /* バイブのリズム: 開始前の通知 / 催促 / 脱線の時間切れ */
+      vibNudge: normRhythm(s.vibNudge) || RHYTHM_DEFAULT.nudge,
+      vibEsc: normRhythm(s.vibEsc) || RHYTHM_DEFAULT.esc,
+      escSound: s.escSound === 'notif' ? 'notif' : 'alarm',        /* 脱線の時間切れの鳴らし方: アラーム(マナーモードでも音が鳴る) / 通知音 */
+      repeatSec: int(s.repeatSec, 0, 600, 60),                     /* 脱線の時間切れを、反応するまで繰り返す時間(秒)。0=繰り返さない */
       effect: s.effect !== false,
       praiseOn: s.praiseOn !== false,                              /* 褒める機能を使う */
       praiseOnDone: s.praiseOnDone !== false,                      /* 完了した時に自動で褒める */
@@ -1893,7 +1928,7 @@ function mount(root, opts){
     if (o.aliveRandMax < o.aliveRandMin) o.aliveRandMax = o.aliveRandMin;
     return o;
   })();
-  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10], resetHour: [1, 23, 1]};
+  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10], resetHour: [1, 23, 1], repeatSec: [0, 600, 10]};
   var backlog = load(KEY.backlog, []);
   var today = load(KEY.today, null);
   var nudge = load(KEY.nudge, {last: 0});
@@ -2136,6 +2171,21 @@ function mount(root, opts){
       '<div class="yr-setrow"><div>アラーム音<small>通知と一緒に鳴らします</small></div><label><input type="checkbox" data-role="set-sound"' + (settings.sound ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
       '<div class="yr-setrow"><div>通知<small>' + esc(permTxt) + '</small></div>' + (perm === 'default' ? '<button type="button" class="yr-btn primary" data-act="allow-notif">許可する</button>' : '') + '</div>' +
       '<div class="yr-setrow"><div>アラームのテスト<small>音と画面表示を確認します</small></div><button type="button" class="yr-btn" data-act="test-alarm">テスト</button></div>' +
+      '</div>';
+    /* バイブとアラーム(アプリを閉じていても鳴る通知) */
+    function vibRow(key, label, kind){
+      return '<div class="yr-setrow" style="flex-wrap:wrap"><div style="flex:1;min-width:130px">' + label + '</div><div style="display:flex;gap:6px;align-items:center">' +
+        '<input type="text" class="yr-input" style="width:200px;font-size:18px;letter-spacing:2px" data-role="set-' + key + '" value="' + esc(settings[key]) + '" autocapitalize="off" autocomplete="off">' +
+        '<button type="button" class="yr-btn" data-act="vib-test" data-kind="' + kind + '">試す</button></div></div>';
+    }
+    h += '<div class="yr-h">📳 バイブとアラーム(アプリを閉じていても鳴る通知)</div><div class="yr-set g-vib">' +
+      '<div class="yr-setrow"><div><small style="font-size:14px">リズムは記号で書きます: <b>・</b>=短い振動 <b>ー</b>=長い振動 <b>＿</b>=休み(例: ・・＿・)。「試す」で確認できます(APK版)</small></div></div>' +
+      vibRow('vibPre', '開始前の通知', 'pre') + vibRow('vibNudge', '催促(いつ始めますか？)', 'nudge') + vibRow('vibEsc', '脱線の時間切れ', 'esc') +
+      '<div class="yr-setrow"><div>脱線の時間切れの鳴らし方<small>アラーム: マナーモード中でも音が鳴ります / 通知音: マナーモード中は振動だけです</small></div>' +
+        '<div class="yr-seg"><button type="button" data-act="esc-sound" data-mode="alarm" class="' + (settings.escSound === 'alarm' ? 'on' : '') + '">アラーム</button>' +
+        '<button type="button" data-act="esc-sound" data-mode="notif" class="' + (settings.escSound === 'notif' ? 'on' : '') + '">通知音</button></div></div>' +
+      '<div class="yr-setrow"><div>脱線の時間切れ: 繰り返す時間<small>反応するまで音と振動を繰り返し、この時間で止まります(0=繰り返さない)。通知をタップ・消す、または「戻る」「延長」を押しても止まります</small></div>' + stepper('repeatSec', settings.repeatSec, '秒') + '</div>' +
+      '<div class="yr-setrow"><div>リズムを初期に戻す</div><button type="button" class="yr-btn" data-act="vib-reset">戻す</button></div>' +
       '</div>';
     /* 生存確認 */
     var camOpts = '<option value="">既定のカメラ</option>';
@@ -3277,6 +3327,12 @@ function mount(root, opts){
      今の状態から「これから鳴るはずの通知」を計算して返す。実際の予約は本体(opts.onStateChange を受けて schedule() を呼ぶ側)が行う。
      対象は tick が鳴らす3種類: 開始前(pre) / 催促(nudge) / 脱線の時間切れ(esc-end)と猶予切れ(esc-block)。生存確認はカメラ操作が要るので対象外。
      tick と同じ文面・同じ条件にしてある(文面を変えたら、ここも直す)。*/
+  /* 通知(バイブ・音)の設定。本体側が通知チャンネルを作る時に使う。リズムは Android 用の数値の配列にして渡す */
+  function vibConfig(){
+    var rep = settings.repeatSec;
+    return {pre: rhythmToPattern(settings.vibPre, 0), nudge: rhythmToPattern(settings.vibNudge, 0), esc: rhythmToPattern(settings.vibEsc, rep > 0 ? 800 : 0),
+            escSound: settings.escSound, repeatSec: rep, sound: settings.sound};
+  }
   var NUDGE_SCHEDULE_MAX = 4;          /* 催促は、アプリが開かれるまでの分として、先の4回分まで */
   function computeSchedule(){
     var t = now(), ev = [], endOfDay = dayEnd(today.date);
@@ -3305,7 +3361,8 @@ function mount(root, opts){
       if (blockAt > t && !escStrong) add('esc-block', blockAt, '脱線の猶予が切れました。「' + r.title + '」に戻りましょう。');
     }
     ev.sort(function(a, b){ return a.at - b.at; });
-    return {sound: settings.sound, events: ev};
+    var escActive = !!(r && r.esc && t >= r.esc.endAt);        /* 脱線の時間が切れて、戻っていない間 */
+    return {sound: settings.sound, events: ev, cfg: vibConfig(), escActive: escActive};
   }
 
   /* ---------- 時間の見張り(1秒ごと) ---------- */
@@ -3366,17 +3423,19 @@ function mount(root, opts){
     return '👁 生存確認: ' + a + '<br>🌀 脱線: ' + v.escapeMin + '分(延長 ' + v.extendMin + '分・猶予 ' + v.escapeGraceSec + '秒)';
   }
   function sdRow(label, name, unit){
+    var rg = RANGES[name];
     return '<div class="yr-setrow"><div>' + label + '</div><div class="yr-step"><button type="button" data-act="sd-step" data-name="' + name + '" data-d="-1">−</button>' +
-           '<b style="min-width:3.2em;text-align:center">' + startDraft.v[name] + '</b>' +
+           '<input type="number" class="yr-swipe" inputmode="numeric" data-role="sd-' + name + '" value="' + startDraft.v[name] + '" min="' + rg[0] + '" max="' + rg[1] + '">' +
            '<button type="button" data-act="sd-step" data-name="' + name + '" data-d="1">＋</button><span>' + unit + '</span></div></div>';
   }
   function renderStartDialog(){
     var d = startDraft, it = d ? findItem(d.id) : null;
     if (!it){ closeModal(); return; }
     var v = d.v, h = '<h2>「' + esc(it.title) + '」を開始</h2>';
-    h += '<div class="yr-meta" style="margin-bottom:10px;line-height:1.7">' + startSummary(v) + '</div>';
+    h += '<div class="yr-meta" data-role="sd-summary" style="margin-bottom:10px;line-height:1.7">' + startSummary(v) + '</div>';
     if (d.open){
-      h += '<div class="yr-set" style="margin-bottom:10px">' +
+      /* 生存確認(緑)と脱線モード(黄)は、設定画面と同じ色の別エリアに分ける */
+      h += '<div class="yr-h">👁 生存確認</div><div class="yr-set g-alive">' +
         '<div class="yr-setrow"><div>生存確認を使う</div><label><input type="checkbox" data-role="sd-aliveEnabled"' + (v.aliveEnabled ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>';
       if (v.aliveEnabled){
         h += '<div class="yr-setrow"><div>確認の間隔</div><div class="yr-seg"><button type="button" data-act="sd-mode" data-mode="fixed" class="' + (v.aliveMode === 'fixed' ? 'on' : '') + '">固定</button>' +
@@ -3384,13 +3443,34 @@ function mount(root, opts){
         h += v.aliveMode === 'fixed' ? sdRow('間隔', 'aliveFixedMin', '分おき') : sdRow('間隔(最短)', 'aliveRandMin', '分') + sdRow('間隔(最長)', 'aliveRandMax', '分');
         h += sdRow('応答時間', 'aliveRespSec', '秒');
       }
-      h += sdRow('脱線の時間', 'escapeMin', '分') + sdRow('延長の長さ', 'extendMin', '分') + sdRow('時間切れ後の猶予', 'escapeGraceSec', '秒') + '</div>';
+      h += '</div><div class="yr-h">🌀 脱線モード</div><div class="yr-set g-esc">' +
+           sdRow('脱線の時間', 'escapeMin', '分') + sdRow('延長の長さ', 'extendMin', '分') + sdRow('時間切れ後の猶予', 'escapeGraceSec', '秒') + '</div>';
       h += '<div class="yr-row"><button type="button" class="yr-btn" data-act="sd-reset">デフォルトに戻す</button></div>';
     }
     h += '<div class="yr-row"><button type="button" class="yr-btn start" style="flex:1" data-act="sd-go">▶ 開始</button>' +
          (d.open ? '' : '<button type="button" class="yr-btn" data-act="sd-open">⚙ この回だけ変える</button>') + '</div>' +
          '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">やめる</button></div>';
     openModal(h);
+    sdBindSwipes();
+  }
+  /* 数値だけ書き換える(スワイプ中の入力欄が消えないよう、画面は作り直さない) */
+  function syncStartDialog(){
+    if (!startDraft) return;
+    var m = $r('modal'), list = m.querySelectorAll('input[data-role^="sd-"]'), i, nm;
+    for (i = 0; i < list.length; i++){
+      nm = list[i].getAttribute('data-role').slice(3);
+      if (RANGES[nm]) list[i].value = startDraft.v[nm];     /* ホイール操作は入力欄にフォーカスがある時だけ効くので、フォーカス中でも数字を更新する(入力中の変更は change で確定するまで触らない) */
+    }
+    var sm = m.querySelector('[data-role="sd-summary"]'); if (sm) sm.innerHTML = startSummary(startDraft.v);
+  }
+  function sdBindSwipes(){
+    var list = $r('modal').querySelectorAll('.yr-step input.yr-swipe[data-role^="sd-"]'), i;
+    for (i = 0; i < list.length; i++){
+      (function(inp){
+        var nm = inp.getAttribute('data-role').slice(3);
+        bindSwipe(inp, function(){ sdStep(nm, 1); }, function(){ sdStep(nm, -1); }, 1, {wheelNeedsFocus: true});
+      })(list[i]);
+    }
   }
   function requestStart(id){
     var it = findItem(id); if (!it || it.status !== 'todo') return;
@@ -3407,7 +3487,7 @@ function mount(root, opts){
     var v = startDraft.v;
     v[name] = Math.max(rg[0], Math.min(rg[1], v[name] + dir * rg[2]));
     if (v.aliveRandMax < v.aliveRandMin){ if (name === 'aliveRandMin') v.aliveRandMax = v.aliveRandMin; else v.aliveRandMin = v.aliveRandMax; }
-    renderStartDialog();
+    syncStartDialog();
   }
   function clearAlertsFor(id){
     ['pre-' + id, 'nudge', 'busy'].forEach(function(k){
@@ -3494,6 +3574,14 @@ function mount(root, opts){
       case 'bl-save': { var b3 = findBacklog(id), nv = mval('m-title').trim(); if (b3 && nv){ b3.title = nv; persist(); closeModal(); render(); } break; }
       case 'bl-del': backlog = backlog.filter(function(b){ return b.id !== id; }); persist(); closeModal(); render(); break;
       case 'step': applySetting(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
+      case 'esc-sound': settings.escSound = el.getAttribute('data-mode') === 'notif' ? 'notif' : 'alarm'; persist(); render(); break;
+      case 'vib-reset': settings.vibPre = RHYTHM_DEFAULT.pre; settings.vibNudge = RHYTHM_DEFAULT.nudge; settings.vibEsc = RHYTHM_DEFAULT.esc; persist(); render(); toast('リズムを初期に戻しました'); break;
+      case 'vib-test': {
+        if (!opts.onVibTest){ toast('この環境では試せません'); break; }
+        var vres; try { vres = Promise.resolve(opts.onVibTest(el.getAttribute('data-kind'))); } catch(e2){ vres = Promise.reject(e2); }
+        vres.then(function(m){ toast(m || '試しの通知を出しました'); }, function(e3){ toast('試せませんでした: ' + (e3 && e3.message || e3)); });
+        break;
+      }
       case 'alive-mode': settings.aliveMode = el.getAttribute('data-mode') === 'random' ? 'random' : 'fixed'; persist(); render(); break;
       case 'refresh-cams': refreshCameras(); break;
       case 'adjust': openAdjust(); break;
@@ -3554,6 +3642,15 @@ function mount(root, opts){
     var r = e.target.getAttribute && e.target.getAttribute('data-role');
     if (!r) return;
     if (r === 'sd-aliveEnabled'){ if (startDraft){ startDraft.v.aliveEnabled = e.target.checked; renderStartDialog(); } return; }   /* 開始の確認画面のチェック */
+    if (r.indexOf('sd-') === 0 && RANGES[r.slice(3)]){                                                                           /* 開始の確認画面の数値(直接入力) */
+      if (startDraft){
+        var sn = r.slice(3), sv = startDraft.v;
+        sv[sn] = int(e.target.value, RANGES[sn][0], RANGES[sn][1], sv[sn]);
+        if (sv.aliveRandMax < sv.aliveRandMin){ if (sn === 'aliveRandMin') sv.aliveRandMax = sv.aliveRandMin; else sv.aliveRandMin = sv.aliveRandMax; }
+        e.target.value = sv[sn]; syncStartDialog();
+      }
+      return;
+    }
     var nm = r.indexOf('set-') === 0 ? r.slice(4) : '';
     if (nm && RANGES[nm]){
       settings[nm] = int(e.target.value, RANGES[nm][0], RANGES[nm][1], settings[nm]);
@@ -3561,6 +3658,7 @@ function mount(root, opts){
     }
     else if (r === 'set-sound') settings.sound = e.target.checked;
     else if (r === 'set-startDialog') settings.startDialog = e.target.checked;
+    else if (r === 'set-vibPre' || r === 'set-vibNudge' || r === 'set-vibEsc'){ var vk = r.slice(4); settings[vk] = normRhythm(e.target.value) || RHYTHM_DEFAULT[vk === 'vibPre' ? 'pre' : (vk === 'vibNudge' ? 'nudge' : 'esc')]; }
     else if (r === 'set-effect') settings.effect = e.target.checked;
     else if (r === 'set-praiseOn') settings.praiseOn = e.target.checked;
     else if (r === 'set-praiseOnDone') settings.praiseOnDone = e.target.checked;
@@ -3602,6 +3700,7 @@ function mount(root, opts){
     tick: tick, render: render, go: go,
     view: function(){ return view; },
     schedule: computeSchedule,
+    vibConfig: vibConfig,
     canGoBack: function(){ return view !== 'today'; },
     back: function(){ if (view === 'today') return false; go('today'); return true; },
     destroy: function(){ clearInterval(timer); stopAlarm(); stopStrong(); aliveStopUi(); clearEscUi(); removeEffect(); camLoopStopIfIdle(); },
@@ -4922,11 +5021,11 @@ var TODO_ALARM_TYPE_KEY = 'namacalc_todo_alarm_type_v1';
 var todoAlarmType = loadJSON(TODO_ALARM_TYPE_KEY, 'alarm') === 'notif' ? 'notif' : 'alarm';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 11;
+var REQUIRED_SHELL_VERSION = 12;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261022-2';
+var APP_BUILD = '20261024-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7299,6 +7398,10 @@ var YR_SCHED_KEY = 'yaraseru_sched';        /* 予約済みの通知の控え [{
 var YR_SCHED_SEQ_KEY = 'yaraseru_schedseq'; /* 次に使う予約通知IDの位置(バックアップ対象外) */
 var YR_SCHED_TAGS = {'pre': 1, 'nudge': 1, 'esc-end': 1, 'esc-block': 1};   /* 予約通知にしている種類 */
 var YR_CHANNEL_SILENT_ID = 'notif_yaraseru_silent_v1';   /* 「通知音」をオフにしている時用(バイブのみ) */
+var YR_VIB_KINDS = {'pre': 'pre', 'nudge': 'nudge', 'esc-end': 'esc', 'esc-block': 'esc'};   /* 通知の種類(tag) → リズム・チャンネルの種類 */
+var YR_KIND_LABEL = {pre: '開始前', nudge: '催促', esc: '脱線の時間切れ'};
+var YR_CHLIST_KEY = 'yaraseru_chlist';      /* 種類ごとに、いま使っているチャンネルID(リズムを変えた時に古いチャンネルを消すため。バックアップ対象外) */
+var YR_TEST_NOTIF_ID = 80002;               /* 設定の「試す」で出す通知のID */
 var YR_CHANNEL_ID = 'notif_yaraseru_v1';   /* alarm_ で始めない = 通常の通知として扱われる */
 var YR_TODAY_KEY = 'yaraseru_v1_today';
 var yrApi = null;          /* Yaraseru.mount の戻り値 */
@@ -7336,12 +7439,82 @@ function yrEnsureChannel(silent){
   if (silent) args.sound = 'silent.wav';
   return callNativeBridge('createChannel', args).then(function(){ yrChannelsReady[id] = true; return id; });
 }
+/* 種類(pre/nudge/esc)ごとの通知チャンネル。振動のパターンはチャンネルを作る時に固定されるので、
+   リズム・鳴らし方を変えたら新しいチャンネルID(内容のハッシュ入り)で作り直し、古いチャンネルは消す。
+   脱線の時間切れは、設定で「アラーム」なら alarm_ で始まるチャンネル(マナーモードでも音が鳴る)、「通知音」なら notif_ のチャンネル */
+function yrHash(str){
+  var h = 5381, i;
+  for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+function yrKindChannel(kind, cfg){
+  var pattern = cfg[kind], silent = (cfg.sound === false), alarm = (kind === 'esc' && cfg.escSound === 'alarm');
+  var id = (alarm ? 'alarm_' : 'notif_') + 'yaraseru_' + kind + '_' + yrHash(JSON.stringify([pattern, silent, alarm]));
+  var args = {id: id, name: 'やらせるToDo(' + YR_KIND_LABEL[kind] + (alarm ? '・アラーム' : '') + ')', description: 'やらせるToDoの「' + YR_KIND_LABEL[kind] + '」の通知です', importance: 5, visibility: 1, vibration: true, vibrationPattern: pattern};
+  if (silent) args.sound = 'silent.wav'; else if (alarm) args.sound = 'todo1.wav';
+  return {id: id, args: args};
+}
+function yrEnsureKindChannel(kind, cfg){
+  var ch = yrKindChannel(kind, cfg);
+  if (yrChannelsReady[ch.id]) return Promise.resolve(ch.id);
+  return callNativeBridge('createChannel', ch.args).then(function(){
+    yrChannelsReady[ch.id] = true;
+    var list = loadJSON(YR_CHLIST_KEY, {});
+    if (!list || typeof list !== 'object') list = {};
+    var old = list[kind];
+    list[kind] = ch.id; saveJSON(YR_CHLIST_KEY, list);
+    if (old && old !== ch.id) callNativeBridge('deleteChannel', {id: old}).catch(function(){});   /* 古いリズムのチャンネルを消す(古いガワでは失敗するが、害は無い) */
+    return ch.id;
+  });
+}
+/* 鳴らした通知の控え(IDと種類)。通知のタップの振り分けと、「戻る」を押した時に鳴りっぱなしの通知を止めるために使う */
+function yrRecordDelivered(id, tag){
+  var list = loadJSON(YR_SCHED_KEY, []);
+  if (!Array.isArray(list)) list = [];
+  list.push({id: id, at: Date.now(), tag: tag});
+  saveJSON(YR_SCHED_KEY, list.slice(-40));
+}
+/* 脱線の時間切れの通知(すでに出ているもの)を取り消す = 繰り返しの音・振動も止まる */
+function yrDismissEsc(){
+  var list = loadJSON(YR_SCHED_KEY, []), nowMs = Date.now();
+  if (!Array.isArray(list)) return Promise.resolve();
+  function isEsc(p){ return p && (p.tag === 'esc-end' || p.tag === 'esc-block') && p.at <= nowMs; }
+  var ids = list.filter(isEsc).map(function(p){ return {id: p.id}; });
+  if (!ids.length) return Promise.resolve();
+  saveJSON(YR_SCHED_KEY, list.filter(function(p){ return !isEsc(p); }));
+  return callNativeBridge('cancel', {notifications: ids}).catch(function(){});
+}
 function yrNotifyApk(o){
   if (yrPerm !== 'granted') return;
-  yrEnsureChannel(false).then(function(chId){
-    /* schedule を付けない = 今すぐ表示 */
-    return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId}]});
+  var kind = YR_VIB_KINDS[o.tag], cfg = (kind && yrApi) ? yrApi.vibConfig() : null;
+  if (!cfg){      /* 種類のリズムを使わない通知(本日終了・生存確認など)は、共通のチャンネル */
+    yrEnsureChannel(false).then(function(chId){
+      return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId}]});   /* schedule を付けない = 今すぐ表示 */
+    }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
+    return;
+  }
+  yrEnsureKindChannel(kind, cfg).then(function(chId){
+    var id = yrNotifId(o.tag), n = {id: id, title: o.title, body: o.body, channelId: chId};
+    if (kind === 'esc' && cfg.repeatSec > 0){ n.extra = {repeatSec: cfg.repeatSec}; yrRecordDelivered(id, o.tag); }
+    return callNativeBridge('schedule', {notifications: [n]});
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
+}
+/* 設定の「試す」: その種類のリズム・鳴らし方で、試しの通知を出す(APK版)。PWA版は端末のバイブだけ試す */
+function yrVibTest(kind){
+  var cfg = yrApi ? yrApi.vibConfig() : null;
+  if (!cfg || !YR_KIND_LABEL[kind]) return '準備中です';
+  if (isApkPlatform()){
+    if (yrPerm !== 'granted') return '通知が許可されていません。端末の設定で通知を許可してください';
+    return yrEnsureKindChannel(kind, cfg).then(function(chId){
+      var n = {id: YR_TEST_NOTIF_ID, title: 'やらせるToDo(テスト)', body: YR_KIND_LABEL[kind] + 'のバイブ・音のテストです', channelId: chId};
+      if (kind === 'esc' && cfg.repeatSec > 0) n.extra = {repeatSec: cfg.repeatSec};
+      return callNativeBridge('schedule', {notifications: [n]});
+    }).then(function(){
+      return '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。通知を消すと止まります)' : '');
+    }, function(e){ return '失敗しました: ' + (e && e.message || e); });
+  }
+  if (navigator.vibrate){ navigator.vibrate(cfg[kind]); return 'バイブを鳴らしました(対応している端末のみ)'; }
+  return 'この環境ではバイブを試せません(APK版で試してください)';
 }
 function yrNotifyFallback(o){
   try {
@@ -7357,7 +7530,10 @@ function yrNotifyWeb(o){
     var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, 2000); });
     Promise.race([navigator.serviceWorker.ready, timeout]).then(function(reg){
       if (reg && reg.showNotification){
-        reg.showNotification(o.title, {body: o.body, tag: o.tag, requireInteraction: true, renotify: true, data: {app: 'yaraseru', tag: o.tag}});
+        var wopt = {body: o.body, tag: o.tag, requireInteraction: true, renotify: true, data: {app: 'yaraseru', tag: o.tag}};
+        var wk = YR_VIB_KINDS[o.tag], wcfg = (wk && yrApi) ? yrApi.vibConfig() : null;
+        if (wcfg) wopt.vibrate = wcfg[wk];
+        reg.showNotification(o.title, wopt);
       } else {
         yrNotifyFallback(o);
       }
@@ -7417,16 +7593,22 @@ function yrScheduleApply(plan, events){
   var prev = loadJSON(YR_SCHED_KEY, []);
   if (!Array.isArray(prev)) prev = [];
   var future = prev.filter(function(p){ return p && p.at > nowMs; });
-  var delivered = prev.filter(function(p){ return p && p.at <= nowMs; }).slice(-20);   /* 鳴った分の控えは、タップの振り分け用に少し残す */
+  var delivered = prev.filter(function(p){ return p && p.at <= nowMs; }).slice(-30);   /* 鳴った分の控えは、タップの振り分け・取り消し用に少し残す */
   var cancelP = future.length ? callNativeBridge('cancel', {notifications: future.map(function(p){ return {id: p.id}; })}).catch(function(){}) : Promise.resolve();
   return cancelP.then(function(){
     if (!events.length){ saveJSON(YR_SCHED_KEY, delivered); yrSchedActive = {}; return; }
-    return yrEnsureChannel(plan.sound === false).then(function(chId){
+    var kinds = {}, chIds = {};
+    events.forEach(function(ev){ kinds[YR_VIB_KINDS[ev.tag]] = true; });
+    return Promise.all(Object.keys(kinds).map(function(k){
+      return yrEnsureKindChannel(k, plan.cfg).then(function(id){ chIds[k] = id; });
+    })).then(function(){
       var used = {}; delivered.forEach(function(p){ used[p.id] = true; });
       var notifs = [], record = [];
       events.forEach(function(ev){
-        var id = yrNextSchedId(used);
-        notifs.push({id: id, title: ev.title, body: ev.body, channelId: chId, schedule: {at: new Date(ev.at), allowWhileIdle: true}});
+        var id = yrNextSchedId(used), kind = YR_VIB_KINDS[ev.tag];
+        var n = {id: id, title: ev.title, body: ev.body, channelId: chIds[kind], schedule: {at: new Date(ev.at), allowWhileIdle: true}};
+        if (kind === 'esc' && plan.cfg.repeatSec > 0) n.extra = {repeatSec: plan.cfg.repeatSec};    /* 反応するまで繰り返す(パッチ済みプラグインが extra.repeatSec を読む) */
+        notifs.push(n);
         record.push({id: id, at: ev.at, tag: ev.tag});
       });
       saveJSON(YR_SCHED_KEY, delivered.concat(record));
@@ -7440,15 +7622,17 @@ function yrScheduleApply(plan, events){
 function yrScheduleSync(){
   if (!yrApi || !isApkPlatform()) return Promise.resolve();
   if (yrSchedBusy){ yrSchedAgain = true; return Promise.resolve(); }
-  var p;
-  try {
-    var plan = yrApi.schedule();
-    var events = (yrPerm === 'granted') ? plan.events : [];     /* 通知の許可が無ければ予約しない(画面内の通知だけ) */
-    var sig = JSON.stringify([plan.sound, events.map(function(e){ return [e.tag, e.at, e.body]; })]);
-    if (sig === yrSchedSig) return Promise.resolve();            /* 前回と同じ内容なら何もしない */
-    yrSchedBusy = true;
-    p = yrScheduleApply(plan, events).then(function(){ yrSchedSig = sig; });
-  } catch(e){ p = Promise.reject(e); yrSchedBusy = true; }
+  var plan;
+  try { plan = yrApi.schedule(); } catch(e){ return Promise.resolve(); }
+  yrSchedBusy = true;
+  /* 脱線の時間切れから戻った(または終わった)なら、鳴りっぱなしの通知を止める */
+  var p = (plan.escActive || yrPerm !== 'granted') ? Promise.resolve() : yrDismissEsc();
+  p = p.then(function(){
+    var events = (yrPerm === 'granted') ? plan.events : [];      /* 通知の許可が無ければ予約しない(画面内の通知だけ) */
+    var sig = JSON.stringify([plan.cfg, events.map(function(e){ return [e.tag, e.at, e.body]; })]);
+    if (sig === yrSchedSig) return;                              /* 前回と同じ内容なら何もしない */
+    return yrScheduleApply(plan, events).then(function(){ yrSchedSig = sig; });
+  });
   return p.catch(function(e){ yrSchedActive = {}; console.warn('やらせるToDoの予約通知に失敗:', e); }).then(function(){
     yrSchedBusy = false;
     if (yrSchedAgain){ yrSchedAgain = false; yrScheduleSoon(); }
@@ -7530,7 +7714,7 @@ function yrCameraDiagnose(){
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest});
   if (!yrSchedInterval) yrSchedInterval = setInterval(yrScheduleSoon, 30000);   /* 念のための定期チェック(内容が同じなら何もしない) */
   yrScheduleSoon();
   return yrApi;
