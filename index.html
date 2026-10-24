@@ -1018,6 +1018,9 @@ select.plain{
 /* 設定のジャンル別の色分け・スワイプ・褒め言葉(第4段階) */
 .yr-set.g-base{background:#dbe9fb;}
 .yr-set.g-vib{background:#fbe3e3;}
+.yr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.yr-chips button{padding:8px 11px;border-radius:12px;border:2px solid #c9b8e3;background:#fff;color:#1e2a3a;font-size:15px;font-family:inherit;}
+.yr-chips button.on{border-color:#4b2e83;background:#4b2e83;color:#fff;font-weight:700;}
 .yr-set.g-alive{background:#dcf1e3;}
 .yr-set.g-esc{background:#fdf0c4;}
 .yr-set.g-praise{background:#f1e3fb;}
@@ -1753,7 +1756,41 @@ var KEY = {
   praise:   'yaraseru_v1_praise'       /* 褒め言葉の記録(最近30件) */
 };
 var SECRET_KEY = 'yaraseru_secret_gemini';    /* APIキー。設定・バックアップとは別のキーに置く(合体後もバックアップの対象にしない) */
-var PRAISE_STYLE_DEFAULT = '豪快なドワーフのおっちゃん。口調は「〜じゃ」「〜だな」「がはは」など荒っぽいが温かい感じ。酒や鍛冶仕事のたとえは、使うとしても1回まで。';
+/* 褒め方(口調・キャラクター)のプリセット。初期値は先頭の「やさしいコーチ」(人に見せても無難なもの)。
+   プリセットを選ぶと口調(style)とばらつき(temp)が入る。手で書き換えると「カスタム」として保存される(settings.praiseCustom) */
+var PRAISE_PRESETS = [
+  {id: 'coach',     icon: '🙂', name: 'やさしいコーチ',       temp: 0.8, style: '落ち着いた、やさしいコーチ。丁寧な「です・ます」口調で、がんばりを静かに認めて、前向きな気持ちにさせる。押しつけがましくならない。'},
+  {id: 'teacher',   icon: '📚', name: '穏やかな先生',         temp: 0.7, style: '穏やかで知的な先生。「よくできました」「着実ですね」のように、丁寧で落ち着いた口調で、取り組んだ過程を認める。'},
+  {id: 'assistant', icon: '🤖', name: 'クールなアシスタント', temp: 0.6, style: '冷静で簡潔なAIアシスタント。感情を大げさに出さず、事実を踏まえて、短く淡々と、しかし好意的に評価する。'},
+  {id: 'sports',    icon: '🏃', name: '熱血コーチ',           temp: 1.0, style: '明るく熱い、体育会系のコーチ。「よし！」「いいぞ！」「その調子！」のように、力強く元気な口調で称える。'},
+  {id: 'cat',       icon: '🐱', name: 'のんびり猫',           temp: 1.1, style: 'のんびり屋の猫。語尾は「〜にゃ」「〜だにゃ」で、ゆったりした柔らかい口調。ごろごろと満足そうに、いっしょに喜ぶ。'},
+  {id: 'dwarf',     icon: '🍺', name: '豪快なドワーフ',       temp: 0.9, style: '豪快なドワーフのおっちゃん。口調は「〜じゃ」「〜だな」「がはは」など荒っぽいが温かい感じ。酒や鍛冶仕事のたとえは、使うとしても1回まで。'}
+];
+var PRAISE_STYLE_DEFAULT = PRAISE_PRESETS[0].style;
+function praisePresetById(id){ for (var i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].id === id) return PRAISE_PRESETS[i]; return null; }
+function praiseTempOf(v){ var n = parseFloat(v); return isNaN(n) ? null : Math.max(0, Math.min(2, Math.round(n * 10) / 10)); }
+/* 保存されている設定から、いま使う口調・ばらつき・プリセット・カスタムを決める。
+   プリセット導入前の設定(praisePreset が無い)は、口調とばらつきが一致するプリセットならそれ、違えば「カスタム」として引き継ぐ */
+function praiseInit(s){
+  var style = (typeof s.praiseStyle === 'string' && s.praiseStyle.trim()) ? s.praiseStyle.trim().slice(0, 300) : '';
+  var temp = praiseTempOf(s.praiseTemp);
+  var preset = (typeof s.praisePreset === 'string') ? s.praisePreset : '';
+  var custom = (s.praiseCustom && typeof s.praiseCustom.style === 'string' && s.praiseCustom.style.trim())
+    ? {style: s.praiseCustom.style.trim().slice(0, 300), temp: praiseTempOf(s.praiseCustom.temp) == null ? 0.9 : praiseTempOf(s.praiseCustom.temp)} : null;
+  if (preset !== 'custom' && !praisePresetById(preset)){
+    if (!style) preset = PRAISE_PRESETS[0].id;
+    else {
+      preset = 'custom';
+      for (var i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].style === style && (temp == null || temp === PRAISE_PRESETS[i].temp)) preset = PRAISE_PRESETS[i].id;
+    }
+  }
+  if (preset === 'custom'){
+    if (!custom) custom = {style: style || PRAISE_PRESETS[0].style, temp: temp == null ? 0.9 : temp};
+    return {preset: preset, style: custom.style, temp: custom.temp, custom: custom};
+  }
+  var pp = praisePresetById(preset);
+  return {preset: preset, style: pp.style, temp: pp.temp, custom: custom};
+}
 var STATUS_LABEL = {todo:'これから', running:'実行中', done:'完了', fail:'本日終了'};
 var FAIL_MESSAGE = '本日は諦めて他のことをしましょう。先送りして大丈夫です。';
 
@@ -1868,7 +1905,8 @@ function mount(root, opts){
   function int(v, min, max, def){ var n = parseInt(v, 10); if (isNaN(n)) return def; return Math.max(min, Math.min(max, n)); }
 
   /* ---------- バイブのリズム ----------
-     記号で書く: ・=短い振動(約0.15秒) / ー=長い振動(約0.5秒) / ＿=休み(約0.2秒)。続けて振動する間には、自動で約0.1秒のすき間が入る。例: ・・＿・
+     記号で書く: ・=短い振動(約0.075秒) / ー=長い振動(約0.25秒) / ＿=休み(約0.1秒)。続けて振動する間には、自動で約0.05秒のすき間が入る。例: ・・＿・
+     (最初の版の2倍の速さ。数値は RHYTHM_MS で変えられる)
      Android用の数値の配列([待ち, 振動, 待ち, 振動, ...](ミリ秒))に変換して、通知チャンネルに渡す */
   var RHYTHM_DEFAULT = {pre: '・・＿・', nudge: '・・＿・＿＿・・＿・＿＿・・＿・', esc: 'ーー＿・・・・＿ーー＿・・・・'};
   function normRhythm(v){
@@ -1882,13 +1920,14 @@ function mount(root, opts){
     }
     return has ? out : '';
   }
+  var RHYTHM_MS = {short: 75, long: 250, rest: 100, gap: 50};      /* ・ / ー / ＿ / 続く振動の間のすき間 (ミリ秒) */
   function rhythmToPattern(str, tailMs){
     var s = normRhythm(str) || '・', arr = [0], lastOn = false, rest = 0, i, c, dur;
     for (i = 0; i < s.length; i++){
       c = s.charAt(i);
-      if (c === '＿'){ rest += 200; continue; }
-      dur = c === 'ー' ? 500 : 150;
-      if (lastOn) arr.push(100 + rest); else arr[arr.length - 1] += rest;
+      if (c === '＿'){ rest += RHYTHM_MS.rest; continue; }
+      dur = c === 'ー' ? RHYTHM_MS.long : RHYTHM_MS.short;
+      if (lastOn) arr.push(RHYTHM_MS.gap + rest); else arr[arr.length - 1] += rest;
       arr.push(dur); lastOn = true; rest = 0;
     }
     if (rest + (tailMs || 0) > 0) arr.push(rest + (tailMs || 0));          /* 末尾の休み(繰り返す時の、1回ごとの間) */
@@ -1921,8 +1960,10 @@ function mount(root, opts){
       effect: s.effect !== false,
       praiseOn: s.praiseOn !== false,                              /* 褒める機能を使う */
       praiseOnDone: s.praiseOnDone !== false,                      /* 完了した時に自動で褒める */
-      praiseStyle: (typeof s.praiseStyle === 'string' && s.praiseStyle.trim()) ? s.praiseStyle.trim().slice(0, 300) : PRAISE_STYLE_DEFAULT,
-      praiseTemp: isNaN(parseFloat(s.praiseTemp)) ? 0.9 : Math.max(0, Math.min(2, Math.round(parseFloat(s.praiseTemp) * 10) / 10)),
+      praiseStyle: praiseInit(s).style,
+      praisePreset: praiseInit(s).preset,                          /* 'coach' など / 'custom' */
+      praiseCustom: praiseInit(s).custom,                          /* 手で書き換えた口調・ばらつきの保存先 {style, temp} */
+      praiseTemp: praiseInit(s).temp,
       geminiModel: (typeof s.geminiModel === 'string' && s.geminiModel.trim()) ? s.geminiModel.trim().slice(0, 80) : 'gemini-flash-lite-latest'                                   /* 「おかえり！」の演出 */
     };
     if (o.aliveRandMax < o.aliveRandMin) o.aliveRandMax = o.aliveRandMin;
@@ -2223,9 +2264,10 @@ function mount(root, opts){
       '<div class="yr-setrow" style="display:block"><div>モデル名<small>空にすると最新の軽量版(gemini-flash-lite-latest)になります</small></div>' +
         '<div style="display:flex;gap:8px;margin-top:6px"><input type="text" class="yr-input" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off"><button type="button" class="yr-btn" data-act="praise-models">候補を取得</button></div>' +
         '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist></div>' +
-      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>自由に書き換えられます</small></div>' +
-        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:6px">' + esc(settings.praiseStyle) + '</textarea>' +
-        '<div class="yr-row"><button type="button" class="yr-btn" data-act="praise-style-reset">初期値に戻す</button></div></div>' +
+      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>プリセットを選ぶと、下の欄に内容が入ります。自分で書き換えると「カスタム」として保存され、いつでも呼び戻せます</small></div>' +
+        '<div class="yr-chips">' + PRAISE_PRESETS.map(function(pp){ return '<button type="button" data-act="praise-preset" data-id="' + pp.id + '" class="' + (settings.praisePreset === pp.id ? 'on' : '') + '">' + pp.icon + ' ' + esc(pp.name) + '</button>'; }).join('') +
+          '<button type="button" data-act="praise-preset" data-id="custom" class="' + (settings.praisePreset === 'custom' ? 'on' : '') + '">✏️ カスタム</button></div>' +
+        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:8px">' + esc(settings.praiseStyle) + '</textarea></div>' +
       '<div class="yr-setrow"><div>ばらつき(Temperature)<small>高いほど、毎回の言い回しが変わります(0〜2)</small></div>' +
         '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div></div>' +
       '<div class="yr-setrow"><div>褒め言葉を試す<small>例のデータで1回だけ呼び出します</small></div><button type="button" class="yr-btn primary" data-act="praise-test">試す</button></div>' +
@@ -3054,8 +3096,30 @@ function mount(root, opts){
     if (settings.aliveRandMax < settings.aliveRandMin){ if (name === 'aliveRandMin') settings.aliveRandMax = settings.aliveRandMin; else settings.aliveRandMin = settings.aliveRandMax; }
     persist(); syncSettingInputs();
   }
+  /* 褒め方のプリセット。選ぶと口調・ばらつきが入る。「カスタム」は、手で書き換えた内容の保存先 */
+  function selectPraisePreset(id){
+    if (id === 'custom'){
+      if (!settings.praiseCustom) settings.praiseCustom = {style: settings.praiseStyle, temp: settings.praiseTemp};     /* まだ無ければ、いまの内容をカスタムの出発点にする */
+      settings.praisePreset = 'custom'; settings.praiseStyle = settings.praiseCustom.style; settings.praiseTemp = settings.praiseCustom.temp;
+    } else {
+      var pp = praisePresetById(id); if (!pp) return;
+      settings.praisePreset = id; settings.praiseStyle = pp.style; settings.praiseTemp = pp.temp;
+    }
+    persist(); render();
+  }
+  /* 手で書き換えて、選んでいるプリセットの内容と違ってきたら「カスタム」にして保存する */
+  function syncPraisePreset(){
+    var pp = praisePresetById(settings.praisePreset);
+    if (pp && (settings.praiseStyle !== pp.style || settings.praiseTemp !== pp.temp)) settings.praisePreset = 'custom';
+    if (settings.praisePreset === 'custom') settings.praiseCustom = {style: settings.praiseStyle, temp: settings.praiseTemp};
+  }
+  function updatePraiseChips(){
+    var list = root.querySelectorAll('[data-act="praise-preset"]'), i;
+    for (i = 0; i < list.length; i++) list[i].classList.toggle('on', list[i].getAttribute('data-id') === settings.praisePreset);
+  }
   function applyTemp(dir){
     settings.praiseTemp = Math.max(0, Math.min(2, Math.round((settings.praiseTemp + dir * 0.1) * 10) / 10));
+    syncPraisePreset(); updatePraiseChips();
     persist(); syncSettingInputs();
   }
   function syncSettingInputs(){
@@ -3608,7 +3672,7 @@ function mount(root, opts){
       case 'gkey-del': setGKey(''); render(); break;
       case 'praise-models': fetchModels(); break;
       case 'praise-test': unlockAudio(); praiseTest(); break;
-      case 'praise-style-reset': settings.praiseStyle = PRAISE_STYLE_DEFAULT; persist(); render(); break;
+      case 'praise-preset': selectPraisePreset(el.getAttribute('data-id')); break;
       case 'praise-day': unlockAudio(); praiseDay(el.getAttribute('data-date')); break;
       case 'praise-close': { var pr = root.querySelector('.yr-praise'); if (pr) pr.remove(); break; }
       case 'unused': {
@@ -3663,8 +3727,12 @@ function mount(root, opts){
     else if (r === 'set-praiseOn') settings.praiseOn = e.target.checked;
     else if (r === 'set-praiseOnDone') settings.praiseOnDone = e.target.checked;
     else if (r === 'set-geminiModel') settings.geminiModel = e.target.value.trim().slice(0, 80) || 'gemini-flash-lite-latest';
-    else if (r === 'set-praiseTemp'){ var tv = parseFloat(e.target.value); if (!isNaN(tv)) settings.praiseTemp = Math.max(0, Math.min(2, Math.round(tv * 10) / 10)); }
-    else if (r === 'praise-style') settings.praiseStyle = e.target.value.trim().slice(0, 300) || PRAISE_STYLE_DEFAULT;
+    else if (r === 'set-praiseTemp'){ var tv = parseFloat(e.target.value); if (!isNaN(tv)) settings.praiseTemp = Math.max(0, Math.min(2, Math.round(tv * 10) / 10)); syncPraisePreset(); }
+    else if (r === 'praise-style'){
+      var pv = e.target.value.trim().slice(0, 300);
+      if (!pv) pv = (settings.praisePreset === 'custom' && settings.praiseCustom) ? settings.praiseCustom.style : (praisePresetById(settings.praisePreset) || PRAISE_PRESETS[0]).style;   /* 空にした時は、直前の内容に戻す */
+      settings.praiseStyle = pv; syncPraisePreset();
+    }
     else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
     else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!cfg(runningItem(), 'aliveEnabled') && alive && !alive.test) aliveStop(); }
     else if (r === 'set-camera') settings.cameraId = e.target.value;
@@ -5025,7 +5093,7 @@ var REQUIRED_SHELL_VERSION = 12;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261024-1';
+var APP_BUILD = '20261025-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7463,7 +7531,10 @@ function yrEnsureKindChannel(kind, cfg){
     if (!list || typeof list !== 'object') list = {};
     var old = list[kind];
     list[kind] = ch.id; saveJSON(YR_CHLIST_KEY, list);
-    if (old && old !== ch.id) callNativeBridge('deleteChannel', {id: old}).catch(function(){});   /* 古いリズムのチャンネルを消す(古いガワでは失敗するが、害は無い) */
+    if (old && old !== ch.id){
+      delete yrChannelsReady[old];     /* 消したチャンネルを「作成済み」と覚えたままだと、元の設定に戻した時に作り直されず、通知が出なくなる */
+      callNativeBridge('deleteChannel', {id: old}).catch(function(){});   /* 古いリズムのチャンネルを消す(古いガワでは失敗するが、害は無い) */
+    }
     return ch.id;
   });
 }
@@ -7484,19 +7555,25 @@ function yrDismissEsc(){
   saveJSON(YR_SCHED_KEY, list.filter(function(p){ return !isEsc(p); }));
   return callNativeBridge('cancel', {notifications: ids}).catch(function(){});
 }
+/* 今すぐ表示する。同じIDの通知が通知エリアに残っていると、更新扱いになって音・振動が鳴らない(プラグインは setOnlyAlertOnce)ので、先に取り消してから出す */
+function yrPostNow(n){
+  return callNativeBridge('cancel', {notifications: [{id: n.id}]}).catch(function(){}).then(function(){
+    return callNativeBridge('schedule', {notifications: [n]});     /* schedule を付けない = 今すぐ表示 */
+  });
+}
 function yrNotifyApk(o){
   if (yrPerm !== 'granted') return;
   var kind = YR_VIB_KINDS[o.tag], cfg = (kind && yrApi) ? yrApi.vibConfig() : null;
   if (!cfg){      /* 種類のリズムを使わない通知(本日終了・生存確認など)は、共通のチャンネル */
     yrEnsureChannel(false).then(function(chId){
-      return callNativeBridge('schedule', {notifications: [{id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId}]});   /* schedule を付けない = 今すぐ表示 */
+      return yrPostNow({id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId});
     }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
     return;
   }
   yrEnsureKindChannel(kind, cfg).then(function(chId){
     var id = yrNotifId(o.tag), n = {id: id, title: o.title, body: o.body, channelId: chId};
     if (kind === 'esc' && cfg.repeatSec > 0){ n.extra = {repeatSec: cfg.repeatSec}; yrRecordDelivered(id, o.tag); }
-    return callNativeBridge('schedule', {notifications: [n]});
+    return yrPostNow(n);
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
 }
 /* 設定の「試す」: その種類のリズム・鳴らし方で、試しの通知を出す(APK版)。PWA版は端末のバイブだけ試す */
@@ -7508,7 +7585,7 @@ function yrVibTest(kind){
     return yrEnsureKindChannel(kind, cfg).then(function(chId){
       var n = {id: YR_TEST_NOTIF_ID, title: 'やらせるToDo(テスト)', body: YR_KIND_LABEL[kind] + 'のバイブ・音のテストです', channelId: chId};
       if (kind === 'esc' && cfg.repeatSec > 0) n.extra = {repeatSec: cfg.repeatSec};
-      return callNativeBridge('schedule', {notifications: [n]});
+      return yrPostNow(n);
     }).then(function(){
       return '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。通知を消すと止まります)' : '');
     }, function(e){ return '失敗しました: ' + (e && e.message || e); });
