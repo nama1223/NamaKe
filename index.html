@@ -1021,6 +1021,7 @@ select.plain{
 .yr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .yr-chips button{padding:8px 11px;border-radius:12px;border:2px solid #c9b8e3;background:#fff;color:#1e2a3a;font-size:15px;font-family:inherit;}
 .yr-chips button.on{border-color:#4b2e83;background:#4b2e83;color:#fff;font-weight:700;}
+.yr-chips button.empty{border-style:dashed;color:#7a6a96;}
 .yr-set.g-alive{background:#dcf1e3;}
 .yr-set.g-esc{background:#fdf0c4;}
 .yr-set.g-praise{background:#f1e3fb;}
@@ -1739,6 +1740,7 @@ select.plain{
      now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
      storage … localStorage 互換の保存先
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
+     onVibStop … 設定の「■止める」ボタンが呼ぶ関数(試しの通知を止める)。メッセージ(のPromise)を返す
      onVibTest … 設定の「試す」ボタンが呼ぶ関数 function(kind: 'pre'|'nudge'|'esc')。表示するメッセージ(のPromise)を返す
      onStateChange … 状態を保存するたびに呼ばれる(本体が予約通知を作り直す合図)。戻り値の schedule() が「これから鳴るはずの通知」{sound, events:[{tag, at(ms), title, body}]} を返す
      embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
@@ -1756,8 +1758,11 @@ var KEY = {
   praise:   'yaraseru_v1_praise'       /* 褒め言葉の記録(最近30件) */
 };
 var SECRET_KEY = 'yaraseru_secret_gemini';    /* APIキー。設定・バックアップとは別のキーに置く(合体後もバックアップの対象にしない) */
-/* 褒め方(口調・キャラクター)のプリセット。初期値は先頭の「やさしいコーチ」(人に見せても無難なもの)。
-   プリセットを選ぶと口調(style)とばらつき(temp)が入る。手で書き換えると「カスタム」として保存される(settings.praiseCustom) */
+/* 褒め方(口調・キャラクター)。初期値は先頭の「やさしいコーチ」(人に見せても無難なもの)。
+   ・プリセット6種: 選ぶと口調(style)とばらつき(temp)が入る
+   ・カスタム枠1〜3(settings.praiseSlots): 手動で保存する枠。枠を選んで書き換えると、その枠が更新される
+   ・直前の編集(settings.praiseDraft): プリセットなどを書き換えると、自動で入る仮の保存(次に書き換えると上書き)
+   settings.praisePreset は 'coach' など / 'slot1'〜'slot3' / 'draft' */
 var PRAISE_PRESETS = [
   {id: 'coach',     icon: '🙂', name: 'やさしいコーチ',       temp: 0.8, style: '落ち着いた、やさしいコーチ。丁寧な「です・ます」口調で、がんばりを静かに認めて、前向きな気持ちにさせる。押しつけがましくならない。'},
   {id: 'teacher',   icon: '📚', name: '穏やかな先生',         temp: 0.7, style: '穏やかで知的な先生。「よくできました」「着実ですね」のように、丁寧で落ち着いた口調で、取り組んだ過程を認める。'},
@@ -1769,27 +1774,37 @@ var PRAISE_PRESETS = [
 var PRAISE_STYLE_DEFAULT = PRAISE_PRESETS[0].style;
 function praisePresetById(id){ for (var i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].id === id) return PRAISE_PRESETS[i]; return null; }
 function praiseTempOf(v){ var n = parseFloat(v); return isNaN(n) ? null : Math.max(0, Math.min(2, Math.round(n * 10) / 10)); }
-/* 保存されている設定から、いま使う口調・ばらつき・プリセット・カスタムを決める。
-   プリセット導入前の設定(praisePreset が無い)は、口調とばらつきが一致するプリセットならそれ、違えば「カスタム」として引き継ぐ */
+function praiseSlotIdx(id){ var m = /^slot([1-3])$/.exec(String(id)); return m ? parseInt(m[1], 10) - 1 : -1; }
+function praiseCleanItem(v){      /* 保存枠・下書きの1件を整える。使えなければ null */
+  if (!v || typeof v.style !== 'string' || !v.style.trim()) return null;
+  var t = praiseTempOf(v.temp);
+  return {name: typeof v.name === 'string' ? v.name.trim().slice(0, 12) : '', style: v.style.trim().slice(0, 300), temp: t == null ? 0.9 : t};
+}
+/* 保存されている設定から、いま使う口調・ばらつき・選択中の項目・保存枠・下書きを決める。
+   古い設定の引き継ぎ: 単一の「カスタム」(praiseCustom / 'custom')はカスタム1へ。プリセット導入前の設定は、口調とばらつきが一致するプリセットならそれ、違えばカスタム1(埋まっていれば下書き)へ */
 function praiseInit(s){
   var style = (typeof s.praiseStyle === 'string' && s.praiseStyle.trim()) ? s.praiseStyle.trim().slice(0, 300) : '';
-  var temp = praiseTempOf(s.praiseTemp);
+  var temp = praiseTempOf(s.praiseTemp), slots = [null, null, null], i, v;
+  if (Array.isArray(s.praiseSlots)) for (i = 0; i < 3; i++) slots[i] = praiseCleanItem(s.praiseSlots[i]);
+  var draft = praiseCleanItem(s.praiseDraft);
   var preset = (typeof s.praisePreset === 'string') ? s.praisePreset : '';
-  var custom = (s.praiseCustom && typeof s.praiseCustom.style === 'string' && s.praiseCustom.style.trim())
-    ? {style: s.praiseCustom.style.trim().slice(0, 300), temp: praiseTempOf(s.praiseCustom.temp) == null ? 0.9 : praiseTempOf(s.praiseCustom.temp)} : null;
-  if (preset !== 'custom' && !praisePresetById(preset)){
+  if (!slots[0]) slots[0] = praiseCleanItem(s.praiseCustom);
+  if (preset === 'custom') preset = slots[0] ? 'slot1' : '';
+  var idx = praiseSlotIdx(preset);
+  var valid = !!praisePresetById(preset) || (idx >= 0 && !!slots[idx]) || (preset === 'draft' && !!draft);
+  if (!valid){
+    preset = '';
     if (!style) preset = PRAISE_PRESETS[0].id;
     else {
-      preset = 'custom';
-      for (var i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].style === style && (temp == null || temp === PRAISE_PRESETS[i].temp)) preset = PRAISE_PRESETS[i].id;
+      for (i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].style === style && (temp == null || temp === PRAISE_PRESETS[i].temp)) preset = PRAISE_PRESETS[i].id;
+      if (!preset){
+        v = {name: '', style: style, temp: temp == null ? 0.9 : temp};
+        if (!slots[0]){ slots[0] = v; preset = 'slot1'; } else { draft = v; preset = 'draft'; }
+      }
     }
   }
-  if (preset === 'custom'){
-    if (!custom) custom = {style: style || PRAISE_PRESETS[0].style, temp: temp == null ? 0.9 : temp};
-    return {preset: preset, style: custom.style, temp: custom.temp, custom: custom};
-  }
-  var pp = praisePresetById(preset);
-  return {preset: preset, style: pp.style, temp: pp.temp, custom: custom};
+  var cur = praisePresetById(preset) || (praiseSlotIdx(preset) >= 0 ? slots[praiseSlotIdx(preset)] : draft);
+  return {preset: preset, style: cur.style, temp: cur.temp, slots: slots, draft: draft};
 }
 var STATUS_LABEL = {todo:'これから', running:'実行中', done:'完了', fail:'本日終了'};
 var FAIL_MESSAGE = '本日は諦めて他のことをしましょう。先送りして大丈夫です。';
@@ -1905,9 +1920,12 @@ function mount(root, opts){
   function int(v, min, max, def){ var n = parseInt(v, 10); if (isNaN(n)) return def; return Math.max(min, Math.min(max, n)); }
 
   /* ---------- バイブのリズム ----------
-     記号で書く: ・=短い振動(約0.075秒) / ー=長い振動(約0.25秒) / ＿=休み(約0.1秒)。続けて振動する間には、自動で約0.05秒のすき間が入る。例: ・・＿・
-     (最初の版の2倍の速さ。数値は RHYTHM_MS で変えられる)
-     Android用の数値の配列([待ち, 振動, 待ち, 振動, ...](ミリ秒))に変換して、通知チャンネルに渡す */
+     記号で書く: ・=16分音符(短い振動) / ー=8分音符(長い振動) / ＿=16分休符(休み)。例: ・・＿・
+     楽譜と同じ長さの関係にしてある: 16分音符1つ=1マス(unit)。
+       ・ = 1マス      = 短い振動 + すき間
+       ＿ = 1マス分の無音                     (短い振動 + すき間 = 休み1回)
+       ー = 2マス      = 長い振動 + すき間    ((短い振動 + すき間) × 2 = 長い振動 + すき間)
+     テンポは ♩=120(16分音符=125ms)。すき間は振動のあとに入る(gap)。Android用の数値の配列([待ち, 振動, 待ち, 振動, ...](ミリ秒))に変換して、通知チャンネルに渡す */
   var RHYTHM_DEFAULT = {pre: '・・＿・', nudge: '・・＿・＿＿・・＿・＿＿・・＿・', esc: 'ーー＿・・・・＿ーー＿・・・・'};
   function normRhythm(v){
     var out = '', i, c, has = false;
@@ -1920,17 +1938,17 @@ function mount(root, opts){
     }
     return has ? out : '';
   }
-  var RHYTHM_MS = {short: 75, long: 250, rest: 100, gap: 50};      /* ・ / ー / ＿ / 続く振動の間のすき間 (ミリ秒) */
+  var RHYTHM_MS = {unit: 125, gap: 50};      /* 16分音符1マスの長さ / 振動のあとのすき間 (ミリ秒)。短い振動=unit-gap=75、長い振動=2×unit-gap=200、休み=unit */
   function rhythmToPattern(str, tailMs){
-    var s = normRhythm(str) || '・', arr = [0], lastOn = false, rest = 0, i, c, dur;
+    var U = RHYTHM_MS.unit, G = RHYTHM_MS.gap, s = normRhythm(str) || '・', arr = [0], lastOn = false, rest = 0, i, c, dur;
     for (i = 0; i < s.length; i++){
       c = s.charAt(i);
-      if (c === '＿'){ rest += RHYTHM_MS.rest; continue; }
-      dur = c === 'ー' ? RHYTHM_MS.long : RHYTHM_MS.short;
-      if (lastOn) arr.push(RHYTHM_MS.gap + rest); else arr[arr.length - 1] += rest;
+      if (c === '＿'){ rest += U; continue; }
+      dur = c === 'ー' ? 2 * U - G : U - G;
+      if (lastOn) arr.push(G + rest); else arr[arr.length - 1] += rest;      /* 前の振動のすき間 + 休み(1つにつき1マス) */
       arr.push(dur); lastOn = true; rest = 0;
     }
-    if (rest + (tailMs || 0) > 0) arr.push(rest + (tailMs || 0));          /* 末尾の休み(繰り返す時の、1回ごとの間) */
+    arr.push(G + rest + (tailMs || 0));                                       /* 末尾: すき間 + 休み + (繰り返す時の1回ごとの間) */
     return arr;
   }
 
@@ -1961,8 +1979,9 @@ function mount(root, opts){
       praiseOn: s.praiseOn !== false,                              /* 褒める機能を使う */
       praiseOnDone: s.praiseOnDone !== false,                      /* 完了した時に自動で褒める */
       praiseStyle: praiseInit(s).style,
-      praisePreset: praiseInit(s).preset,                          /* 'coach' など / 'custom' */
-      praiseCustom: praiseInit(s).custom,                          /* 手で書き換えた口調・ばらつきの保存先 {style, temp} */
+      praisePreset: praiseInit(s).preset,                          /* 'coach' など / 'slot1'〜'slot3' / 'draft' */
+      praiseSlots: praiseInit(s).slots,                            /* 手動で保存するカスタム枠 [{name, style, temp} | null] ×3 */
+      praiseDraft: praiseInit(s).draft,                            /* 直前の編集(仮の保存) {style, temp} */
       praiseTemp: praiseInit(s).temp,
       geminiModel: (typeof s.geminiModel === 'string' && s.geminiModel.trim()) ? s.geminiModel.trim().slice(0, 80) : 'gemini-flash-lite-latest'                                   /* 「おかえり！」の演出 */
     };
@@ -2220,12 +2239,13 @@ function mount(root, opts){
         '<button type="button" class="yr-btn" data-act="vib-test" data-kind="' + kind + '">試す</button></div></div>';
     }
     h += '<div class="yr-h">📳 バイブとアラーム(アプリを閉じていても鳴る通知)</div><div class="yr-set g-vib">' +
-      '<div class="yr-setrow"><div><small style="font-size:14px">リズムは記号で書きます: <b>・</b>=短い振動 <b>ー</b>=長い振動 <b>＿</b>=休み(例: ・・＿・)。「試す」で確認できます(APK版)</small></div></div>' +
+      '<div class="yr-setrow"><div><small style="font-size:14px">リズムは楽譜の感覚で書きます(♩=120): <b>・</b>=16分音符(短い振動) <b>ー</b>=8分音符(長い振動) <b>＿</b>=16分休符(休み)。例: ・・＿・。「試す」で確認できます(APK版)</small></div></div>' +
       vibRow('vibPre', '開始前の通知', 'pre') + vibRow('vibNudge', '催促(いつ始めますか？)', 'nudge') + vibRow('vibEsc', '脱線の時間切れ', 'esc') +
       '<div class="yr-setrow"><div>脱線の時間切れの鳴らし方<small>アラーム: マナーモード中でも音が鳴ります / 通知音: マナーモード中は振動だけです</small></div>' +
         '<div class="yr-seg"><button type="button" data-act="esc-sound" data-mode="alarm" class="' + (settings.escSound === 'alarm' ? 'on' : '') + '">アラーム</button>' +
         '<button type="button" data-act="esc-sound" data-mode="notif" class="' + (settings.escSound === 'notif' ? 'on' : '') + '">通知音</button></div></div>' +
       '<div class="yr-setrow"><div>脱線の時間切れ: 繰り返す時間<small>反応するまで音と振動を繰り返し、この時間で止まります(0=繰り返さない)。通知をタップ・消す、または「戻る」「延長」を押しても止まります</small></div>' + stepper('repeatSec', settings.repeatSec, '秒') + '</div>' +
+      '<div class="yr-setrow"><div>試しの通知を止める<small>「試す」で鳴らして、繰り返している通知を止めます</small></div><button type="button" class="yr-btn" data-act="vib-stop">■ 止める</button></div>' +
       '<div class="yr-setrow"><div>リズムを初期に戻す</div><button type="button" class="yr-btn" data-act="vib-reset">戻す</button></div>' +
       '</div>';
     /* 生存確認 */
@@ -2264,10 +2284,16 @@ function mount(root, opts){
       '<div class="yr-setrow" style="display:block"><div>モデル名<small>空にすると最新の軽量版(gemini-flash-lite-latest)になります</small></div>' +
         '<div style="display:flex;gap:8px;margin-top:6px"><input type="text" class="yr-input" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off"><button type="button" class="yr-btn" data-act="praise-models">候補を取得</button></div>' +
         '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist></div>' +
-      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>プリセットを選ぶと、下の欄に内容が入ります。自分で書き換えると「カスタム」として保存され、いつでも呼び戻せます</small></div>' +
-        '<div class="yr-chips">' + PRAISE_PRESETS.map(function(pp){ return '<button type="button" data-act="praise-preset" data-id="' + pp.id + '" class="' + (settings.praisePreset === pp.id ? 'on' : '') + '">' + pp.icon + ' ' + esc(pp.name) + '</button>'; }).join('') +
-          '<button type="button" data-act="praise-preset" data-id="custom" class="' + (settings.praisePreset === 'custom' ? 'on' : '') + '">✏️ カスタム</button></div>' +
-        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:8px">' + esc(settings.praiseStyle) + '</textarea></div>' +
+      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>プリセットを書き換えると、「🕘直前の編集(仮)」に自動で入ります(次に書き換えると上書きされます)。残したいものは「💾保存」で、カスタム枠に保存してください。カスタム枠を選んで書き換えると、その枠が更新されます</small></div>' +
+        '<div class="yr-chips">' + PRAISE_PRESETS.map(function(pp){ return '<button type="button" data-act="praise-preset" data-id="' + pp.id + '" class="' + (settings.praisePreset === pp.id ? 'on' : '') + '">' + pp.icon + ' ' + esc(pp.name) + '</button>'; }).join('') + '</div>' +
+        '<div class="yr-chips">' + [0, 1, 2].map(function(k){
+          var sl = settings.praiseSlots[k], id = 'slot' + (k + 1);
+          return '<button type="button" data-act="praise-preset" data-id="' + id + '" class="' + (settings.praisePreset === id ? 'on' : '') + (sl ? '' : ' empty') + '">' + (sl ? '💾 ' + esc(sl.name || ('カスタム' + (k + 1))) : '＋ カスタム' + (k + 1) + '(空)') + '</button>';
+        }).join('') + '<button type="button" data-act="praise-preset" data-id="draft" class="' + (settings.praisePreset === 'draft' ? 'on' : '') + (settings.praiseDraft ? '' : ' empty') + '">' + (settings.praiseDraft ? '🕘 直前の編集(仮)' : '🕘 直前の編集(なし)') + '</button></div>' +
+        (praiseSlotIdx(settings.praisePreset) >= 0 ? '<input type="text" class="yr-input" maxlength="12" data-role="praise-slotname" placeholder="この枠の名前(任意・12文字まで)" value="' + esc(settings.praiseSlots[praiseSlotIdx(settings.praisePreset)].name) + '" autocomplete="off" style="margin-top:8px">' : '') +
+        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:8px">' + esc(settings.praiseStyle) + '</textarea>' +
+        '<div class="yr-row" style="align-items:center"><span class="yr-meta" style="margin:0">💾 いまの内容を保存:</span>' +
+          [0, 1, 2].map(function(k){ return '<button type="button" class="yr-btn" data-act="praise-save" data-slot="' + k + '">カスタム' + (k + 1) + '</button>'; }).join('') + '</div></div>' +
       '<div class="yr-setrow"><div>ばらつき(Temperature)<small>高いほど、毎回の言い回しが変わります(0〜2)</small></div>' +
         '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div></div>' +
       '<div class="yr-setrow"><div>褒め言葉を試す<small>例のデータで1回だけ呼び出します</small></div><button type="button" class="yr-btn primary" data-act="praise-test">試す</button></div>' +
@@ -3096,26 +3122,44 @@ function mount(root, opts){
     if (settings.aliveRandMax < settings.aliveRandMin){ if (name === 'aliveRandMin') settings.aliveRandMax = settings.aliveRandMin; else settings.aliveRandMin = settings.aliveRandMax; }
     persist(); syncSettingInputs();
   }
-  /* 褒め方のプリセット。選ぶと口調・ばらつきが入る。「カスタム」は、手で書き換えた内容の保存先 */
+  /* 褒め方: プリセット・カスタム枠・直前の編集(下書き)を選ぶ。選ぶと口調・ばらつきが入る */
   function selectPraisePreset(id){
-    if (id === 'custom'){
-      if (!settings.praiseCustom) settings.praiseCustom = {style: settings.praiseStyle, temp: settings.praiseTemp};     /* まだ無ければ、いまの内容をカスタムの出発点にする */
-      settings.praisePreset = 'custom'; settings.praiseStyle = settings.praiseCustom.style; settings.praiseTemp = settings.praiseCustom.temp;
+    var idx = praiseSlotIdx(id), pp;
+    if (idx >= 0){
+      if (!settings.praiseSlots[idx]) settings.praiseSlots[idx] = {name: '', style: settings.praiseStyle, temp: settings.praiseTemp};   /* 空の枠は、いまの内容で作る */
+      settings.praisePreset = id; settings.praiseStyle = settings.praiseSlots[idx].style; settings.praiseTemp = settings.praiseSlots[idx].temp;
+    } else if (id === 'draft'){
+      if (!settings.praiseDraft) return;
+      settings.praisePreset = 'draft'; settings.praiseStyle = settings.praiseDraft.style; settings.praiseTemp = settings.praiseDraft.temp;
     } else {
-      var pp = praisePresetById(id); if (!pp) return;
+      pp = praisePresetById(id); if (!pp) return;
       settings.praisePreset = id; settings.praiseStyle = pp.style; settings.praiseTemp = pp.temp;
     }
     persist(); render();
   }
-  /* 手で書き換えて、選んでいるプリセットの内容と違ってきたら「カスタム」にして保存する */
+  /* 手で書き換えた時: カスタム枠を選んでいればその枠を更新。プリセットや下書きなら、「直前の編集」に自動で入れる(プリセットと同じ内容に戻した時は何もしない) */
   function syncPraisePreset(){
-    var pp = praisePresetById(settings.praisePreset);
-    if (pp && (settings.praiseStyle !== pp.style || settings.praiseTemp !== pp.temp)) settings.praisePreset = 'custom';
-    if (settings.praisePreset === 'custom') settings.praiseCustom = {style: settings.praiseStyle, temp: settings.praiseTemp};
+    var sel = settings.praisePreset, idx = praiseSlotIdx(sel), pp = praisePresetById(sel);
+    if (idx >= 0 && settings.praiseSlots[idx]){ settings.praiseSlots[idx].style = settings.praiseStyle; settings.praiseSlots[idx].temp = settings.praiseTemp; return; }
+    if (pp && settings.praiseStyle === pp.style && settings.praiseTemp === pp.temp) return;
+    settings.praisePreset = 'draft'; settings.praiseDraft = {name: '', style: settings.praiseStyle, temp: settings.praiseTemp};
   }
   function updatePraiseChips(){
     var list = root.querySelectorAll('[data-act="praise-preset"]'), i;
     for (i = 0; i < list.length; i++) list[i].classList.toggle('on', list[i].getAttribute('data-id') === settings.praisePreset);
+  }
+  /* いまの内容を、カスタム枠(0〜2)に保存する。中身のある枠を別の内容で上書きする時は、確認する */
+  function praiseSave(k, force){
+    var ex = settings.praiseSlots[k];
+    if (ex && !force && (ex.style !== settings.praiseStyle || ex.temp !== settings.praiseTemp)){
+      openModal('<h2>カスタム' + (k + 1) + 'を上書きしますか？</h2>' +
+        '<div class="yr-meta" style="margin-bottom:10px;line-height:1.6">いまの中身' + (ex.name ? '(' + esc(ex.name) + ')' : '') + ':<br>' + esc(ex.style.slice(0, 80)) + (ex.style.length > 80 ? '…' : '') + '</div>' +
+        '<div class="yr-row"><button type="button" class="yr-btn danger" style="flex:1" data-act="praise-save-ok" data-slot="' + k + '">上書きして保存</button><button type="button" class="yr-btn" data-act="modal-close">やめる</button></div>');
+      return;
+    }
+    settings.praiseSlots[k] = {name: ex ? ex.name : '', style: settings.praiseStyle, temp: settings.praiseTemp};
+    settings.praisePreset = 'slot' + (k + 1);
+    persist(); render(); toast('カスタム' + (k + 1) + 'に保存しました');
   }
   function applyTemp(dir){
     settings.praiseTemp = Math.max(0, Math.min(2, Math.round((settings.praiseTemp + dir * 0.1) * 10) / 10));
@@ -3640,6 +3684,11 @@ function mount(root, opts){
       case 'step': applySetting(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
       case 'esc-sound': settings.escSound = el.getAttribute('data-mode') === 'notif' ? 'notif' : 'alarm'; persist(); render(); break;
       case 'vib-reset': settings.vibPre = RHYTHM_DEFAULT.pre; settings.vibNudge = RHYTHM_DEFAULT.nudge; settings.vibEsc = RHYTHM_DEFAULT.esc; persist(); render(); toast('リズムを初期に戻しました'); break;
+      case 'vib-stop': {
+        var sres; try { sres = Promise.resolve(opts.onVibStop ? opts.onVibStop() : '止める対象がありません'); } catch(e4){ sres = Promise.reject(e4); }
+        sres.then(function(m){ toast(m || '止めました'); }, function(e5){ toast('止められませんでした'); });
+        break;
+      }
       case 'vib-test': {
         if (!opts.onVibTest){ toast('この環境では試せません'); break; }
         var vres; try { vres = Promise.resolve(opts.onVibTest(el.getAttribute('data-kind'))); } catch(e2){ vres = Promise.reject(e2); }
@@ -3673,6 +3722,8 @@ function mount(root, opts){
       case 'praise-models': fetchModels(); break;
       case 'praise-test': unlockAudio(); praiseTest(); break;
       case 'praise-preset': selectPraisePreset(el.getAttribute('data-id')); break;
+      case 'praise-save': praiseSave(parseInt(el.getAttribute('data-slot'), 10), false); break;
+      case 'praise-save-ok': closeModal(); praiseSave(parseInt(el.getAttribute('data-slot'), 10), true); break;
       case 'praise-day': unlockAudio(); praiseDay(el.getAttribute('data-date')); break;
       case 'praise-close': { var pr = root.querySelector('.yr-praise'); if (pr) pr.remove(); break; }
       case 'unused': {
@@ -3730,9 +3781,10 @@ function mount(root, opts){
     else if (r === 'set-praiseTemp'){ var tv = parseFloat(e.target.value); if (!isNaN(tv)) settings.praiseTemp = Math.max(0, Math.min(2, Math.round(tv * 10) / 10)); syncPraisePreset(); }
     else if (r === 'praise-style'){
       var pv = e.target.value.trim().slice(0, 300);
-      if (!pv) pv = (settings.praisePreset === 'custom' && settings.praiseCustom) ? settings.praiseCustom.style : (praisePresetById(settings.praisePreset) || PRAISE_PRESETS[0]).style;   /* 空にした時は、直前の内容に戻す */
+      if (!pv) pv = (praisePresetById(settings.praisePreset) || praiseSlotIdx(settings.praisePreset) >= 0 && settings.praiseSlots[praiseSlotIdx(settings.praisePreset)] || settings.praiseDraft || PRAISE_PRESETS[0]).style;   /* 空にした時は、直前の内容に戻す */
       settings.praiseStyle = pv; syncPraisePreset();
     }
+    else if (r === 'praise-slotname'){ var sidx = praiseSlotIdx(settings.praisePreset); if (sidx >= 0 && settings.praiseSlots[sidx]) settings.praiseSlots[sidx].name = e.target.value.trim().slice(0, 12); }
     else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
     else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!cfg(runningItem(), 'aliveEnabled') && alive && !alive.test) aliveStop(); }
     else if (r === 'set-camera') settings.cameraId = e.target.value;
@@ -5093,7 +5145,7 @@ var REQUIRED_SHELL_VERSION = 12;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261025-1';
+var APP_BUILD = '20261026-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7490,6 +7542,7 @@ function yrNotifId(tag){
 /* 通知のIDから、その通知の種類(tag)を調べる。予約通知は、予約した時の控えから引く */
 function yrTagFromId(id){
   if (id === YR_NOTIF_NUDGE_ID) return 'nudge';
+  if (id === YR_TEST_NOTIF_ID) return 'test';
   var list = loadJSON(YR_SCHED_KEY, []);
   for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i].tag || 'open';
   return 'open';
@@ -7576,6 +7629,12 @@ function yrNotifyApk(o){
     return yrPostNow(n);
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
 }
+/* 設定の「■止める」: 試しの通知(ID 80002)を取り消す = 繰り返しも止まる */
+function yrVibStop(){
+  if (isApkPlatform()) return callNativeBridge('cancel', {notifications: [{id: YR_TEST_NOTIF_ID}]}).then(function(){ return '止めました'; }, function(){ return '止められませんでした'; });
+  if (navigator.vibrate) navigator.vibrate(0);
+  return '止めました';
+}
 /* 設定の「試す」: その種類のリズム・鳴らし方で、試しの通知を出す(APK版)。PWA版は端末のバイブだけ試す */
 function yrVibTest(kind){
   var cfg = yrApi ? yrApi.vibConfig() : null;
@@ -7587,7 +7646,7 @@ function yrVibTest(kind){
       if (kind === 'esc' && cfg.repeatSec > 0) n.extra = {repeatSec: cfg.repeatSec};
       return yrPostNow(n);
     }).then(function(){
-      return '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。通知を消すと止まります)' : '');
+      return '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。「■止める」か、通知を消すと止まります)' : '');
     }, function(e){ return '失敗しました: ' + (e && e.message || e); });
   }
   if (navigator.vibrate){ navigator.vibrate(cfg[kind]); return 'バイブを鳴らしました(対応している端末のみ)'; }
@@ -7791,7 +7850,7 @@ function yrCameraDiagnose(){
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest, onVibStop: yrVibStop});
   if (!yrSchedInterval) yrSchedInterval = setInterval(yrScheduleSoon, 30000);   /* 念のための定期チェック(内容が同じなら何もしない) */
   yrScheduleSoon();
   return yrApi;
@@ -7842,6 +7901,7 @@ function yrOnShow(){
 
 /* 通知をタップした時(ガワ経由・SW経由どちらも): やらせるToDoを開く。tag='nudge' なら開始時間の入力画面まで開く */
 function yrHandleNotifTap(tag){
+  if (tag === 'test') return;      /* 設定の「試す」の通知は、画面を移動しない(いま開いている設定画面のまま。アプリが前面に出るだけ) */
   if (!yrEnsure()) return;
   if (!(history.state && history.state.page === 'yaraseru')) navigateTo('yaraseru');
   if (yrClickCb) yrClickCb(tag);
