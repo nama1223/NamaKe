@@ -32,7 +32,7 @@
   ・(8) やらせるToDo: HTML「-- (8) やらせるToDo」 / CSS・JSの中身(元は別ファイル yaraseru.html v6 をそのまま挿入した区間。今後はここを直接編集する): 「やらせるToDo 合体ここから」〜「やらせるToDo 合体ここまで」(CSSとJSで各1組)
       CSS(本体側の追加分): 「---------- やらせるToDo(合体用)」 / JS(起動・戻る・通知・バックアップとのつなぎ): 「============ やらせるToDo(合体)」
       カメラの原因調査(旧「診断」): 「function yrCameraDiagnose」(調査の中身) / 「settings-camdiag-btn」(設定「アプリ全般」タブのボタンと表示欄)
-      中身の探し方(JS側): 「function mount(」が単体版の本体。細かい検索語は yaraseru.html の冒頭目次を見る
+      中身の探し方(JS側): 「function mount(」がやらせるToDoの本体
   ・数をかぞえるやつ: JS「============ 数をかぞえるやつ」
   ・共通: トースト: CSS「---------- トースト」 / JS「============ トースト」
   ・共通: カレンダーモーダル: CSS「---------- カレンダーモーダル」 / JS「============ カレンダーモーダル(共通部品)」
@@ -872,7 +872,7 @@ select.plain{
   background:#fff;border:none;border-radius:12px;cursor:pointer;padding:0;
 }
 
-/* ========== やらせるToDo 合体ここから (元は単体版 yaraseru.html v6 のCSS。今後はこの区間を本体で直接編集する) ========== */
+/* ========== やらせるToDo 合体ここから ========== */
 /* ---------- やらせるToDo ---------- */
 .yr{--yr-primary:#1e3a5f;--yr-bg:#eef1f5;--yr-ink:#1c2530;--yr-sub:#5b6776;--yr-green:#2f7d51;--yr-red:#c0392b;--yr-amber:#b87410;
   font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;font-size:17px;line-height:1.5;color:var(--yr-ink);background:var(--yr-bg);
@@ -1035,7 +1035,7 @@ select.plain{
 .yr-praise-h{font-size:14px;font-weight:700;color:#7a4b00;}
 .yr-praise-t{font-size:19px;line-height:1.6;margin:6px 0 10px;white-space:pre-wrap;}
 
-/* 本体(Nama計算機)の中に置いた時(mount の embedded:true): 本体のヘッダーを使うので、自前の上部バーは「小さな操作列」にする */
+/* 本体のヘッダーを使うので、やらせるToDo自前の上部バーは「小さな操作列」にする */
 .yr.yr-embedded{min-height:0;}
 .yr-embedded .yr-bar{position:static;background:transparent;color:var(--yr-ink);padding:4px 12px 0;}
 .yr-embedded .yr-bar h1{font-size:17px;}
@@ -1728,22 +1728,21 @@ select.plain{
 </div>
 
 <script>
-/* ========== やらせるToDo 合体ここから (元は単体版 yaraseru.html v6 のJS。今後はこの区間を本体で直接編集する) ==========
+/* ========== やらせるToDo 合体ここから ==========
    ※ 本体の script とは別。外へ出すのは window.Yaraseru だけ。起動や通知・戻るボタンとのつなぎは、本体の script 側の「やらせるToDo(合体)」の区間にある */
 (function(global){
 'use strict';
 
 /* =====================================================================
    やらせるToDo  window.Yaraseru.mount(rootElement, options)
-   options: { host, now, storage, camera, embedded, onNavigate }
-     host    … 通知など実行環境ごとに違う処理(省略すると単体版用の createStandaloneHost)
+   options: { host, now, storage, camera, onNavigate, onStateChange, onVibTest, onVibStop, cameraDeniedText }
+     host    … 通知など実行環境ごとに違う処理(本体の createYaraseruHost)
      now     … 現在時刻(ms)を返す関数。テスト用に差し替え可能
      storage … localStorage 互換の保存先
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
      onVibStop … 設定の「■止める」ボタンが呼ぶ関数(試しの通知を止める)。メッセージ(のPromise)を返す
      onVibTest … 設定の「試す」ボタンが呼ぶ関数 function(kind: 'pre'|'nudge'|'esc')。表示するメッセージ(のPromise)を返す
      onStateChange … 状態を保存するたびに呼ばれる(本体が予約通知を作り直す合図)。戻り値の schedule() が「これから鳴るはずの通知」{sound, events:[{tag, at(ms), title, body}]} を返す
-     embedded   … true なら本体(Nama計算機)の中に置く表示にする(自前の「戻る」ボタンを隠し、上部バーを小さくする)
      onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
    戻り値の back() / canGoBack() / view(): 内側の画面が「今日」以外なら back() で「今日」へ戻る(戻れたら true)
    ===================================================================== */
@@ -1771,7 +1770,6 @@ var PRAISE_PRESETS = [
   {id: 'cat',       icon: '🐱', name: 'のんびり猫',           temp: 1.1, style: 'のんびり屋の猫。語尾は「〜にゃ」「〜だにゃ」で、ゆったりした柔らかい口調。ごろごろと満足そうに、いっしょに喜ぶ。'},
   {id: 'dwarf',     icon: '🍺', name: '豪快なドワーフ',       temp: 0.9, style: '豪快なドワーフのおっちゃん。口調は「〜じゃ」「〜だな」「がはは」など荒っぽいが温かい感じ。酒や鍛冶仕事のたとえは、使うとしても1回まで。'}
 ];
-var PRAISE_STYLE_DEFAULT = PRAISE_PRESETS[0].style;
 function praisePresetById(id){ for (var i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].id === id) return PRAISE_PRESETS[i]; return null; }
 function praiseTempOf(v){ var n = parseFloat(v); return isNaN(n) ? null : Math.max(0, Math.min(2, Math.round(n * 10) / 10)); }
 function praiseSlotIdx(id){ var m = /^slot([1-3])$/.exec(String(id)); return m ? parseInt(m[1], 10) - 1 : -1; }
@@ -1780,72 +1778,23 @@ function praiseCleanItem(v){      /* 保存枠・下書きの1件を整える。
   var t = praiseTempOf(v.temp);
   return {name: typeof v.name === 'string' ? v.name.trim().slice(0, 12) : '', style: v.style.trim().slice(0, 300), temp: t == null ? 0.9 : t};
 }
-/* 保存されている設定から、いま使う口調・ばらつき・選択中の項目・保存枠・下書きを決める。
-   古い設定の引き継ぎ: 単一の「カスタム」(praiseCustom / 'custom')はカスタム1へ。プリセット導入前の設定は、口調とばらつきが一致するプリセットならそれ、違えばカスタム1(埋まっていれば下書き)へ */
+/* 保存されている設定から、いま使う口調・ばらつき・選択中の項目・保存枠・下書きを決める。選択が無効なら、先頭のプリセットにする */
 function praiseInit(s){
-  var style = (typeof s.praiseStyle === 'string' && s.praiseStyle.trim()) ? s.praiseStyle.trim().slice(0, 300) : '';
-  var temp = praiseTempOf(s.praiseTemp), slots = [null, null, null], i, v;
+  var slots = [null, null, null], i;
   if (Array.isArray(s.praiseSlots)) for (i = 0; i < 3; i++) slots[i] = praiseCleanItem(s.praiseSlots[i]);
   var draft = praiseCleanItem(s.praiseDraft);
   var preset = (typeof s.praisePreset === 'string') ? s.praisePreset : '';
-  if (!slots[0]) slots[0] = praiseCleanItem(s.praiseCustom);
-  if (preset === 'custom') preset = slots[0] ? 'slot1' : '';
   var idx = praiseSlotIdx(preset);
-  var valid = !!praisePresetById(preset) || (idx >= 0 && !!slots[idx]) || (preset === 'draft' && !!draft);
-  if (!valid){
-    preset = '';
-    if (!style) preset = PRAISE_PRESETS[0].id;
-    else {
-      for (i = 0; i < PRAISE_PRESETS.length; i++) if (PRAISE_PRESETS[i].style === style && (temp == null || temp === PRAISE_PRESETS[i].temp)) preset = PRAISE_PRESETS[i].id;
-      if (!preset){
-        v = {name: '', style: style, temp: temp == null ? 0.9 : temp};
-        if (!slots[0]){ slots[0] = v; preset = 'slot1'; } else { draft = v; preset = 'draft'; }
-      }
-    }
-  }
-  var cur = praisePresetById(preset) || (praiseSlotIdx(preset) >= 0 ? slots[praiseSlotIdx(preset)] : draft);
+  if (!praisePresetById(preset) && !(idx >= 0 && slots[idx]) && !(preset === 'draft' && draft)) preset = PRAISE_PRESETS[0].id;
+  idx = praiseSlotIdx(preset);
+  var cur = praisePresetById(preset) || (idx >= 0 ? slots[idx] : draft);
   return {preset: preset, style: cur.style, temp: cur.temp, slots: slots, draft: draft};
 }
 var STATUS_LABEL = {todo:'これから', running:'実行中', done:'完了', fail:'本日終了'};
 var FAIL_MESSAGE = '本日は諦めて他のことをしましょう。先送りして大丈夫です。';
 
-/* ---- 実行環境ごとに違う部分(単体PWA版) ----
-   Nama計算機へ合体した後は、同じ形(permission / requestPermission / notify / init)の host を渡して差し替える。
-   ・APK版: ガワ(LocalNotifications)経由で「アプリが閉じていても鳴る予約通知」にする([PHASE2]以降で追加)
-   ・通知は「今すぐ表示」だけを使う。予約通知はAPKでしか確実に動かせないため後回し */
-function createStandaloneHost(){
-  var reg = null, clickCb = null;
-  return {
-    name: 'standalone',
-    init: function(onClick){
-      clickCb = onClick;
-      if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
-        navigator.serviceWorker.register('./yaraseru-sw.js').then(function(r){ reg = r; }).catch(function(){});
-        navigator.serviceWorker.addEventListener('message', function(e){
-          if (e.data && e.data.type === 'yr-notif-click' && clickCb) clickCb(e.data.tag);
-        });
-      }
-    },
-    permission: function(){ return ('Notification' in global) ? global.Notification.permission : 'unsupported'; },
-    requestPermission: function(){
-      if (!('Notification' in global)) return Promise.resolve('unsupported');
-      return Promise.resolve(global.Notification.requestPermission());
-    },
-    /* o: {title, body, tag}  戻り値: 表示できたか */
-    notify: function(o){
-      if (!('Notification' in global) || global.Notification.permission !== 'granted') return false;
-      try {
-        if (reg && reg.showNotification){ reg.showNotification(o.title, {body: o.body, tag: o.tag, requireInteraction: true, renotify: true}); return true; }
-        var n = new global.Notification(o.title, {body: o.body, tag: o.tag});
-        n.onclick = function(){ try { global.focus(); } catch(e){} if (clickCb) clickCb(o.tag); };
-        return true;
-      } catch(e){ return false; }
-    }
-  };
-}
-
-/* ---- カメラ(単体PWA版) ----
-   明るさを調べるだけ。映像は保存も送信もしない。Nama計算機へ合体した後は、同じ形のものを opts.camera で渡して差し替える
+/* ---- カメラ ----
+   明るさを調べるだけ。映像は保存も送信もしない。同じ形のものを opts.camera で渡して差し替えられる(テスト用)
    (APK版では、ガワ側でカメラの権限が必要になる) */
 function createBrowserCamera(){
   var stream = null, video = null, canvas = null, ctx = null;
@@ -1897,19 +1846,9 @@ function createBrowserCamera(){
 function mount(root, opts){
   opts = opts || {};
   var now = opts.now || function(){ return Date.now(); };
-  var host = opts.host || createStandaloneHost();
+  var host = opts.host;      /* 通知の窓口(本体の createYaraseruHost) */
   var store = opts.storage || global.localStorage;
   var camera = opts.camera || createBrowserCamera();
-  /* 旧名(yarasero_v1_*)で保存したテストデータを、新しい名前へ一度だけ引き継ぐ。不要になったらこの数行は消してよい */
-  (function(){
-    try {
-      ['settings', 'backlog', 'today', 'history', 'nudge'].forEach(function(n){
-        var o = store.getItem('yarasero_v1_' + n);
-        if (o !== null && store.getItem('yaraseru_v1_' + n) === null) store.setItem('yaraseru_v1_' + n, o);
-      });
-    } catch(e){}
-  })();
-
   /* ---------- 保存 ---------- */
   function load(k, def){ try { var v = store.getItem(k); return v === null ? def : JSON.parse(v); } catch(e){ return def; } }
   function save(k, v){ try { store.setItem(k, JSON.stringify(v)); } catch(e){} }
@@ -2057,8 +1996,7 @@ function mount(root, opts){
 
   /* ---------- 画面の骨組み ---------- */
   root.classList.add('yr');
-  var embedded = opts.embedded === true;
-  if (embedded) root.classList.add('yr-embedded');
+  root.classList.add('yr-embedded');
   root.innerHTML =
     '<div class="yr-bar"><button type="button" data-act="back" class="yr-hide" aria-label="戻る">←</button>' +
     '<h1 data-role="title">やらせるToDo</h1>' +
@@ -2075,7 +2013,7 @@ function mount(root, opts){
   function go(v){
     var prev = view;
     view = v;
-    $r('title').textContent = (embedded && v === 'today') ? '' : ({today: 'やらせるToDo', backlog: 'そのうちやる事', stats: '記録・振り返り', settings: '設定'}[v] || '設定');   /* 本体に置いた時は、本体のヘッダーがタイトルを出すので「今日」では出さない */
+    $r('title').textContent = (v === 'today') ? '' : ({today: 'やらせるToDo', backlog: 'そのうちやる事', stats: '記録・振り返り', settings: '設定'}[v] || '設定');   /* 本体に置いた時は、本体のヘッダーがタイトルを出すので「今日」では出さない */
     root.querySelector('[data-act="back"]').classList.toggle('yr-hide', v === 'today');
     $r('gear').classList.toggle('yr-hide', v !== 'today');
     $r('statsbtn').classList.toggle('yr-hide', v !== 'today');
@@ -2300,7 +2238,7 @@ function mount(root, opts){
       '</div>';
     h += '<div class="yr-h">🗂 データ</div><div class="yr-set g-data">' +
       '<div class="yr-setrow"><div>今日の予定をすべて消す<small>そのうちやる事リストは消えません</small></div><button type="button" class="yr-btn danger" data-act="reset-today">消す</button></div>' +
-      '</div><div class="yr-meta" style="text-align:center">やらせるToDo v' + VERSION + '(単体版)</div>';
+      '</div><div class="yr-meta" style="text-align:center">やらせるToDo v' + VERSION + '</div>';
     return h;
   }
 
@@ -3809,7 +3747,6 @@ function mount(root, opts){
 
   /* ---------- 起動 ---------- */
   host.init(function(tag){ if (tag === 'nudge') openStartPrompt(); go('today'); });
-  if (!embedded && global.location && global.location.hash === '#nudge') openStartPrompt();
   go('today');
   var timer = setInterval(tick, 1000);
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) tick(); });
@@ -3830,7 +3767,7 @@ function mount(root, opts){
   };
 }
 
-global.Yaraseru = {mount: mount, version: VERSION, createStandaloneHost: createStandaloneHost};
+global.Yaraseru = {mount: mount, version: VERSION};
 
 })(window);
 /* ========== やらせるToDo 合体ここまで ========== */
@@ -5058,31 +4995,20 @@ function makeTodoTarget(timeStr, fromStock, stockId){
   }
   return {time: timeStr, label: '無題', fromStock: false, stockId: null};
 }
-/* 旧データ(文字列のみ、またはstockId未保存のオブジェクト)をstockId付きに移行する */
-function migrateTodoTarget(t){
-  if (typeof t === 'string'){
-    var entry = findStockTimeEntry(t);
-    return entry ? {time: t, label: (entry.label || ''), fromStock: true, stockId: entry.id} : {time: t, label: '無題', fromStock: false, stockId: null};
-  }
-  if (t.fromStock && !t.stockId){
-    var candidates = todoTimes.filter(function(x){ return x.time === t.time && (x.label || '') === (t.label || ''); });
-    t.stockId = (candidates.length === 1) ? candidates[0].id : null;
-  }
-  if (t.stockId === undefined) t.stockId = null;
-  return t;
-}
+/* 読み込んだ目標時刻が壊れた形式でも落ちないよう、使えない項目は読み飛ばす */
+function validTodoTarget(t){ return !!t && typeof t === 'object' && typeof t.time === 'string'; }
 function loadTodoAll(){
   todoActions = loadJSON(TODO_ACTIONS_KEY, []);
   todoSets = loadJSON(TODO_SETS_KEY, []);
   todoTimes = loadJSON(TODO_TIMES_KEY, []);
   todoFullsets = loadJSON(TODO_FULLSETS_KEY, []);
   todoFullsets.forEach(function(fs){
-    fs.targets = (fs.targets || []).map(migrateTodoTarget);
+    fs.targets = (fs.targets || []).filter(validTodoTarget);
   });
   var current = loadJSON(TODO_CURRENT_KEY, {sequence:[], targets:[]});
   todoSequence = Array.isArray(current.sequence) ? current.sequence : [];
   var rawTargets = Array.isArray(current.targets) ? current.targets : [];
-  todoTargets = rawTargets.map(migrateTodoTarget);
+  todoTargets = rawTargets.filter(validTodoTarget);
   todoTargets.sort(function(a,b){ return a.time.localeCompare(b.time); });
 }
 function saveTodoCurrent(){
@@ -5145,7 +5071,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261027-1';
+var APP_BUILD = '20261028-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -5583,7 +5509,7 @@ function todoTodayStr(){
   return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
 function isTodoAlarmStoppedToday(){ return loadJSON(TODO_ALARM_STOPPED_KEY, '') === todoTodayStr(); }
-/* 通知に付けるボタンを端末に登録する(古いガワでは失敗する。その場合はボタン無しで動く) */
+/* 通知に付けるボタンを端末に登録する(失敗してもボタン無しで動く) */
 function ensureTodoActionTypes(){
   if (todoActionTypesReady) return Promise.resolve();
   return callNativeBridge('registerActionTypes', {types: [{
@@ -7586,7 +7512,7 @@ function yrEnsureKindChannel(kind, cfg){
     list[kind] = ch.id; saveJSON(YR_CHLIST_KEY, list);
     if (old && old !== ch.id){
       delete yrChannelsReady[old];     /* 消したチャンネルを「作成済み」と覚えたままだと、元の設定に戻した時に作り直されず、通知が出なくなる */
-      callNativeBridge('deleteChannel', {id: old}).catch(function(){});   /* 古いリズムのチャンネルを消す(古いガワでは失敗するが、害は無い) */
+      callNativeBridge('deleteChannel', {id: old}).catch(function(){});   /* 古いリズムのチャンネルを消す(失敗しても動作に影響しない) */
     }
     return ch.id;
   });
@@ -7606,23 +7532,17 @@ function yrDismissEsc(){
   var ids = list.filter(isEsc).map(function(p){ return p.id; });
   if (!ids.length) return Promise.resolve();
   saveJSON(YR_SCHED_KEY, list.filter(function(p){ return !isEsc(p); }));
-  return yrRemoveDelivered(ids, 'esc');
+  return yrRemoveDelivered(ids);
 }
 /* 今すぐ表示する(n に schedule を付けない)。プラグインの schedule は、同じIDの表示中の通知を先に消してから出すので、再び鳴る */
 function yrPostNow(n){
   return callNativeBridge('schedule', {notifications: [n]});
 }
 /* すでに表示された通知を消す = 鳴っている音・振動(繰り返し)も止まる。
-   ※ プラグイン8.3.1の cancel は「まだ鳴っていない予約」だけを取り消し、表示中の通知は消さない。表示中の通知は removeDeliveredNotifications(ガワv13〜)で消す。
-   ガワが古くてこの命令が無い時は、その種類のチャンネルごと削除する(表示中の通知も音・振動も止まる。次に使う時に作り直される) */
-function yrRemoveDelivered(ids, kind){
+   ※ プラグイン8.3.1の cancel は「まだ鳴っていない予約」だけを取り消し、表示中の通知は消さない。表示中の通知は removeDeliveredNotifications で消す */
+function yrRemoveDelivered(ids){
   if (!ids.length) return Promise.resolve();
-  return callNativeBridge('removeDeliveredNotifications', {notifications: ids.map(function(id){ return {id: id}; })}).catch(function(){
-    var chId = (loadJSON(YR_CHLIST_KEY, {}) || {})[kind];
-    if (!chId) return;
-    delete yrChannelsReady[chId];
-    return callNativeBridge('deleteChannel', {id: chId}).catch(function(){});
-  });
+  return callNativeBridge('removeDeliveredNotifications', {notifications: ids.map(function(id){ return {id: id}; })});
 }
 function yrNotifyApk(o){
   if (yrPerm !== 'granted') return;
@@ -7640,9 +7560,8 @@ function yrNotifyApk(o){
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
 }
 /* 設定の「■止める」: 試しの通知(ID 80002)を取り消す = 繰り返しも止まる */
-var yrTestKind = 'esc';      /* 最後に「試す」で鳴らした種類(ガワが古い時の、止める処理に使う) */
 function yrVibStop(){
-  if (isApkPlatform()) return yrRemoveDelivered([YR_TEST_NOTIF_ID], yrTestKind).then(function(){ return '止めました'; }, function(){ return '止められませんでした'; });
+  if (isApkPlatform()) return yrRemoveDelivered([YR_TEST_NOTIF_ID]).then(function(){ return '止めました'; }, function(){ return '止められませんでした'; });
   if (navigator.vibrate) navigator.vibrate(0);
   return '止めました';
 }
@@ -7650,7 +7569,6 @@ function yrVibStop(){
 function yrVibTest(kind){
   var cfg = yrApi ? yrApi.vibConfig() : null;
   if (!cfg || !YR_KIND_LABEL[kind]) return '準備中です';
-  yrTestKind = kind;
   if (isApkPlatform()){
     if (yrPerm !== 'granted') return '通知が許可されていません。端末の設定で通知を許可してください';
     return yrEnsureKindChannel(kind, cfg).then(function(chId){
@@ -7690,7 +7608,7 @@ function yrNotifyWeb(o){
   }
   return yrNotifyFallback(o);
 }
-/* Yaraseru.mount に渡す「通知の窓口」(単体版の createStandaloneHost の差し替え) */
+/* Yaraseru.mount に渡す「通知の窓口」 */
 function createYaraseruHost(){
   return {
     name: 'nama',
@@ -7788,7 +7706,7 @@ function yrScheduleSync(){
 }
 
 /* 起動(1回だけ) */
-/* カメラの許可が拒否された時の案内文。APK版は端末の設定へ案内する(ブラウザ用の「アドレスバー」は無いため)。PWA版は空文字を返し、単体版の文言のまま */
+/* カメラの許可が拒否された時の案内文。APK版は端末の設定へ案内する(ブラウザ用の「アドレスバー」は無いため)。PWA版は空文字を返し、既定の「アドレスバー」案内のまま */
 function yrCameraDeniedText(err){
   if (!isApkPlatform()) return '';
   var detail = err ? '(' + [err.name, err.message].filter(Boolean).join(': ') + ')' : '';
@@ -7862,7 +7780,7 @@ function yrCameraDiagnose(){
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), embedded: true, onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest, onVibStop: yrVibStop});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest, onVibStop: yrVibStop});
   if (!yrSchedInterval) yrSchedInterval = setInterval(yrScheduleSoon, 30000);   /* 念のための定期チェック(内容が同じなら何もしない) */
   yrScheduleSoon();
   return yrApi;
