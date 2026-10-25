@@ -5141,11 +5141,11 @@ var TODO_ALARM_TYPE_KEY = 'namacalc_todo_alarm_type_v1';
 var todoAlarmType = loadJSON(TODO_ALARM_TYPE_KEY, 'alarm') === 'notif' ? 'notif' : 'alarm';
 var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
-var REQUIRED_SHELL_VERSION = 12;
+var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261026-1';
+var APP_BUILD = '20261027-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7598,20 +7598,30 @@ function yrRecordDelivered(id, tag){
   list.push({id: id, at: Date.now(), tag: tag});
   saveJSON(YR_SCHED_KEY, list.slice(-40));
 }
-/* 脱線の時間切れの通知(すでに出ているもの)を取り消す = 繰り返しの音・振動も止まる */
+/* 脱線の時間切れの通知(すでに出ているもの)を消す = 繰り返しの音・振動も止まる */
 function yrDismissEsc(){
   var list = loadJSON(YR_SCHED_KEY, []), nowMs = Date.now();
   if (!Array.isArray(list)) return Promise.resolve();
   function isEsc(p){ return p && (p.tag === 'esc-end' || p.tag === 'esc-block') && p.at <= nowMs; }
-  var ids = list.filter(isEsc).map(function(p){ return {id: p.id}; });
+  var ids = list.filter(isEsc).map(function(p){ return p.id; });
   if (!ids.length) return Promise.resolve();
   saveJSON(YR_SCHED_KEY, list.filter(function(p){ return !isEsc(p); }));
-  return callNativeBridge('cancel', {notifications: ids}).catch(function(){});
+  return yrRemoveDelivered(ids, 'esc');
 }
-/* 今すぐ表示する。同じIDの通知が通知エリアに残っていると、更新扱いになって音・振動が鳴らない(プラグインは setOnlyAlertOnce)ので、先に取り消してから出す */
+/* 今すぐ表示する(n に schedule を付けない)。プラグインの schedule は、同じIDの表示中の通知を先に消してから出すので、再び鳴る */
 function yrPostNow(n){
-  return callNativeBridge('cancel', {notifications: [{id: n.id}]}).catch(function(){}).then(function(){
-    return callNativeBridge('schedule', {notifications: [n]});     /* schedule を付けない = 今すぐ表示 */
+  return callNativeBridge('schedule', {notifications: [n]});
+}
+/* すでに表示された通知を消す = 鳴っている音・振動(繰り返し)も止まる。
+   ※ プラグイン8.3.1の cancel は「まだ鳴っていない予約」だけを取り消し、表示中の通知は消さない。表示中の通知は removeDeliveredNotifications(ガワv13〜)で消す。
+   ガワが古くてこの命令が無い時は、その種類のチャンネルごと削除する(表示中の通知も音・振動も止まる。次に使う時に作り直される) */
+function yrRemoveDelivered(ids, kind){
+  if (!ids.length) return Promise.resolve();
+  return callNativeBridge('removeDeliveredNotifications', {notifications: ids.map(function(id){ return {id: id}; })}).catch(function(){
+    var chId = (loadJSON(YR_CHLIST_KEY, {}) || {})[kind];
+    if (!chId) return;
+    delete yrChannelsReady[chId];
+    return callNativeBridge('deleteChannel', {id: chId}).catch(function(){});
   });
 }
 function yrNotifyApk(o){
@@ -7630,8 +7640,9 @@ function yrNotifyApk(o){
   }).catch(function(e){ console.warn('やらせるToDoの通知に失敗:', e); });
 }
 /* 設定の「■止める」: 試しの通知(ID 80002)を取り消す = 繰り返しも止まる */
+var yrTestKind = 'esc';      /* 最後に「試す」で鳴らした種類(ガワが古い時の、止める処理に使う) */
 function yrVibStop(){
-  if (isApkPlatform()) return callNativeBridge('cancel', {notifications: [{id: YR_TEST_NOTIF_ID}]}).then(function(){ return '止めました'; }, function(){ return '止められませんでした'; });
+  if (isApkPlatform()) return yrRemoveDelivered([YR_TEST_NOTIF_ID], yrTestKind).then(function(){ return '止めました'; }, function(){ return '止められませんでした'; });
   if (navigator.vibrate) navigator.vibrate(0);
   return '止めました';
 }
@@ -7639,6 +7650,7 @@ function yrVibStop(){
 function yrVibTest(kind){
   var cfg = yrApi ? yrApi.vibConfig() : null;
   if (!cfg || !YR_KIND_LABEL[kind]) return '準備中です';
+  yrTestKind = kind;
   if (isApkPlatform()){
     if (yrPerm !== 'granted') return '通知が許可されていません。端末の設定で通知を許可してください';
     return yrEnsureKindChannel(kind, cfg).then(function(chId){
