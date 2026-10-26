@@ -911,12 +911,29 @@ select.plain{
 .yr-addrow{display:flex;gap:8px;margin-bottom:12px;}
 .yr-addrow .yr-input{flex:1;}
 .yr-set{background:#fff;border-radius:14px;padding:6px 12px;margin-bottom:10px;}
-.yr-setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #edf0f4;}
+.yr-setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 10px;padding:10px 0;border-bottom:1px solid #edf0f4;}
+/* 設定の1行 = 「項目名 ｜ 操作」の1行目 + 下に全幅の説明。項目名が長い/操作が幅広い行(.wide)は、項目名・説明・操作を縦に並べる */
+.yr-setrow>.yr-nm{font-size:17px;line-height:1.35;}
+.yr-setrow>.yr-ctl{justify-self:end;display:flex;align-items:center;gap:6px;}
+.yr-setrow>.yr-desc{grid-column:1/-1;font-size:13px;line-height:1.5;color:var(--yr-sub);margin-top:2px;}
+.yr-setrow.wide>.yr-nm,.yr-setrow.wide>.yr-desc,.yr-setrow.wide>.yr-ctl{grid-column:1/-1;}
+.yr-setrow.wide>.yr-ctl{justify-self:stretch;justify-content:flex-end;margin-top:6px;}
+.yr-setrow>.yr-stack{grid-column:1/-1;display:block;margin-top:6px;min-width:0;}
+.yr-setrow>.yr-full{grid-column:1/-1;min-width:0;margin-top:6px;}
+.yr-setrow>.yr-full .yr-input{width:100%;box-sizing:border-box;}
+.yr-setrow.wide .yr-seg{flex:1;}
+.yr-setrow.wide .yr-seg button{flex:1;}
+.yr-set .yr-btn,.yr-set .yr-seg button,.yr-step span{white-space:nowrap;}
+.yr-chk input{width:26px;height:26px;}
+.yr-tabs{display:flex;gap:4px;margin:4px 0 10px;}
+.yr-tabs button{flex:1;min-width:0;padding:10px 0;border:none;border-radius:10px;background:#e3e9f1;color:var(--yr-ink);font-size:14px;font-weight:700;font-family:inherit;white-space:nowrap;}
+.yr-tabs button.on{background:var(--yr-primary);color:#fff;}
+
 .yr-setrow:last-child{border-bottom:none;}
 .yr-setrow small{display:block;color:var(--yr-sub);font-size:13px;}
 .yr-step{display:flex;align-items:center;gap:6px;}
-.yr-step button{width:44px;height:44px;border:none;border-radius:10px;background:#e3e9f1;font-size:22px;font-weight:700;}
-.yr-step input{width:64px;height:44px;text-align:center;font-size:19px;font-weight:700;border:2px solid #c3cfdd;border-radius:10px;}
+.yr-step button{width:42px;height:44px;border:none;border-radius:10px;background:#e3e9f1;font-size:22px;font-weight:700;}
+.yr-step input{width:58px;height:44px;text-align:center;font-size:19px;font-weight:700;border:2px solid #c3cfdd;border-radius:10px;}
 .yr-empty{text-align:center;color:var(--yr-sub);padding:24px 8px;}
 .yr-h{font-size:15px;font-weight:700;color:var(--yr-sub);margin:14px 4px 6px;}
 /* 画面上部のアラート(アラーム中に出る) */
@@ -1018,8 +1035,11 @@ select.plain{
 /* 設定のジャンル別の色分け・スワイプ・褒め言葉(第4段階) */
 .yr-set.g-base{background:#dbe9fb;}
 .yr-set.g-vib{background:#fbe3e3;}
-.yr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
-.yr-chips button{padding:8px 11px;border-radius:12px;border:2px solid #c9b8e3;background:#fff;color:#1e2a3a;font-size:15px;font-family:inherit;}
+.yr-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;width:100%;}
+.yr-chips button{min-height:38px;padding:0 4px;border-radius:10px;border:1.5px solid #c9b8e3;background:#fff;color:#1e2a3a;font-size:13px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.yr-saverow{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px;align-items:center;width:100%;margin-top:8px;}
+.yr-saverow .yr-btn{min-height:38px;min-width:0;padding:0 2px;font-size:13px;}
+.yr-saverow span{white-space:nowrap;font-size:13px;}
 .yr-chips button.on{border-color:#4b2e83;background:#4b2e83;color:#fff;font-weight:700;}
 .yr-chips button.empty{border-style:dashed;color:#7a6a96;}
 .yr-set.g-alive{background:#dcf1e3;}
@@ -1765,7 +1785,7 @@ var SECRET_KEY = 'yaraseru_secret_gemini';    /* APIキー。設定・バック�
 var PRAISE_PRESETS = [
   {id: 'coach',     icon: '🙂', name: 'やさしいコーチ',       temp: 0.8, style: '落ち着いた、やさしいコーチ。丁寧な「です・ます」口調で、がんばりを静かに認めて、前向きな気持ちにさせる。押しつけがましくならない。'},
   {id: 'teacher',   icon: '📚', name: '穏やかな先生',         temp: 0.7, style: '穏やかで知的な先生。「よくできました」「着実ですね」のように、丁寧で落ち着いた口調で、取り組んだ過程を認める。'},
-  {id: 'assistant', icon: '🤖', name: 'クールなアシスタント', temp: 0.6, style: '冷静で簡潔なAIアシスタント。感情を大げさに出さず、事実を踏まえて、短く淡々と、しかし好意的に評価する。'},
+  {id: 'assistant', icon: '🤖', name: 'クールな秘書', temp: 0.6, style: '冷静で簡潔なAIアシスタント。感情を大げさに出さず、事実を踏まえて、短く淡々と、しかし好意的に評価する。'},
   {id: 'sports',    icon: '🏃', name: '熱血コーチ',           temp: 1.0, style: '明るく熱い、体育会系のコーチ。「よし！」「いいぞ！」「その調子！」のように、力強く元気な口調で称える。'},
   {id: 'cat',       icon: '🐱', name: 'のんびり猫',           temp: 1.1, style: 'のんびり屋の猫。語尾は「〜にゃ」「〜だにゃ」で、ゆったりした柔らかい口調。ごろごろと満足そうに、いっしょに喜ぶ。'},
   {id: 'dwarf',     icon: '🍺', name: '豪快なドワーフ',       temp: 0.9, style: '豪快なドワーフのおっちゃん。口調は「〜じゃ」「〜だな」「がはは」など荒っぽいが温かい感じ。酒や鍛冶仕事のたとえは、使うとしても1回まで。'}
@@ -2158,88 +2178,108 @@ function mount(root, opts){
            '<input type="number" class="yr-swipe" inputmode="numeric" data-role="set-' + name + '" value="' + val + '" min="' + r[0] + '" max="' + r[1] + '">' +
            '<button type="button" data-act="step" data-name="' + name + '" data-d="1">＋</button><span>' + unit + '</span></div>';
   }
+  /* 設定画面。上のタブで「基本/通知/生存確認/脱線/褒める」を切り替える(選んだタブはメモリ上だけで覚える) */
+  var SET_TABS = [['basic', '基本'], ['notif', '通知'], ['alive', '生存確認'], ['esc', '脱線'], ['praise', '褒める']];
+  var setTab = 'basic';
   function renderSettings(){
     var perm = host.permission();
-    var permTxt = perm === 'granted' ? '✔ 許可済み' : (perm === 'denied' ? '✖ ブロック中' : (perm === 'unsupported' ? 'この環境では使えません' : '未許可'));
-    var h = '<div class="yr-h">🔔 通知・アラーム・リセット</div><div class="yr-set g-base">' +
-      '<div class="yr-setrow"><div>開始前の通知<small>開始予定の何分前に知らせるか(0=開始時刻ちょうど)</small></div>' + stepper('leadMin', settings.leadMin, '分前') + '</div>' +
-      '<div class="yr-setrow"><div>「いつ始めますか？」の間隔<small>開始時刻を1つも決めていない時だけ、この間隔で催促します</small></div>' + stepper('nudgeMin', settings.nudgeMin, '分おき') + '</div>' +
-      '<div class="yr-setrow"><div>開始リミットのリセット(1日2回)<small>0時と、ここで決めた時刻にリセットされ、「本日終了」にしたやる事をもう一度やれるようになります</small></div>' + stepper('resetHour', settings.resetHour, '時') + '</div>' +
-      '<div class="yr-setrow"><div>開始する時に確認画面を出す<small>生存確認・脱線の時間を、その回だけ変えられます(下の設定はデフォルト)</small></div><label><input type="checkbox" data-role="set-startDialog"' + (settings.startDialog ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
-      '<div class="yr-setrow"><div>アラーム音<small>通知と一緒に鳴らします</small></div><label><input type="checkbox" data-role="set-sound"' + (settings.sound ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
-      '<div class="yr-setrow"><div>通知<small>' + esc(permTxt) + '</small></div>' + (perm === 'default' ? '<button type="button" class="yr-btn primary" data-act="allow-notif">許可する</button>' : '') + '</div>' +
-      '<div class="yr-setrow"><div>アラームのテスト<small>音と画面表示を確認します</small></div><button type="button" class="yr-btn" data-act="test-alarm">テスト</button></div>' +
-      '</div>';
-    /* バイブとアラーム(アプリを閉じていても鳴る通知) */
-    function vibRow(key, label, kind){
-      return '<div class="yr-setrow" style="flex-wrap:wrap"><div style="flex:1;min-width:130px">' + label + '</div><div style="display:flex;gap:6px;align-items:center">' +
-        '<input type="text" class="yr-input" style="width:200px;font-size:18px;letter-spacing:2px" data-role="set-' + key + '" value="' + esc(settings[key]) + '" autocapitalize="off" autocomplete="off">' +
-        '<button type="button" class="yr-btn" data-act="vib-test" data-kind="' + kind + '">試す</button></div></div>';
+    var permTxt = perm === 'granted' ? '✔ 許可済み' : (perm === 'denied' ? '✖ ブロック中(端末の設定で許可してください)' : (perm === 'unsupported' ? 'この環境では使えません' : '未許可'));
+    /* 1行: 項目名 | 操作 / 下に説明。項目名が長い行・幅の要る操作の行は、縦に並べる(wide) */
+    function plainLen(h){ return h.replace(/<[^>]*>/g, '').length; }
+    function needWide(label, ctl){                 /* 幅の狭い画面(約360px)で、項目名が細く折り返されてしまう行は、縦に並べる */
+      if (!ctl) return false;
+      var L = plainLen(label), m;
+      if (ctl.indexOf('yr-step') >= 0){            /* ＋−の操作は約154px + 単位 */
+        m = />([^<>]*)<\/span><\/div>\s*$/.exec(ctl);
+        var u = m ? m[1].length : 0;
+        return L > Math.floor((270 - (154 + (u ? 6 + u * 14 : 0))) / 17);
+      }
+      if (ctl.indexOf('yr-seg') >= 0) return L > 5;
+      return false;
     }
-    h += '<div class="yr-h">📳 バイブとアラーム(アプリを閉じていても鳴る通知)</div><div class="yr-set g-vib">' +
-      '<div class="yr-setrow"><div><small style="font-size:14px">リズムは楽譜の感覚で書きます(♩=120): <b>・</b>=16分音符(短い振動) <b>ー</b>=8分音符(長い振動) <b>＿</b>=16分休符(休み)。例: ・・＿・。「試す」で確認できます(APK版)</small></div></div>' +
-      vibRow('vibPre', '開始前の通知', 'pre') + vibRow('vibNudge', '催促(いつ始めますか？)', 'nudge') + vibRow('vibEsc', '脱線の時間切れ', 'esc') +
-      '<div class="yr-setrow"><div>脱線の時間切れの鳴らし方<small>アラーム: マナーモード中でも音が鳴ります / 通知音: マナーモード中は振動だけです</small></div>' +
-        '<div class="yr-seg"><button type="button" data-act="esc-sound" data-mode="alarm" class="' + (settings.escSound === 'alarm' ? 'on' : '') + '">アラーム</button>' +
-        '<button type="button" data-act="esc-sound" data-mode="notif" class="' + (settings.escSound === 'notif' ? 'on' : '') + '">通知音</button></div></div>' +
-      '<div class="yr-setrow"><div>脱線の時間切れ: 繰り返す時間<small>反応するまで音と振動を繰り返し、この時間で止まります(0=繰り返さない)。通知をタップ・消す、または「戻る」「延長」を押しても止まります</small></div>' + stepper('repeatSec', settings.repeatSec, '秒') + '</div>' +
-      '<div class="yr-setrow"><div>試しの通知を止める<small>「試す」で鳴らして、繰り返している通知を止めます</small></div><button type="button" class="yr-btn" data-act="vib-stop">■ 止める</button></div>' +
-      '<div class="yr-setrow"><div>リズムを初期に戻す</div><button type="button" class="yr-btn" data-act="vib-reset">戻す</button></div>' +
-      '</div>';
+    /* row(項目名, 右側の操作, 説明, 縦並びにするか, 全幅の追加欄, 縦に積む中身) */
+    function row(label, ctl, desc, wide, full, stack){
+      var w = wide === true || needWide(label, ctl);
+      return '<div class="yr-setrow' + (w ? ' wide' : '') + '"><div class="yr-nm">' + label + '</div>' +
+        (w ? (desc ? '<div class="yr-desc">' + desc + '</div>' : '') + (ctl ? '<div class="yr-ctl">' + ctl + '</div>' : '')
+           : (ctl ? '<div class="yr-ctl">' + ctl + '</div>' : '') + (desc ? '<div class="yr-desc">' + desc + '</div>' : '')) +
+        (full ? '<div class="yr-full">' + full + '</div>' : '') + (stack ? '<div class="yr-stack">' + stack + '</div>' : '') + '</div>';
+    }
+    function chk(role, on){ return '<label class="yr-chk"><input type="checkbox" data-role="' + role + '"' + (on ? ' checked' : '') + '></label>'; }
+    function btn(label, act, cls, extra){ return '<button type="button" class="yr-btn' + (cls ? ' ' + cls : '') + '" data-act="' + act + '"' + (extra || '') + '>' + label + '</button>'; }
+    function seg(act, items, cur){ return '<div class="yr-seg">' + items.map(function(it){ return '<button type="button" data-act="' + act + '" data-mode="' + it[0] + '" class="' + (cur === it[0] ? 'on' : '') + '">' + it[1] + '</button>'; }).join('') + '</div>'; }
+    function grp(title, cls, body){ return (title ? '<div class="yr-h">' + title + '</div>' : '') + '<div class="yr-set ' + cls + '">' + body + '</div>'; }
+    var T = {};
+
+    /* 基本 */
+    T.basic = '<div class="yr-meta" style="margin:0 4px 6px">予定の開始・リセットまわりの設定です</div>' + grp('', 'g-base',
+      row('開始前の通知', stepper('leadMin', settings.leadMin, '分前'), '開始予定の何分前に知らせるか(0=開始時刻ちょうど)') +
+      row('「いつ始めますか？」の間隔', stepper('nudgeMin', settings.nudgeMin, '分おき'), '開始時刻を1つも決めていない時だけ、この間隔で催促します') +
+      row('開始リミットのリセット', stepper('resetHour', settings.resetHour, '時'), '0時と、ここで決めた時刻の1日2回、「本日終了」にしたやる事をもう一度やれるようになります') +
+      row('開始する時に確認画面を出す', chk('set-startDialog', settings.startDialog), '生存確認・脱線の時間を、その回だけ変えられます(他のタブの設定はデフォルト)')) +
+      grp('🗂 データ', 'g-data', row('今日の予定をすべて消す', btn('消す', 'reset-today', 'danger'), 'そのうちやる事リストは消えません')) +
+      '<div class="yr-meta" style="text-align:center">やらせるToDo v' + VERSION + '</div>';
+
+    /* 通知(アプリを開いている間 / 閉じていても鳴る通知) */
+    function vibRow(key, label, kind){
+      return row(label, btn('試す', 'vib-test', '', ' data-kind="' + kind + '"'), '', false,
+        '<input type="text" class="yr-input" style="font-size:15px;letter-spacing:0" data-role="set-' + key + '" value="' + esc(settings[key]) + '" autocapitalize="off" autocomplete="off">');
+    }
+    T.notif = grp('🔊 アプリを開いている間', 'g-base',
+        row('音を鳴らす', chk('set-sound', settings.sound), 'アプリ内のアラーム音と、通知の音です。オフにすると、通知は振動だけになります') +
+        row('アラームのテスト', btn('テスト', 'test-alarm'), 'アプリ内のアラームの音と画面表示を確認します')) +
+      grp('📳 アプリを閉じていても鳴る通知(APK版)', 'g-vib',
+        row('通知の許可', perm === 'default' ? btn('許可する', 'allow-notif', 'primary') : '', esc(permTxt)) +
+        '<div class="yr-setrow"><div class="yr-desc" style="font-size:14px">リズムは楽譜の感覚(♩=120)で書きます: <b>・</b>=16分音符(短い振動) <b>ー</b>=8分音符(長い振動) <b>＿</b>=16分休符(休み)。例: ・・＿・　「試す」で確認できます</div></div>' +
+        vibRow('vibPre', '開始前の通知', 'pre') + vibRow('vibNudge', '催促(いつ始めますか？)', 'nudge') + vibRow('vibEsc', '脱線の時間切れ', 'esc') +
+        row('脱線の時間切れの鳴らし方', seg('esc-sound', [['alarm', 'アラーム扱い'], ['notif', '通常の通知']], settings.escSound), 'アラーム扱い: マナーモード中でも音が鳴ります / 通常の通知: マナーモード中は振動だけです', true) +
+        row('脱線の時間切れ: 繰り返す時間', stepper('repeatSec', settings.repeatSec, '秒'), '反応するまで音と振動を繰り返し、この時間で止まります(0=繰り返さない)。通知を消す、または「戻る」「延長」を押しても止まります') +
+        row('試しの通知を止める', btn('■ 止める', 'vib-stop'), '「試す」で鳴らして、繰り返している通知を止めます') +
+        row('リズムを初期に戻す', btn('戻す', 'vib-reset')));
+
     /* 生存確認 */
     var camOpts = '<option value="">既定のカメラ</option>';
     camList.forEach(function(c){ camOpts += '<option value="' + esc(c.id) + '"' + (c.id === settings.cameraId ? ' selected' : '') + '>' + esc(c.label) + '</option>'; });
     if (settings.cameraId && !camList.some(function(c){ return c.id === settings.cameraId; })) camOpts += '<option value="' + esc(settings.cameraId) + '" selected>(指定済みのカメラ)</option>';
-    h += '<div class="yr-h">👁 生存確認(カメラを手で塞いで「起きています」と報告)</div><div class="yr-set g-alive">' +
-      '<div class="yr-setrow"><div>生存確認を使う<small>「開始」から「完了」まで、数分おきに確認します。カメラは確認中だけ使い、映像は保存も送信もしません</small></div>' +
-        '<label><input type="checkbox" data-role="set-aliveEnabled"' + (settings.aliveEnabled ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
-      '<div class="yr-setrow"><div>確認の間隔<small>決まった間隔か、ランダムかを選べます</small></div>' +
-        '<div class="yr-seg"><button type="button" data-act="alive-mode" data-mode="fixed" class="' + (settings.aliveMode === 'fixed' ? 'on' : '') + '">固定</button>' +
-        '<button type="button" data-act="alive-mode" data-mode="random" class="' + (settings.aliveMode === 'random' ? 'on' : '') + '">ランダム</button></div></div>';
-    if (settings.aliveMode === 'fixed') h += '<div class="yr-setrow"><div>間隔</div>' + stepper('aliveFixedMin', settings.aliveFixedMin, '分おき') + '</div>';
-    else h += '<div class="yr-setrow"><div>間隔(最短)</div>' + stepper('aliveRandMin', settings.aliveRandMin, '分') + '</div>' +
-              '<div class="yr-setrow"><div>間隔(最長)</div>' + stepper('aliveRandMax', settings.aliveRandMax, '分') + '</div>';
-    h += '<div class="yr-setrow"><div>応答時間<small>この時間内に塞がないと、強いアラームと全面表示になります</small></div>' + stepper('aliveRespSec', settings.aliveRespSec, '秒') + '</div>' +
-      '<div class="yr-setrow"><div>カメラ<small>一覧の更新にはカメラの許可が必要です</small></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
-        '<select class="yr-input" style="width:auto;min-width:150px" data-role="set-camera">' + camOpts + '</select>' +
-        '<button type="button" class="yr-btn" data-act="refresh-cams">一覧を更新</button></div></div>' +
-      '<div class="yr-setrow"><div>感度・判定方式<small>' + esc(detectSummary()) + '</small></div><button type="button" class="yr-btn primary" data-act="adjust">調整・テスト</button></div>' +
-      '<div class="yr-setrow"><div>いますぐ試す<small>赤線→アラーム→全面表示の流れを体験できます(実行中のやる事は不要)</small></div><button type="button" class="yr-btn" data-act="alive-test">試す</button></div>' +
-      '</div>';
-    h += '<div class="yr-h">🌀 脱線モード(時間を区切った「合法的な逃避」)</div><div class="yr-set g-esc">' +
-      '<div class="yr-setrow"><div>脱線の時間<small>「脱線する」を押してから、自由にしてよい時間</small></div>' + stepper('escapeMin', settings.escapeMin, '分') + '</div>' +
-      '<div class="yr-setrow"><div>延長の長さ</div>' + stepper('extendMin', settings.extendMin, '分') + '</div>' +
-      '<div class="yr-setrow"><div>時間切れ後の猶予<small>過ぎると、強いアラームと全面表示で戻るよう促します</small></div>' + stepper('escapeGraceSec', settings.escapeGraceSec, '秒') + '</div>' +
-      '<div class="yr-setrow"><div>「おかえり！」の演出<small>時間内に戻れた時だけ、紙吹雪・花火・桜吹雪のどれかを出します<br>この端末の「動きを減らす」設定: ' + motionDiag() + '</small></div>' +
-        '<div style="display:flex;gap:8px;align-items:center"><label><input type="checkbox" data-role="set-effect"' + (settings.effect ? ' checked' : '') + ' style="width:26px;height:26px"></label>' +
-        '<button type="button" class="yr-btn" data-act="effect-test">見る</button></div></div>' +
-      '</div>';
-    h += '<div class="yr-h">🍺 褒める機能(Gemini)</div><div class="yr-set g-praise">' +
-      '<div class="yr-setrow"><div>褒める機能を使う<small>送る内容は、やる事の名前と時間・回数の集計だけです(カメラ映像は送りません)</small></div><label><input type="checkbox" data-role="set-praiseOn"' + (settings.praiseOn ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
-      '<div class="yr-setrow"><div>完了した時に自動で褒める</div><label><input type="checkbox" data-role="set-praiseOnDone"' + (settings.praiseOnDone ? ' checked' : '') + ' style="width:26px;height:26px"></label></div>' +
-      '<div class="yr-setrow" style="display:block"><div>APIキー<small>' + (gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します') + '</small></div>' +
-        '<div style="display:flex;gap:8px;margin-top:6px"><input type="password" class="yr-input" data-role="gkey" placeholder="AIza…" autocomplete="off">' + (gKey() ? '<button type="button" class="yr-btn danger" data-act="gkey-del">削除</button>' : '') + '</div></div>' +
-      '<div class="yr-setrow" style="display:block"><div>モデル名<small>空にすると最新の軽量版(gemini-flash-lite-latest)になります</small></div>' +
-        '<div style="display:flex;gap:8px;margin-top:6px"><input type="text" class="yr-input" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off"><button type="button" class="yr-btn" data-act="praise-models">候補を取得</button></div>' +
-        '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist></div>' +
-      '<div class="yr-setrow" style="display:block"><div>褒め方(口調・キャラクター)<small>プリセットを書き換えると、「🕘直前の編集(仮)」に自動で入ります(次に書き換えると上書きされます)。残したいものは「💾保存」で、カスタム枠に保存してください。カスタム枠を選んで書き換えると、その枠が更新されます</small></div>' +
-        '<div class="yr-chips">' + PRAISE_PRESETS.map(function(pp){ return '<button type="button" data-act="praise-preset" data-id="' + pp.id + '" class="' + (settings.praisePreset === pp.id ? 'on' : '') + '">' + pp.icon + ' ' + esc(pp.name) + '</button>'; }).join('') + '</div>' +
-        '<div class="yr-chips">' + [0, 1, 2].map(function(k){
-          var sl = settings.praiseSlots[k], id = 'slot' + (k + 1);
-          return '<button type="button" data-act="praise-preset" data-id="' + id + '" class="' + (settings.praisePreset === id ? 'on' : '') + (sl ? '' : ' empty') + '">' + (sl ? '💾 ' + esc(sl.name || ('カスタム' + (k + 1))) : '＋ カスタム' + (k + 1) + '(空)') + '</button>';
-        }).join('') + '<button type="button" data-act="praise-preset" data-id="draft" class="' + (settings.praisePreset === 'draft' ? 'on' : '') + (settings.praiseDraft ? '' : ' empty') + '">' + (settings.praiseDraft ? '🕘 直前の編集(仮)' : '🕘 直前の編集(なし)') + '</button></div>' +
-        (praiseSlotIdx(settings.praisePreset) >= 0 ? '<input type="text" class="yr-input" maxlength="12" data-role="praise-slotname" placeholder="この枠の名前(任意・12文字まで)" value="' + esc(settings.praiseSlots[praiseSlotIdx(settings.praisePreset)].name) + '" autocomplete="off" style="margin-top:8px">' : '') +
-        '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:8px">' + esc(settings.praiseStyle) + '</textarea>' +
-        '<div class="yr-row" style="align-items:center"><span class="yr-meta" style="margin:0">💾 いまの内容を保存:</span>' +
-          [0, 1, 2].map(function(k){ return '<button type="button" class="yr-btn" data-act="praise-save" data-slot="' + k + '">カスタム' + (k + 1) + '</button>'; }).join('') + '</div></div>' +
-      '<div class="yr-setrow"><div>ばらつき(Temperature)<small>高いほど、毎回の言い回しが変わります(0〜2)</small></div>' +
-        '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div></div>' +
-      '<div class="yr-setrow"><div>褒め言葉を試す<small>例のデータで1回だけ呼び出します</small></div><button type="button" class="yr-btn primary" data-act="praise-test">試す</button></div>' +
-      '</div>';
-    h += '<div class="yr-h">🗂 データ</div><div class="yr-set g-data">' +
-      '<div class="yr-setrow"><div>今日の予定をすべて消す<small>そのうちやる事リストは消えません</small></div><button type="button" class="yr-btn danger" data-act="reset-today">消す</button></div>' +
-      '</div><div class="yr-meta" style="text-align:center">やらせるToDo v' + VERSION + '</div>';
-    return h;
+    T.alive = grp('👁 生存確認(カメラを手で塞いで「起きています」と報告)', 'g-alive',
+      row('生存確認を使う', chk('set-aliveEnabled', settings.aliveEnabled), '「開始」から「完了」まで、数分おきに確認します。カメラは確認中だけ使い、映像は保存も送信もしません') +
+      row('確認の間隔', seg('alive-mode', [['fixed', '固定'], ['random', 'ランダム']], settings.aliveMode), '決まった間隔か、ランダムかを選べます') +
+      (settings.aliveMode === 'fixed' ? row('間隔', stepper('aliveFixedMin', settings.aliveFixedMin, '分おき'))
+        : row('間隔(最短)', stepper('aliveRandMin', settings.aliveRandMin, '分')) + row('間隔(最長)', stepper('aliveRandMax', settings.aliveRandMax, '分'))) +
+      row('応答時間', stepper('aliveRespSec', settings.aliveRespSec, '秒'), 'この時間内に塞がないと、強いアラームと全面表示になります') +
+      row('カメラ', '<select class="yr-input" style="flex:1;min-width:0" data-role="set-camera">' + camOpts + '</select>' + btn('一覧を更新', 'refresh-cams'), '一覧の更新にはカメラの許可が必要です', true) +
+      row('感度・判定方式', btn('調整・テスト', 'adjust', 'primary'), esc(detectSummary())) +
+      row('いますぐ試す', btn('試す', 'alive-test'), '赤線→アラーム→全面表示の流れを体験できます(実行中のやる事は不要)'));
+
+    /* 脱線 */
+    T.esc = grp('🌀 脱線モード(時間を区切った「合法的な逃避」)', 'g-esc',
+      row('脱線の時間', stepper('escapeMin', settings.escapeMin, '分'), '「脱線する」を押してから、自由にしてよい時間') +
+      row('延長の長さ', stepper('extendMin', settings.extendMin, '分')) +
+      row('時間切れ後の猶予', stepper('escapeGraceSec', settings.escapeGraceSec, '秒'), '過ぎると、強いアラームと全面表示で戻るよう促します') +
+      row('「おかえり！」の演出', chk('set-effect', settings.effect), '時間内に戻れた時だけ、紙吹雪・花火・桜吹雪のどれかを出します。この端末の「動きを減らす」設定: ' + motionDiag()) +
+      row('演出を見る', btn('見る', 'effect-test')));
+
+    /* 褒める */
+    var slotIdx = praiseSlotIdx(settings.praisePreset);
+    var chips = '<div class="yr-chips">' + PRAISE_PRESETS.map(function(pp){ return '<button type="button" data-act="praise-preset" data-id="' + pp.id + '" class="' + (settings.praisePreset === pp.id ? 'on' : '') + '">' + pp.icon + ' ' + esc(pp.name) + '</button>'; }).join('') + '</div>' +
+      '<div class="yr-chips">' + [0, 1, 2].map(function(k){
+        var sl = settings.praiseSlots[k], id = 'slot' + (k + 1);
+        return '<button type="button" data-act="praise-preset" data-id="' + id + '" class="' + (settings.praisePreset === id ? 'on' : '') + (sl ? '' : ' empty') + '">' + (sl ? '💾 ' + esc(sl.name || ('カスタム' + (k + 1))) : '＋ カスタム' + (k + 1)) + '</button>';
+      }).join('') + '<button type="button" data-act="praise-preset" data-id="draft" class="' + (settings.praisePreset === 'draft' ? 'on' : '') + (settings.praiseDraft ? '' : ' empty') + '">🕘 直前の編集</button></div>' +
+      (slotIdx >= 0 ? '<input type="text" class="yr-input" maxlength="12" data-role="praise-slotname" placeholder="この枠の名前(任意・12文字まで)" value="' + esc(settings.praiseSlots[slotIdx].name) + '" autocomplete="off" style="margin-top:8px">' : '') +
+      '<textarea class="yr-input" rows="3" maxlength="300" data-role="praise-style" style="height:auto;padding:8px 12px;margin-top:8px">' + esc(settings.praiseStyle) + '</textarea>' +
+      '<div class="yr-saverow"><span class="yr-meta" style="margin:0">💾 保存先</span>' + [0, 1, 2].map(function(k){ return btn('カスタム' + (k + 1), 'praise-save', '', ' data-slot="' + k + '"'); }).join('') + '</div>';
+    T.praise = grp('🍺 褒める機能(Gemini)', 'g-praise',
+      row('褒める機能を使う', chk('set-praiseOn', settings.praiseOn), '送る内容は、やる事の名前と時間・回数の集計だけです(カメラ映像は送りません)') +
+      row('完了した時に自動で褒める', chk('set-praiseOnDone', settings.praiseOnDone)) +
+      row('APIキー', '<input type="password" class="yr-input" style="flex:1;min-width:0" data-role="gkey" placeholder="AIza…" autocomplete="off">' + (gKey() ? btn('削除', 'gkey-del', 'danger') : ''), gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します', true) +
+      row('モデル名', '<input type="text" class="yr-input" style="flex:1;min-width:0" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off">' + btn('候補を取得', 'praise-models') +
+        '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist>', '空にすると最新の軽量版(gemini-flash-lite-latest)になります', true) +
+      row('褒め方(口調・キャラクター)', '', 'プリセットを書き換えると、「🕘直前の編集」に自動で入ります(次に書き換えると上書き)。残したいものは「💾保存先」のカスタム1〜3へ。カスタム枠を選んで書き換えると、その枠が更新されます', true, '', chips) +
+      row('ばらつき(Temperature)', '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div>', '高いほど、毎回の言い回しが変わります(0〜2)') +
+      row('褒め言葉を試す', btn('試す', 'praise-test', 'primary'), '例のデータで1回だけ呼び出します'));
+
+    return '<div class="yr-tabs">' + SET_TABS.map(function(t){ return '<button type="button" data-act="set-tab" data-tab="' + t[0] + '" class="' + (setTab === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' + T[setTab];
   }
 
   /* ---------- モーダル ---------- */
@@ -3620,6 +3660,7 @@ function mount(root, opts){
       case 'bl-save': { var b3 = findBacklog(id), nv = mval('m-title').trim(); if (b3 && nv){ b3.title = nv; persist(); closeModal(); render(); } break; }
       case 'bl-del': backlog = backlog.filter(function(b){ return b.id !== id; }); persist(); closeModal(); render(); break;
       case 'step': applySetting(el.getAttribute('data-name'), parseInt(el.getAttribute('data-d'), 10)); break;
+      case 'set-tab': setTab = el.getAttribute('data-tab'); render(); break;
       case 'esc-sound': settings.escSound = el.getAttribute('data-mode') === 'notif' ? 'notif' : 'alarm'; persist(); render(); break;
       case 'vib-reset': settings.vibPre = RHYTHM_DEFAULT.pre; settings.vibNudge = RHYTHM_DEFAULT.nudge; settings.vibEsc = RHYTHM_DEFAULT.esc; persist(); render(); toast('リズムを初期に戻しました'); break;
       case 'vib-stop': {
@@ -5071,7 +5112,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261028-1';
+var APP_BUILD = '20261029-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
