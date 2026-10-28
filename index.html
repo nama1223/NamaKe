@@ -965,8 +965,9 @@ select.plain{
 .yr-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:320;background:#1c2530;color:#fff;padding:10px 18px;border-radius:999px;font-size:16px;max-width:90%;box-shadow:0 4px 14px rgba(0,0,0,.35);}
 .yr-camhold{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none;}
 .yr-camhold video{width:2px;height:2px;}
-.yr-prev{background:#000;border-radius:12px;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:8px 0;}
-.yr-prev video{width:100%;max-height:260px;display:block;transform:scaleX(-1);}
+.yr-prev{position:relative;touch-action:none;cursor:crosshair;background:#000;border-radius:12px;min-height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:8px 0;}
+.yr-prev video{width:100%;height:auto;display:block;transform:scaleX(-1);}   /* 判定エリアの枠と位置が合うよう、映像の縦横比のまま全体を表示する */
+.yr-roi{position:absolute;display:none;border:2px dashed #ffd400;background:rgba(255,212,0,.14);pointer-events:none;box-sizing:border-box;}
 .yr-adj{font-size:18px;margin:6px 0;}
 .yr-adj b{font-size:30px;font-variant-numeric:tabular-nums;}
 .yr-state{font-weight:700;padding:2px 10px;border-radius:999px;background:#e3e9f1;margin-left:6px;}
@@ -1761,7 +1762,8 @@ select.plain{
      storage … localStorage 互換の保存先
      cameraDeniedText … カメラの許可が拒否された時の案内文を返す関数 function(err)。空文字を返すと既定の文言(アドレスバー案内)
      onVibStop … 設定の「■止める」ボタンが呼ぶ関数(試しの通知を止める)。メッセージ(のPromise)を返す
-     onVibTest … 設定の「試す」ボタンが呼ぶ関数 function(kind: 'pre'|'nudge'|'esc')。表示するメッセージ(のPromise)を返す
+     isWindows … true なら設定に「Windowsの通知(自動で消す秒数)」を出す
+     onVibTest … 設定の「試す」ボタンが呼ぶ関数 function(kind: 'pre'|'nudge'|'esc')。表示するメッセージ(のPromise)、または {ok, msg} を返す
      onStateChange … 状態を保存するたびに呼ばれる(本体が予約通知を作り直す合図)。戻り値の schedule() が「これから鳴るはずの通知」{sound, events:[{tag, at(ms), title, body}]} を返す
      onNavigate … 内側の画面(today/backlog/stats/settings)が切り替わるたびに onNavigate(新しい画面, 前の画面) が呼ばれる
    戻り値の back() / canGoBack() / view(): 内側の画面が「今日」以外なら back() で「今日」へ戻る(戻れたら true)
@@ -1848,10 +1850,14 @@ function createBrowserCamera(){
     /* 画面全体の {lum: 平均の明るさ(0〜255), contrast: 明るさのばらつき(標準偏差。小さいほど のっぺり)}。映像がまだ無ければ null
        ※ スマホは暗くなると自動で明るく補正するため、「明るさ」だけでは塞いだ判定ができない端末がある。
           指で塞ぐと画像が全体にのっぺり(均一)になるので、「ばらつき」も使えるようにしてある */
-    measure: function(){
+    measure: function(roi){
       if (!stream || !video || !video.videoWidth) return null;
       try {
-        ctx.drawImage(video, 0, 0, 32, 24);
+        /* roi(判定エリア。映像に対する割合%の {x, y, w, h})があれば、その範囲だけを測る */
+        if (roi && (roi.w < 100 || roi.h < 100)){
+          var vw = video.videoWidth, vh = video.videoHeight;
+          ctx.drawImage(video, roi.x / 100 * vw, roi.y / 100 * vh, roi.w / 100 * vw, roi.h / 100 * vh, 0, 0, 32, 24);
+        } else ctx.drawImage(video, 0, 0, 32, 24);
         var d = ctx.getImageData(0, 0, 32, 24).data, n = d.length / 4, sum = 0, sq = 0, i, v;
         for (i = 0; i < d.length; i += 4){ v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; sum += v; sq += v * v; }
         var mean = sum / n;
@@ -1877,6 +1883,12 @@ function mount(root, opts){
   function uid(){ return 'y' + now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function int(v, min, max, def){ var n = parseInt(v, 10); if (isNaN(n)) return def; return Math.max(min, Math.min(max, n)); }
+  /* 判定エリア: 映像に対する割合(%)の {x, y, w, h}。初期値は全体。小さすぎるエリアは10%まで */
+  function roiClean(r){
+    r = r || {};
+    var w = int(r.w, 10, 100, 100), h = int(r.h, 10, 100, 100);
+    return {x: int(r.x, 0, 100 - w, 0), y: int(r.y, 0, 100 - h, 0), w: w, h: h};
+  }
 
   /* ---------- バイブのリズム ----------
      記号で書く: ・=16分音符(短い振動) / ー=8分音符(長い振動) / ＿=16分休符(休み)。例: ・・＿・
@@ -1927,6 +1939,9 @@ function mount(root, opts){
       escapeMin: int(s.escapeMin, 1, 60, 5),                       /* 脱線の時間 */
       extendMin: int(s.extendMin, 1, 60, 5),                       /* 延長の長さ */
       escapeGraceSec: int(s.escapeGraceSec, 10, 600, 60),          /* 脱線の時間切れ後、強いアラームになるまでの猶予 */
+      holdMs: int(s.holdMs, 200, 3000, 600),                       /* 「塞いだ」状態がこの時間(ミリ秒)続くと生存確認に成功 */
+      roi: roiClean(s.roi),                                        /* 生存確認で明るさを測るエリア(映像に対する%) */
+      winNotifSec: int(s.winNotifSec, 0, 60, 5),                   /* Windows(PWA版)で、通知を自動で消すまでの秒数。0=消さない */
       resetHour: int(s.resetHour, 1, 23, 12),                      /* 「本日終了」のロックが解除される2回目のリセット時刻(0時と、この時刻の1日2回) */
       startDialog: s.startDialog !== false,                        /* 「開始する」で確認画面を出し、生存確認・脱線の時間をその回だけ変えられるようにする */
       vibPre: normRhythm(s.vibPre) || RHYTHM_DEFAULT.pre,          /* バイブのリズム: 開始前の通知 / 催促 / 脱線の時間切れ */
@@ -1947,7 +1962,7 @@ function mount(root, opts){
     if (o.aliveRandMax < o.aliveRandMin) o.aliveRandMax = o.aliveRandMin;
     return o;
   })();
-  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10], resetHour: [1, 23, 1], repeatSec: [0, 600, 10]};
+  var RANGES = {leadMin: [0, 120, 1], nudgeMin: [5, 480, 1], aliveFixedMin: [1, 120, 1], aliveRandMin: [1, 120, 1], aliveRandMax: [1, 180, 1], aliveRespSec: [10, 600, 10], escapeMin: [1, 60, 1], extendMin: [1, 60, 1], escapeGraceSec: [10, 600, 10], resetHour: [1, 23, 1], repeatSec: [0, 600, 10], winNotifSec: [0, 60, 1]};
   var backlog = load(KEY.backlog, []);
   var today = load(KEY.today, null);
   var nudge = load(KEY.nudge, {last: 0});
@@ -2181,6 +2196,18 @@ function mount(root, opts){
   /* 設定画面。上のタブで「基本/通知/生存確認/脱線/褒める」を切り替える(選んだタブはメモリ上だけで覚える) */
   var SET_TABS = [['basic', '基本'], ['notif', '通知'], ['alive', '生存確認'], ['esc', '脱線'], ['praise', '褒める']];
   var setTab = 'basic';
+  /* 「試す」を押すと、3つの「試す」がすべて「■止める」に変わる(慌てていても、どれを押しても止められる)。
+     鳴らし終わる頃(繰り返しの時間、それ以外は数秒)に、自動で「試す」に戻る。ボタンだけを書き換えるので、入力中の欄は消えない */
+  var vibTesting = false, vibTimer = null;
+  function setVibTesting(on, ms){
+    vibTesting = on; clearTimeout(vibTimer);
+    if (on) vibTimer = setTimeout(function(){ setVibTesting(false); }, ms);
+    var list = root.querySelectorAll('[data-vib]'), i, b;
+    for (i = 0; i < list.length; i++){
+      b = list[i];
+      b.setAttribute('data-act', on ? 'vib-stop' : 'vib-test'); b.textContent = on ? '■ 止める' : '試す'; b.classList.toggle('danger', on);
+    }
+  }
   function renderSettings(){
     var perm = host.permission();
     var permTxt = perm === 'granted' ? '✔ 許可済み' : (perm === 'denied' ? '✖ ブロック中(端末の設定で許可してください)' : (perm === 'unsupported' ? 'この環境では使えません' : '未許可'));
@@ -2222,7 +2249,7 @@ function mount(root, opts){
 
     /* 通知(アプリを開いている間 / 閉じていても鳴る通知) */
     function vibRow(key, label, kind){
-      return row(label, btn('試す', 'vib-test', '', ' data-kind="' + kind + '"'), '', false,
+      return row(label, vibTesting ? btn('■ 止める', 'vib-stop', 'danger', ' data-vib="1" data-kind="' + kind + '"') : btn('試す', 'vib-test', '', ' data-vib="1" data-kind="' + kind + '"'), '', false,
         '<input type="text" class="yr-input" style="font-size:15px;letter-spacing:0" data-role="set-' + key + '" value="' + esc(settings[key]) + '" autocapitalize="off" autocomplete="off">');
     }
     T.notif = grp('🔊 アプリを開いている間', 'g-base',
@@ -2230,19 +2257,19 @@ function mount(root, opts){
         row('アラームのテスト', btn('テスト', 'test-alarm'), 'アプリ内のアラームの音と画面表示を確認します')) +
       grp('📳 アプリを閉じていても鳴る通知(APK版)', 'g-vib',
         row('通知の許可', perm === 'default' ? btn('許可する', 'allow-notif', 'primary') : '', esc(permTxt)) +
-        '<div class="yr-setrow"><div class="yr-desc" style="font-size:14px">リズムは楽譜の感覚(♩=120)で書きます: <b>・</b>=16分音符(短い振動) <b>ー</b>=8分音符(長い振動) <b>＿</b>=16分休符(休み)。例: ・・＿・　「試す」で確認できます</div></div>' +
+        '<div class="yr-setrow"><div class="yr-desc" style="font-size:14px">リズムは楽譜の感覚(♩=120)で書きます: <b>・</b>=16分音符(短い振動) <b>ー</b>=8分音符(長い振動) <b>＿</b>=16分休符(休み)。<br>例: ・・＿・　「試す」で確認できます</div></div>' +
         vibRow('vibPre', '開始前の通知', 'pre') + vibRow('vibNudge', '催促(いつ始めますか？)', 'nudge') + vibRow('vibEsc', '脱線の時間切れ', 'esc') +
-        row('脱線の時間切れの鳴らし方', seg('esc-sound', [['alarm', 'アラーム扱い'], ['notif', '通常の通知']], settings.escSound), 'アラーム扱い: マナーモード中でも音が鳴ります / 通常の通知: マナーモード中は振動だけです', true) +
+        row('脱線の時間切れの鳴らし方', seg('esc-sound', [['alarm', 'アラーム扱い'], ['notif', '通常の通知']], settings.escSound), 'アラーム扱い: マナーモード中でも音が鳴ります<br>通常の通知: マナーモード中は振動だけです', true) +
         row('脱線の時間切れ: 繰り返す時間', stepper('repeatSec', settings.repeatSec, '秒'), '反応するまで音と振動を繰り返し、この時間で止まります(0=繰り返さない)。通知を消す、または「戻る」「延長」を押しても止まります') +
-        row('試しの通知を止める', btn('■ 止める', 'vib-stop'), '「試す」で鳴らして、繰り返している通知を止めます') +
-        row('リズムを初期に戻す', btn('戻す', 'vib-reset')));
+        row('リズムを初期に戻す', btn('戻す', 'vib-reset')))
+      + (opts.isWindows ? grp('🖥 Windowsの通知(PWA版)', 'g-base', row('通知を自動で消す', stepper('winNotifSec', settings.winNotifSec, '秒'), '通知を出してから、この秒数で消します(0=消さない)。画面の右下に通知が残り続けるのを防ぎます')) : '');
 
     /* 生存確認 */
     var camOpts = '<option value="">既定のカメラ</option>';
     camList.forEach(function(c){ camOpts += '<option value="' + esc(c.id) + '"' + (c.id === settings.cameraId ? ' selected' : '') + '>' + esc(c.label) + '</option>'; });
     if (settings.cameraId && !camList.some(function(c){ return c.id === settings.cameraId; })) camOpts += '<option value="' + esc(settings.cameraId) + '" selected>(指定済みのカメラ)</option>';
     T.alive = grp('👁 生存確認(カメラを手で塞いで「起きています」と報告)', 'g-alive',
-      row('生存確認を使う', chk('set-aliveEnabled', settings.aliveEnabled), '「開始」から「完了」まで、数分おきに確認します。カメラは確認中だけ使い、映像は保存も送信もしません') +
+      row('生存確認を使う', chk('set-aliveEnabled', settings.aliveEnabled), '「開始」から「完了」まで、数分おきに確認します。カメラは確認の数秒前から確認中だけ使い、映像は保存も送信もしません') +
       row('確認の間隔', seg('alive-mode', [['fixed', '固定'], ['random', 'ランダム']], settings.aliveMode), '決まった間隔か、ランダムかを選べます') +
       (settings.aliveMode === 'fixed' ? row('間隔', stepper('aliveFixedMin', settings.aliveFixedMin, '分おき'))
         : row('間隔(最短)', stepper('aliveRandMin', settings.aliveRandMin, '分')) + row('間隔(最長)', stepper('aliveRandMax', settings.aliveRandMax, '分'))) +
@@ -2273,8 +2300,9 @@ function mount(root, opts){
       row('褒める機能を使う', chk('set-praiseOn', settings.praiseOn), '送る内容は、やる事の名前と時間・回数の集計だけです(カメラ映像は送りません)') +
       row('完了した時に自動で褒める', chk('set-praiseOnDone', settings.praiseOnDone)) +
       row('APIキー', '<input type="password" class="yr-input" style="flex:1;min-width:0" data-role="gkey" placeholder="AIza…" autocomplete="off">' + (gKey() ? btn('削除', 'gkey-del', 'danger') : ''), gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します', true) +
-      row('モデル名', '<input type="text" class="yr-input" style="flex:1;min-width:0" list="yr-models" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off">' + btn('候補を取得', 'praise-models') +
-        '<datalist id="yr-models">' + modelList.map(function(m){ return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist>', '空にすると最新の軽量版(gemini-flash-lite-latest)になります', true) +
+      row('モデル名', '<input type="text" class="yr-input" style="flex:1;min-width:0" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off">' + btn('候補を取得', 'praise-models'),
+        '空にすると最新の軽量版(gemini-flash-lite-latest)になります', true,
+        modelList.length ? '<select class="yr-input" data-role="pick-model"><option value="">候補から選ぶ(' + modelList.length + '件)</option>' + modelList.map(function(m){ return '<option value="' + esc(m) + '"' + (m === settings.geminiModel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select>' : '') +
       row('褒め方(口調・キャラクター)', '', 'プリセットを書き換えると、「🕘直前の編集」に自動で入ります(次に書き換えると上書き)。残したいものは「💾保存先」のカスタム1〜3へ。カスタム枠を選んで書き換えると、その枠が更新されます', true, '', chips) +
       row('ばらつき(Temperature)', '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div>', '高いほど、毎回の言い回しが変わります(0〜2)') +
       row('褒め言葉を試す', btn('試す', 'praise-test', 'primary'), '例のデータで1回だけ呼び出します'));
@@ -2287,7 +2315,7 @@ function mount(root, opts){
   function closeModal(){
     $r('modal').innerHTML = '';
     $r('modal2').innerHTML = '';
-    if (adjustOpen){ adjustOpen = false; calib = null; try { camera.mount($r('camhold')); } catch(e){} camLoopStopIfIdle(); if (view === 'settings') render(); }   /* 感度の変更を設定画面の説明に反映 */
+    if (adjustOpen){ adjustOpen = false; calib = null; adjSince = 0; try { camera.mount($r('camhold')); } catch(e){} camLoopStopIfIdle(); if (view === 'settings') render(); }   /* 感度の変更を設定画面の説明に反映 */
   }
   function mval(role){ var e = $r('modal').querySelector('[data-role="' + role + '"]'); return e ? e.value : ''; }
 
@@ -2435,9 +2463,11 @@ function mount(root, opts){
   }
   function closeAlert(el){ if (el) el.remove(); if (!$r('alerts').children.length) stopAlarm(); }
 
+  /* 通知の窓口へ渡す。リズム・鳴らし方などの設定(cfg)を一緒に渡す(アプリを開いた直後の通知は、本体が設定を読める前に出ることがあるため) */
+  function notifyHost(o){ o.cfg = vibConfig(); return host.notify(o); }
   /* 通知(画面外) + アラート(画面内) + アラーム音 をまとめて出す */
   function fire(a){
-    host.notify({title: 'やらせるToDo', body: a.title + ' ' + a.body, tag: a.tag || a.key});
+    notifyHost({title: 'やらせるToDo', body: a.title + ' ' + a.body, tag: a.tag || a.key});
     showAlert(a);
   }
 
@@ -2447,8 +2477,8 @@ function mount(root, opts){
      どちらも「カメラが暗くなった状態が約1秒続く」と成功して、待機に戻る。
      カメラは確認中だけ開く(普段はカメラを使わない)。映像は明るさを計算するだけで、保存も送信もしない。
      状態は KEY.alive に保存するので、ページを開き直しても確認から逃げられない。 */
-  var HOLD_MS = 1000;                 /* 暗い状態がこの時間続いたら「塞いだ」と判定 */
-  var camTimer = null, darkSince = 0, lastM = null, adjustOpen = false, calib = null;
+  var PREWARM_MS = 4000;              /* 確認の何ミリ秒前から、カメラを開いておくか(PCのWebカメラは起動に約1秒かかるため) */
+  var camTimer = null, darkSince = 0, adjSince = 0, lastM = null, adjustOpen = false, calib = null;
   var lineEl = null, blockEl = null, strongTimer = null, emergTimer = null, camBusy = false;
   var camList = [];
 
@@ -2476,7 +2506,7 @@ function mount(root, opts){
 
   /* カメラの測定(古い形のカメラ部品にも対応)と、「塞いだ」かどうかの判定 */
   function measureCamera(){
-    if (camera.measure) return camera.measure();
+    if (camera.measure) return camera.measure(settings.roi);
     var l = camera.luminance ? camera.luminance() : null;
     return l === null ? null : {lum: l, contrast: 999};     /* ばらつきを測れないカメラ部品では、ばらつきは判定に使わない */
   }
@@ -2490,17 +2520,17 @@ function mount(root, opts){
     return '判定: ' + (d === 'dark' ? '暗さ(明るさが ' + settings.threshold + ' より暗い)' : d === 'flat' ? 'のっぺり(ばらつきが ' + settings.thrFlat + ' より小さい)' :
       'どちらか(暗さ ' + settings.threshold + ' 未満、またはばらつき ' + settings.thrFlat + ' 未満)');
   }
-  /* 200msごとの判定。「塞いだ」状態が HOLD_MS 続けば成功 */
+  /* 200msごとの判定。「塞いだ」状態が settings.holdMs 続けば成功 */
   function sampleCamera(){
     var m = measureCamera();
     lastM = m;
-    if (adjustOpen) updateAdjust(m);
+    if (adjustOpen){ if (isCovered(m)){ if (!adjSince) adjSince = now(); } else adjSince = 0; updateAdjust(m); }
     if (calib) calibStep(m);
     if (aliveChecking()){
       var t = now();
       if (isCovered(m)){
         if (!darkSince) darkSince = t;
-        if (t - darkSince >= HOLD_MS) aliveSuccess();
+        if (t - darkSince >= settings.holdMs) aliveSuccess();
       } else darkSince = 0;
     }
   }
@@ -2584,7 +2614,7 @@ function mount(root, opts){
     var a = $r('alerts').querySelector('[data-key="alive"]'); if (a) a.remove();
     stopAlarm();
     showBlock(); startStrong();
-    host.notify({title: 'やらせるToDo', body: '生存確認の時間が切れました。カメラを手で塞いでください。', tag: 'alive-block'});
+    notifyHost({title: 'やらせるToDo', body: '生存確認の時間が切れました。カメラを手で塞いでください。', tag: 'alive-block'});
   }
   function aliveSuccess(msg){
     aliveStopUi();
@@ -2618,6 +2648,7 @@ function mount(root, opts){
       if (!r || !cfg(r, 'aliveEnabled')){ if (alive) aliveStop(); return; }
       if (r.esc && !aliveChecking()){        /* 脱線中は生存確認を止める(戻った直後にすぐ確認が来ないよう、次回を少し先へ送る) */
         if (alive && alive.mode === 'wait') alive.nextAt = Math.max(alive.nextAt, t + 60000);
+        camLoopStopIfIdle();      /* 先読みで開いていたカメラは閉じる */
         return;
       }
       if (!alive || alive.id !== r.id){
@@ -2627,6 +2658,8 @@ function mount(root, opts){
     }
     if (alive.mode === 'wait'){
       if (t >= alive.nextAt) startCheck(t);
+      else if (alive.nextAt - t <= PREWARM_MS){ if (!camTimer && !camBusy) openCamera(); }   /* 確認の数秒前からカメラを開いておき、確認が始まった時にすぐ判定できるようにする */
+      else if (camTimer) camLoopStopIfIdle();
       return;
     }
     /* ページを開き直した直後など、画面の部品やカメラが無ければ作り直す */
@@ -2654,6 +2687,7 @@ function mount(root, opts){
     unlockAudio();
     adjustOpen = true; calib = null;
     var modeBtn = function(m, label){ return '<button type="button" data-act="adj-mode" data-mode="' + m + '">' + label + '</button>'; };
+    var roiBtn = function(v, label){ return '<button type="button" data-act="roi-set" data-v="' + v + '">' + label + '</button>'; };
     openModal('<h2>カメラ感度テスト</h2><div class="yr-prev" data-role="prev"><span class="yr-meta">カメラを起動しています…</span></div>' +
       '<div class="yr-adj"><span data-role="adj-state" class="yr-state">—</span></div>' +
       '<div class="yr-adjrow"><span>明るさ</span><b data-role="adj-lum">—</b><div class="yr-meter"><div data-role="adj-bar"></div><i data-role="adj-mark"></i></div></div>' +
@@ -2664,6 +2698,10 @@ function mount(root, opts){
       '<label class="yr-lab">判定方式(手で変える場合)</label><div class="yr-seg">' + modeBtn('dark', '暗さ') + modeBtn('flat', 'のっぺり') + modeBtn('either', 'どちらか') + '</div>' +
       '<label class="yr-lab">暗さのしきい値 <b data-role="adj-thr"></b>(これより暗いと「塞いだ」)</label><input type="range" min="0" max="255" data-role="thr" style="width:100%;height:34px">' +
       '<label class="yr-lab">ばらつきのしきい値 <b data-role="adj-thrf"></b>(これよりのっぺりだと「塞いだ」)</label><input type="range" min="0" max="80" data-role="thrf" style="width:100%;height:34px">' +
+      '<label class="yr-lab">塞いでいる時間 <b data-role="hold-txt"></b>(これだけ続くと成功)</label><input type="range" min="2" max="30" data-role="hold" style="width:100%;height:34px">' +
+      '<label class="yr-lab">判定に使うエリア <b data-role="roi-txt"></b></label>' +
+      '<div class="yr-meta">上のプレビューをなぞって(ドラッグして)、エリアを指定できます。手が遠くて画面全体を塞げない時は、手が写る場所だけに狭めると判定しやすくなります。</div>' +
+      '<div class="yr-seg">' + roiBtn('full', '全体') + roiBtn('c60', '中央 60%') + roiBtn('c30', '中央 30%') + '</div>' +
       '<div class="yr-row"><button type="button" class="yr-btn wide" data-act="modal-close">閉じる</button></div>');
     syncAdjustUi();
     camBusy = true;
@@ -2671,7 +2709,9 @@ function mount(root, opts){
       camBusy = false;
       var prev = $r('modal').querySelector('[data-role="prev"]');
       if (!prev){ camLoopStopIfIdle(); return; }
-      prev.innerHTML = ''; camera.mount(prev); camLoopStart();
+      prev.innerHTML = ''; camera.mount(prev);
+      var rb = document.createElement('div'); rb.className = 'yr-roi'; rb.setAttribute('data-role', 'roi-box'); prev.appendChild(rb);
+      bindRoiDrag(prev); updateRoiUi(); camLoopStart();
     }, function(err){
       camBusy = false;
       var prev = $r('modal').querySelector('[data-role="prev"]');
@@ -2685,7 +2725,46 @@ function mount(root, opts){
     m.querySelector('[data-role="thrf"]').value = settings.thrFlat; m.querySelector('[data-role="adj-thrf"]').textContent = settings.thrFlat;
     var bs = m.querySelectorAll('[data-act="adj-mode"]');
     for (var i = 0; i < bs.length; i++) bs[i].className = bs[i].getAttribute('data-mode') === settings.detect ? 'on' : '';
+    var hs = m.querySelector('[data-role="hold"]'); if (hs){ hs.value = Math.round(settings.holdMs / 100); m.querySelector('[data-role="hold-txt"]').textContent = (settings.holdMs / 1000).toFixed(1) + '秒'; }
+    updateRoiUi();
     updateAdjust(lastM);
+  }
+  /* 判定エリア: プレビュー(左右反転して表示している)の上に枠を出す。保存は映像そのままの向きの割合%で行う */
+  function roiIsFull(r){ return r.x === 0 && r.y === 0 && r.w === 100 && r.h === 100; }
+  function roiBoxStyle(box, vx, vy, vw, vh){ box.style.display = 'block'; box.style.left = (vx * 100) + '%'; box.style.top = (vy * 100) + '%'; box.style.width = (vw * 100) + '%'; box.style.height = (vh * 100) + '%'; }
+  function updateRoiUi(){
+    var m = $r('modal'); if (!m) return;
+    var box = m.querySelector('[data-role="roi-box"]'), txt = m.querySelector('[data-role="roi-txt"]'), r = settings.roi, full = roiIsFull(r);
+    if (box){ if (full) box.style.display = 'none'; else roiBoxStyle(box, (100 - r.x - r.w) / 100, r.y / 100, r.w / 100, r.h / 100); }
+    if (txt) txt.textContent = full ? '(全体)' : '(横 ' + r.x + '〜' + (r.x + r.w) + '% / 縦 ' + r.y + '〜' + (r.y + r.h) + '%)';
+    var bs = m.querySelectorAll('[data-act="roi-set"]'), i, v, on;
+    for (i = 0; i < bs.length; i++){
+      v = bs[i].getAttribute('data-v');
+      on = (v === 'full' && full) || (v === 'c60' && r.x === 20 && r.y === 20 && r.w === 60 && r.h === 60) || (v === 'c30' && r.x === 35 && r.y === 35 && r.w === 30 && r.h === 30);
+      bs[i].className = on ? 'on' : '';
+    }
+  }
+  function bindRoiDrag(prev){
+    var start = null;
+    function pt(e){ var b = prev.getBoundingClientRect(); return {x: Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)), y: Math.max(0, Math.min(1, (e.clientY - b.top) / b.height))}; }
+    function box(){ return prev.querySelector('[data-role="roi-box"]'); }
+    prev.addEventListener('pointerdown', function(e){ start = pt(e); try { prev.setPointerCapture(e.pointerId); } catch(x){} e.preventDefault(); });
+    prev.addEventListener('pointermove', function(e){
+      if (!start) return;
+      var b = pt(e), bx = box(); if (!bx) return;
+      roiBoxStyle(bx, Math.min(start.x, b.x), Math.min(start.y, b.y), Math.abs(start.x - b.x), Math.abs(start.y - b.y));
+    });
+    prev.addEventListener('pointerup', function(e){
+      if (!start) return;
+      var b = pt(e), a = start; start = null;
+      var vx = Math.min(a.x, b.x), vy = Math.min(a.y, b.y), vw = Math.abs(a.x - b.x), vh = Math.abs(a.y - b.y);
+      if (vw >= 0.1 && vh >= 0.1){
+        settings.roi = roiClean({x: Math.round((1 - (vx + vw)) * 100), y: Math.round(vy * 100), w: Math.round(vw * 100), h: Math.round(vh * 100)});
+        persist();
+      }
+      updateRoiUi();
+    });
+    prev.addEventListener('pointercancel', function(){ start = null; updateRoiUi(); });
   }
   function updateAdjust(mm){
     var m = $r('modal'); if (!m) return;
@@ -2694,7 +2773,8 @@ function mount(root, opts){
     lum.textContent = mm ? String(Math.round(mm.lum)) : '—';
     m.querySelector('[data-role="adj-con"]').textContent = mm ? (mm.contrast >= 900 ? '—' : String(Math.round(mm.contrast))) : '—';
     var st = m.querySelector('[data-role="adj-state"]');
-    st.textContent = !mm ? '(映像待ち)' : (cov ? '■ 塞いだ と判定' : '□ 塞いでいない'); st.className = 'yr-state' + (cov ? ' dark' : '');
+    var left = cov ? Math.max(0, settings.holdMs - (adjSince ? now() - adjSince : 0)) : 0;     /* 実際の生存確認と同じく、塞いだ状態が続いて初めて成功 */
+    st.textContent = !mm ? '(映像待ち)' : (cov ? '■ 塞いだ' + (left > 0 ? '(あと ' + (left / 1000).toFixed(1) + '秒で成功)' : ' → 成功 ✔') : '□ 塞いでいない'); st.className = 'yr-state' + (cov ? ' dark' : '');
     m.querySelector('[data-role="adj-bar"]').style.width = (mm ? Math.min(100, mm.lum / 255 * 100) : 0) + '%';
     m.querySelector('[data-role="adj-mark"]').style.left = (settings.threshold / 255 * 100) + '%';
     m.querySelector('[data-role="adj-bar2"]').style.width = (mm && mm.contrast < 900 ? Math.min(100, mm.contrast / 80 * 100) : 0) + '%';
@@ -2853,7 +2933,7 @@ function mount(root, opts){
       }
       if (!escStrong){
         escStrong = true; startStrong();
-        host.notify({title: 'やらせるToDo', body: '脱線の猶予が切れました。「' + r.title + '」に戻りましょう。', tag: 'esc-block'});
+        notifyHost({title: 'やらせるToDo', body: '脱線の猶予が切れました。「' + r.title + '」に戻りましょう。', tag: 'esc-block'});
       }
     }
   }
@@ -3417,7 +3497,7 @@ function mount(root, opts){
   function vibConfig(){
     var rep = settings.repeatSec;
     return {pre: rhythmToPattern(settings.vibPre, 0), nudge: rhythmToPattern(settings.vibNudge, 0), esc: rhythmToPattern(settings.vibEsc, rep > 0 ? 800 : 0),
-            escSound: settings.escSound, repeatSec: rep, sound: settings.sound};
+            escSound: settings.escSound, repeatSec: rep, sound: settings.sound, winNotifSec: settings.winNotifSec};
   }
   var NUDGE_SCHEDULE_MAX = 4;          /* 催促は、アプリが開かれるまでの分として、先の4回分まで */
   function computeSchedule(){
@@ -3665,13 +3745,19 @@ function mount(root, opts){
       case 'vib-reset': settings.vibPre = RHYTHM_DEFAULT.pre; settings.vibNudge = RHYTHM_DEFAULT.nudge; settings.vibEsc = RHYTHM_DEFAULT.esc; persist(); render(); toast('リズムを初期に戻しました'); break;
       case 'vib-stop': {
         var sres; try { sres = Promise.resolve(opts.onVibStop ? opts.onVibStop() : '止める対象がありません'); } catch(e4){ sres = Promise.reject(e4); }
+        setVibTesting(false);       /* 先にボタンを「試す」に戻す(通知を止める処理は、そのあと完了する) */
         sres.then(function(m){ toast(m || '止めました'); }, function(e5){ toast('止められませんでした'); });
         break;
       }
       case 'vib-test': {
         if (!opts.onVibTest){ toast('この環境では試せません'); break; }
-        var vres; try { vres = Promise.resolve(opts.onVibTest(el.getAttribute('data-kind'))); } catch(e2){ vres = Promise.reject(e2); }
-        vres.then(function(m){ toast(m || '試しの通知を出しました'); }, function(e3){ toast('試せませんでした: ' + (e3 && e3.message || e3)); });
+        var vkind = el.getAttribute('data-kind');
+        var vres; try { vres = Promise.resolve(opts.onVibTest(vkind)); } catch(e2){ vres = Promise.reject(e2); }
+        vres.then(function(m){
+          var obj = (m && typeof m === 'object'), good = !(obj && m.ok === false);
+          if (good) setVibTesting(true, ((vkind === 'esc' && settings.repeatSec > 0) ? settings.repeatSec * 1000 : 6000) + 500);   /* 3つの「試す」を「■止める」に */
+          toast((obj ? m.msg : m) || '試しの通知を出しました');
+        }, function(e3){ toast('試せませんでした: ' + (e3 && e3.message || e3)); });
         break;
       }
       case 'alive-mode': settings.aliveMode = el.getAttribute('data-mode') === 'random' ? 'random' : 'fixed'; persist(); render(); break;
@@ -3680,6 +3766,7 @@ function mount(root, opts){
       case 'alive-test': aliveTestNow(); break;
       case 'adj-calib': calibStart(); break;
       case 'adj-mode': settings.detect = el.getAttribute('data-mode'); persist(); syncAdjustUi(); break;
+      case 'roi-set': { var rv = el.getAttribute('data-v'); settings.roi = rv === 'c60' ? {x: 20, y: 20, w: 60, h: 60} : (rv === 'c30' ? {x: 35, y: 35, w: 30, h: 30} : {x: 0, y: 0, w: 100, h: 100}); persist(); updateRoiUi(); break; }
       /* 時刻入力 */
       case 'pick-time': openTimePicker(el.getAttribute('data-target'), el.getAttribute('data-label')); break;
       case 'clear-time': setTimeCtl(el.getAttribute('data-target'), ''); break;
@@ -3767,6 +3854,7 @@ function mount(root, opts){
     else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
     else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!cfg(runningItem(), 'aliveEnabled') && alive && !alive.test) aliveStop(); }
     else if (r === 'set-camera') settings.cameraId = e.target.value;
+    else if (r === 'pick-model'){ if (e.target.value) settings.geminiModel = e.target.value; }
     else return;
     persist(); if (view === 'settings') render();
   });
@@ -3775,6 +3863,7 @@ function mount(root, opts){
     var r = e.target.getAttribute && e.target.getAttribute('data-role');
     if (r === 'thr') settings.threshold = int(e.target.value, 0, 255, settings.threshold);
     else if (r === 'thrf') settings.thrFlat = int(e.target.value, 0, 80, settings.thrFlat);
+    else if (r === 'hold') settings.holdMs = int(e.target.value, 2, 30, 6) * 100;
     else return;
     persist(); syncAdjustUi();
   });
@@ -5112,7 +5201,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261029-2';
+var APP_BUILD = '20261030-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7587,7 +7676,7 @@ function yrRemoveDelivered(ids){
 }
 function yrNotifyApk(o){
   if (yrPerm !== 'granted') return;
-  var kind = YR_VIB_KINDS[o.tag], cfg = (kind && yrApi) ? yrApi.vibConfig() : null;
+  var kind = YR_VIB_KINDS[o.tag], cfg = kind ? (o.cfg || (yrApi ? yrApi.vibConfig() : null)) : null;
   if (!cfg){      /* 種類のリズムを使わない通知(本日終了・生存確認など)は、共通のチャンネル */
     yrEnsureChannel(false).then(function(chId){
       return yrPostNow({id: yrNotifId(o.tag), title: o.title, body: o.body, channelId: chId});
@@ -7609,45 +7698,51 @@ function yrVibStop(){
 /* 設定の「試す」: その種類のリズム・鳴らし方で、試しの通知を出す(APK版)。PWA版は端末のバイブだけ試す */
 function yrVibTest(kind){
   var cfg = yrApi ? yrApi.vibConfig() : null;
-  if (!cfg || !YR_KIND_LABEL[kind]) return '準備中です';
+  if (!cfg || !YR_KIND_LABEL[kind]) return {ok: false, msg: '準備中です'};
   if (isApkPlatform()){
-    if (yrPerm !== 'granted') return '通知が許可されていません。端末の設定で通知を許可してください';
+    if (yrPerm !== 'granted') return {ok: false, msg: '通知が許可されていません。端末の設定で通知を許可してください'};
     return yrEnsureKindChannel(kind, cfg).then(function(chId){
       var n = {id: YR_TEST_NOTIF_ID, title: 'やらせるToDo(テスト)', body: YR_KIND_LABEL[kind] + 'のバイブ・音のテストです', channelId: chId};
       if (kind === 'esc' && cfg.repeatSec > 0) n.extra = {repeatSec: cfg.repeatSec};
       return yrPostNow(n);
     }).then(function(){
-      return '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。「■止める」か、通知を消すと止まります)' : '');
-    }, function(e){ return '失敗しました: ' + (e && e.message || e); });
+      return {ok: true, msg: '試しの通知を出しました' + ((kind === 'esc' && cfg.repeatSec > 0) ? '(繰り返します。「■止める」で止まります)' : '')};
+    }, function(e){ return {ok: false, msg: '失敗しました: ' + (e && e.message || e)}; });
   }
-  if (navigator.vibrate){ navigator.vibrate(cfg[kind]); return 'バイブを鳴らしました(対応している端末のみ)'; }
-  return 'この環境ではバイブを試せません(APK版で試してください)';
+  if (navigator.vibrate){ navigator.vibrate(cfg[kind]); return {ok: true, msg: 'バイブを鳴らしました(対応している端末のみ)'}; }
+  return {ok: false, msg: 'この環境ではバイブを試せません(APK版で試してください)'};
 }
-function yrNotifyFallback(o){
-  try {
-    var n = new Notification(o.title, {body: o.body, tag: o.tag});
-    n.onclick = function(){ try { window.focus(); } catch(e){} yrHandleNotifTap(o.tag); };
-    return true;
-  } catch(e){ return false; }
-}
+/* PC(Windows)のPWA版か。通知を自動で消す設定を出すために使う */
+var YR_IS_WINDOWS = /Windows/i.test((navigator && navigator.userAgent) || '');
 function yrNotifyWeb(o){
   if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+  /* Windowsでは、通知が画面の右下に残り続けないよう、設定の秒数で消す(0なら従来どおり残す) */
+  var wk = YR_VIB_KINDS[o.tag], wcfg = o.cfg || (yrApi ? yrApi.vibConfig() : null);
+  var winSec = (YR_IS_WINDOWS && wcfg && wcfg.winNotifSec > 0) ? wcfg.winNotifSec : 0;
   if ('serviceWorker' in navigator && navigator.serviceWorker.ready){
     /* Service Worker が使えるならそちら経由(タップした時にアプリへ戻せる)。2秒待っても準備できなければ通常の通知にする */
     var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, 2000); });
     Promise.race([navigator.serviceWorker.ready, timeout]).then(function(reg){
       if (reg && reg.showNotification){
-        var wopt = {body: o.body, tag: o.tag, requireInteraction: true, renotify: true, data: {app: 'yaraseru', tag: o.tag}};
-        var wk = YR_VIB_KINDS[o.tag], wcfg = (wk && yrApi) ? yrApi.vibConfig() : null;
-        if (wcfg) wopt.vibrate = wcfg[wk];
-        reg.showNotification(o.title, wopt);
-      } else {
-        yrNotifyFallback(o);
+        var wopt = {body: o.body, tag: o.tag, requireInteraction: !winSec, renotify: true, data: {app: 'yaraseru', tag: o.tag}};
+        if (wcfg && wk) wopt.vibrate = wcfg[wk];
+        return Promise.resolve(reg.showNotification(o.title, wopt)).then(function(){
+          if (winSec) setTimeout(function(){ reg.getNotifications({tag: o.tag}).then(function(list){ list.forEach(function(n){ n.close(); }); }); }, winSec * 1000);
+        });
       }
-    }).catch(function(){ yrNotifyFallback(o); });
+      yrNotifyFallback(o, winSec);
+    }).catch(function(){ yrNotifyFallback(o, winSec); });
     return true;
   }
-  return yrNotifyFallback(o);
+  return yrNotifyFallback(o, winSec);
+}
+function yrNotifyFallback(o, winSec){
+  try {
+    var n = new Notification(o.title, {body: o.body, tag: o.tag});
+    n.onclick = function(){ try { window.focus(); } catch(e){} yrHandleNotifTap(o.tag); };
+    if (winSec) setTimeout(function(){ try { n.close(); } catch(e){} }, winSec * 1000);
+    return true;
+  } catch(e){ return false; }
 }
 /* Yaraseru.mount に渡す「通知の窓口」 */
 function createYaraseruHost(){
@@ -7821,7 +7916,7 @@ function yrCameraDiagnose(){
 function yrEnsure(){
   if (yrApi) return yrApi;
   if (!window.Yaraseru) return null;
-  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest, onVibStop: yrVibStop});
+  yrApi = window.Yaraseru.mount(document.getElementById('yaraseru-root'), {host: createYaraseruHost(), onNavigate: yrOnNavigate, cameraDeniedText: yrCameraDeniedText, onStateChange: yrScheduleSoon, onVibTest: yrVibTest, onVibStop: yrVibStop, isWindows: YR_IS_WINDOWS});
   if (!yrSchedInterval) yrSchedInterval = setInterval(yrScheduleSoon, 30000);   /* 念のための定期チェック(内容が同じなら何もしない) */
   yrScheduleSoon();
   return yrApi;
