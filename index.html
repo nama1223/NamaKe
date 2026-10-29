@@ -925,6 +925,8 @@ select.plain{
 .yr-setrow.wide .yr-seg button{flex:1;}
 .yr-set .yr-btn,.yr-set .yr-seg button,.yr-step span{white-space:nowrap;}
 .yr-chk input{width:26px;height:26px;}
+/* APIキーは伏せ字で表示する。type=password にすると、ブラウザのパスワードマネージャーが反応して画面が崩れることがあるため、普通の入力欄を伏せ字にしている */
+.yr-secret{-webkit-text-security:disc;text-security:disc;}
 .yr-tabs{display:flex;gap:4px;margin:4px 0 10px;}
 .yr-tabs button{flex:1;min-width:0;padding:10px 0;border:none;border-radius:10px;background:#e3e9f1;color:var(--yr-ink);font-size:14px;font-weight:700;font-family:inherit;white-space:nowrap;}
 .yr-tabs button.on{background:var(--yr-primary);color:#fff;}
@@ -2057,7 +2059,9 @@ function mount(root, opts){
     if (opts.onNavigate){ try { opts.onNavigate(v, prev); } catch(e){} }
   }
 
+  var renderCount = 0;       /* 画面を作り直した回数(診断用。勝手に増え続けていないかを見る) */
   function render(){
+    renderCount++;
     var m = $r('main');
     if (view === 'today') m.innerHTML = renderToday();
     else if (view === 'backlog') m.innerHTML = renderBacklog();
@@ -2299,10 +2303,10 @@ function mount(root, opts){
     T.praise = grp('🍺 褒める機能(Gemini)', 'g-praise',
       row('褒める機能を使う', chk('set-praiseOn', settings.praiseOn), '送る内容は、やる事の名前と時間・回数の集計だけです(カメラ映像は送りません)') +
       row('完了した時に自動で褒める', chk('set-praiseOnDone', settings.praiseOnDone)) +
-      row('APIキー', '<input type="password" class="yr-input" style="flex:1;min-width:0" data-role="gkey" placeholder="AIza…" autocomplete="off">' + (gKey() ? btn('削除', 'gkey-del', 'danger') : ''), gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します', true) +
+      row('APIキー', '<input type="text" class="yr-input yr-secret" style="flex:1;min-width:0" name="yr-gemini-key" data-role="gkey" placeholder="AIza…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other">' + (gKey() ? btn('削除', 'gkey-del', 'danger') : ''), gKey() ? '✔ 保存済み(末尾 ' + esc(gKey().slice(-4)) + ')。この端末の中だけに保存します' : '未設定。この端末の中だけに保存します', true) +
       row('モデル名', '<input type="text" class="yr-input" style="flex:1;min-width:0" data-role="set-geminiModel" value="' + esc(settings.geminiModel) + '" autocomplete="off">' + btn('候補を取得', 'praise-models'),
         '空にすると最新の軽量版(gemini-flash-lite-latest)になります', true,
-        modelList.length ? '<select class="yr-input" data-role="pick-model"><option value="">候補から選ぶ(' + modelList.length + '件)</option>' + modelList.map(function(m){ return '<option value="' + esc(m) + '"' + (m === settings.geminiModel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select>' : '') +
+        modelList.length ? '<select class="yr-input" data-role="pick-model"><option value="">候補から選ぶ(' + modelList.length + '件。使えるかはアカウントの権限・無料枠によります)</option>' + modelList.map(function(m){ return '<option value="' + esc(m) + '"' + (m === settings.geminiModel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select>' : '') +
       row('褒め方(口調・キャラクター)', '', 'プリセットを書き換えると、「🕘直前の編集」に自動で入ります(次に書き換えると上書き)。残したいものは「💾保存先」のカスタム1〜3へ。カスタム枠を選んで書き換えると、その枠が更新されます', true, '', chips) +
       row('ばらつき(Temperature)', '<div class="yr-step"><button type="button" data-act="temp-step" data-d="-1">−</button><input type="number" class="yr-swipe" inputmode="decimal" step="0.1" min="0" max="2" data-role="set-praiseTemp" value="' + settings.praiseTemp.toFixed(1) + '"><button type="button" data-act="temp-step" data-d="1">＋</button></div>', '高いほど、毎回の言い回しが変わります(0〜2)') +
       row('褒め言葉を試す', btn('試す', 'praise-test', 'primary'), '例のデータで1回だけ呼び出します'));
@@ -3478,8 +3482,11 @@ function mount(root, opts){
       return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok) throw {friendly: geminiErr(r.status, j)}; return j; });
     }).then(function(j){
       modelList = (j.models || []).filter(function(m){
-        return (m.supportedGenerationMethods || []).indexOf('generateContent') !== -1 && /gemini/.test(m.name) && !/image|tts|embedding|live|audio|robotics/.test(m.name);
-      }).map(function(m){ return m.name.replace(/^models\//, ''); });
+        return (m.supportedGenerationMethods || []).indexOf('generateContent') !== -1 && /\/gemini-/.test(m.name) && !/image|tts|embedding|live|audio|robotics|computer-use|vision|learnlm|aqa|gemma|nano|veo|imagen|exp/.test(m.name);
+      }).map(function(m){ return m.name.replace(/^models\//, ''); }).sort(function(a, b){
+        function rank(n){ return /flash-lite/.test(n) ? 0 : (/flash/.test(n) ? 1 : 2); }
+        return rank(a) - rank(b) || (a < b ? -1 : 1);
+      });
       toast('モデル候補を ' + modelList.length + ' 件取得しました');
       render();
     }).catch(function(e){ showAlert({key: 'praise-err', kind: 'fail', title: 'モデル一覧を取得できません', body: errText(e), buttons: []}); });
@@ -3851,7 +3858,7 @@ function mount(root, opts){
       settings.praiseStyle = pv; syncPraisePreset();
     }
     else if (r === 'praise-slotname'){ var sidx = praiseSlotIdx(settings.praisePreset); if (sidx >= 0 && settings.praiseSlots[sidx]) settings.praiseSlots[sidx].name = e.target.value.trim().slice(0, 12); }
-    else if (r === 'gkey'){ var gv = e.target.value.trim(); if (gv){ setGKey(gv); e.target.value = ''; } }
+    else if (r === 'gkey'){ var gv = e.target.value.trim(); if (!gv) return; setGKey(gv); e.target.value = ''; }      /* 空のままの change(自動入力など)では何もしない */
     else if (r === 'set-aliveEnabled'){ settings.aliveEnabled = e.target.checked; if (!cfg(runningItem(), 'aliveEnabled') && alive && !alive.test) aliveStop(); }
     else if (r === 'set-camera') settings.cameraId = e.target.value;
     else if (r === 'pick-model'){ if (e.target.value) settings.geminiModel = e.target.value; }
@@ -3887,6 +3894,7 @@ function mount(root, opts){
     tick: tick, render: render, go: go,
     view: function(){ return view; },
     schedule: computeSchedule,
+    stats: function(){ return {renders: renderCount}; },
     vibConfig: vibConfig,
     canGoBack: function(){ return view !== 'today'; },
     back: function(){ if (view === 'today') return false; go('today'); return true; },
@@ -5201,7 +5209,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 7;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261030-1';
+var APP_BUILD = '20261031-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7858,6 +7866,7 @@ function yrCameraDiagnose(){
   var chain = Promise.resolve();
   function step(fn){ chain = chain.then(fn).catch(function(e){ add('  (診断の途中でエラー)', errStr(e)); }); }
 
+  var renders0 = (yrApi && yrApi.stats) ? yrApi.stats().renders : null;
   add('日時', new Date().toISOString());
   add('本体', 'Naka v' + NAKA_VERSION + ' / build ' + APP_BUILD);
   add('APK判定', isApkPlatform());
@@ -7911,7 +7920,10 @@ function yrCameraDiagnose(){
       add('カメラ一覧', v.length + '台' + (v.length ? ' / ' + v.map(function(d){ return d.label || '(ラベルなし)'; }).join(' | ') : ''));
     }, function(e){ add('カメラ一覧', errStr(e)); });
   });
-  return chain.then(function(){ return L.join('\n'); });
+  return chain.then(function(){
+    if (renders0 !== null){ var r1 = yrApi.stats().renders; add('やらせるToDoの画面の描画回数(診断中)', (r1 - renders0) + '回 ※0〜1回が正常。多い場合は、画面が勝手に作り直されています'); }
+    return L.join('\n');
+  });
 }
 function yrEnsure(){
   if (yrApi) return yrApi;
