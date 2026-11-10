@@ -719,15 +719,15 @@ select.plain{
 #page-warikan{font-size:calc(19px * var(--zs));--wk-top:60px;--zs:1;}
 #page-warikan.wk-big{--zs:1.18;}
 #page-warikan .sub{font-size:calc(17px * var(--zs));line-height:1.6;margin:0 0 10px;}
-.wk-sec{border-radius:var(--radius);padding:12px;margin-bottom:10px;border:none;box-shadow:none;}
+.wk-sec{border-radius:var(--radius);padding:12px;margin-bottom:10px;background:#fff;border:1px solid #dde3ea;box-shadow:none;}
 /* (A)割り勘: ヘッダーの下に固定し、他の部分だけスクロールさせる。背が高くなりすぎた時はJS(wkFit)が wk-nosticky を付けて固定を解く */
-.wk-a{background:#d9e8fb;position:sticky;top:var(--wk-top);z-index:20;}
+.wk-a{position:sticky;top:var(--wk-top);z-index:20;}
 .wk-a::after{content:'';position:absolute;left:0;right:0;top:100%;height:10px;background:var(--bg);}   /* 固定中、A枠の下の隙間にスクロール内容が透けないようふさぐ */
 .wk-a.wk-nosticky{position:static;}
 .wk-a.wk-nosticky::after{display:none;}
 .wk-a.wk-stuck{border-radius:0 0 var(--radius) var(--radius);box-shadow:0 5px 10px rgba(20,30,45,0.16);}   /* 固定中は上の角を丸めない(裏のスクロール内容が角から見えるのを防ぐ) */
-.wk-b{background:#fdf0c4;--wk-on:#b87410;}
-.wk-c{background:#d9f1e1;--wk-on:#2f7d51;}
+.wk-b{--wk-on:#b87410;}
+.wk-c{--wk-on:#2f7d51;}
 .wk-title{font-size:calc(21px * var(--zs));font-weight:700;margin:0;color:var(--ink);line-height:1.35;}
 .wk-b .wk-title{color:#7a4b00;}
 .wk-c .wk-title{color:#1f5e3a;}
@@ -744,7 +744,7 @@ select.plain{
 .wk-sec input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
 .wk-in{
   flex:1;min-width:0;height:56px;font-size:calc(clamp(20px, 7vw, 28px) * var(--zs));font-weight:700;text-align:right;
-  padding:0 10px;border:2px solid transparent;border-radius:12px;background:#fff;color:var(--ink);
+  padding:0 10px;border:2px solid #dfe4ea;border-radius:12px;background:#f4f6f9;color:var(--ink);
   font-variant-numeric:tabular-nums;font-family:var(--sans);
 }
 .wk-in:focus{outline:none;border-color:var(--primary);}
@@ -765,7 +765,7 @@ select.plain{
 /* 数値部分: 縦スワイプ／ホイールで増減(touch-action: pan-x でブラウザの縦スクロールと競合させない) */
 .wk-val{
   flex:1;min-width:0;height:56px;display:flex;align-items:center;justify-content:center;gap:4px;
-  background:#fff;border:none;border-radius:12px;
+  background:#f4f6f9;border:none;border-radius:12px;
   font-size:calc(30px * var(--zs));font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);
   touch-action:pan-x;cursor:ns-resize;user-select:none;-webkit-user-select:none;
   transition:background-color .2s, box-shadow .2s;
@@ -781,46 +781,60 @@ select.plain{
 .wk-seg{display:flex;gap:6px;flex:1;min-width:0;}
 .wk-seg button,.wk-toggle{
   min-height:50px;padding:4px 2px;font-size:calc(18px * var(--zs));font-weight:600;line-height:1.25;
-  border:none;background:#fff;color:var(--ink);border-radius:12px;cursor:pointer;
+  border:none;background:#eef1f5;color:var(--ink);border-radius:12px;cursor:pointer;
   touch-action:manipulation;
 }
 .wk-seg button{flex:1 1 0;min-width:0;}
-.wk-seg button.on,.wk-toggle.on{background:var(--wk-on, var(--primary));color:#fff;}
+.wk-seg button.on,.wk-toggle.on{background:color-mix(in srgb, var(--wk-on, var(--primary)) 20%, #fff);color:var(--wk-on, var(--primary));font-weight:700;box-shadow:inset 0 0 0 1.5px var(--wk-on, var(--primary));}
 .wk-toggle{width:100%;text-align:left;padding:4px 12px;}
 .wk-desc{font-size:calc(16px * var(--zs));line-height:1.55;margin:8px 0 0;color:var(--ink-sub);}
 
-/* 折りたたみ見出し(タイトルと現在の設定を同じ行に。入りきらない時だけ折り返す) */
+/* 折りたたみ見出し: セクション上端に淡い色の帯を敷き、右端に丸い開閉ボタンを置く */
 .wk-fold{
-  display:flex;align-items:center;gap:8px;width:100%;min-height:46px;
-  background:none;border:none;padding:0;text-align:left;cursor:pointer;color:var(--ink);
+  display:flex;align-items:center;gap:8px;width:calc(100% + 24px);min-height:52px;
+  margin:-12px -12px 0;padding:8px 12px;text-align:left;cursor:pointer;color:var(--ink);
+  border:none;border-radius:var(--radius) var(--radius) 0 0;
 }
+.wk-b .wk-fold{background:#fdf0c4;}
+.wk-c .wk-fold{background:#d9f1e1;}
 .wk-fold-main{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;}
-.wk-fold-sum{font-size:calc(17px * var(--zs));color:var(--ink-sub);font-weight:500;}
-.wk-arrow{flex:none;font-size:calc(20px * var(--zs));color:var(--ink-sub);transition:transform .2s;}
+.wk-fold-sum{font-size:calc(16px * var(--zs));color:var(--ink-sub);font-weight:500;}
+.wk-fold-note{font-size:calc(16px * var(--zs));color:#8a6d3b;font-weight:500;}
+.wk-arrow{
+  flex:none;width:42px;height:42px;display:flex;align-items:center;justify-content:center;
+  font-size:calc(17px * var(--zs));color:var(--wk-on, var(--primary));
+  background:#fff;border:2px solid var(--wk-on, var(--primary));border-radius:50%;
+  transition:transform .2s;
+}
 .wk-fold[aria-expanded="true"] .wk-arrow{transform:rotate(180deg);}
-.wk-body{margin-top:6px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.12);}
+.wk-body{margin-top:6px;padding-top:10px;}
+/* 閉じている時だけ、帯の下に「現在の設定」を1行で見せる(開くと本体が出るので隠す) */
+.wk-sumrow{display:none;padding:10px 2px 0;font-size:calc(16px * var(--zs));color:var(--ink-sub);font-variant-numeric:tabular-nums;}
+.wk-sumrow-label{color:var(--ink);font-weight:700;margin-right:10px;}
+.wk-body.is-hidden ~ .wk-sumrow{display:block;}
 
-/* 結果表示: 白い面に、一人分の金額だけを大きく。他は小さく控えめに */
-.wk-res{background:#fff;color:var(--ink);border-radius:12px;padding:8px 10px;margin-top:8px;text-align:center;}
-.wk-res-main{display:flex;align-items:baseline;justify-content:center;gap:12px;}
+/* 結果表示: カードの地のまま、班ごとの行と一人分の金額を大きく。他は小さく控えめに */
+.wk-res{color:var(--ink);padding:6px 2px 0;margin-top:8px;}
+.wk-res-main{display:flex;align-items:baseline;justify-content:flex-start;gap:12px;}
 .wk-res-label{font-size:calc(17px * var(--zs));color:var(--ink-sub);}
 .wk-res-big{font-size:calc(48px * var(--zs));font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--primary);}
 .wk-res-big span{font-size:calc(24px * var(--zs));font-weight:600;margin-left:3px;}
-.wk-res-foot{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:4px;}
+.wk-res-foot{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:6px;}
+.wk-res-note2{text-align:center;font-size:calc(13.5px * var(--zs));color:var(--ink-sub);margin-top:6px;font-variant-numeric:tabular-nums;}
+.wk-res-note2 b{font-weight:600;color:var(--ink);}
 .wk-diff{display:inline-block;padding:2px 14px;border-radius:999px;font-size:calc(20px * var(--zs));font-weight:700;background:#eef1f5;font-variant-numeric:tabular-nums;}
 .wk-diff.over{background:#e1f3e8;color:#1f7a4d;}
 .wk-diff.short{background:#fdeceb;color:#c0392b;}
 .wk-diff.kanji{background:#e2eaf6;color:#1e3a5f;}
 .wk-diff.even{color:#4b5563;font-size:calc(17px * var(--zs));font-weight:600;}
 .wk-res-note{font-size:calc(14px * var(--zs));color:var(--ink-sub);}
-.wk-res-total{font-size:calc(16px * var(--zs));margin:4px 0;font-variant-numeric:tabular-nums;color:var(--ink-sub);}
-.wk-res-total b{font-size:1.1em;font-weight:600;color:var(--ink);}
 .wk-grow{
   display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;
-  border-left:5px solid #999;padding:2px 0 2px 8px;margin-bottom:6px;
+  border-left:5px solid #999;padding:4px 0 4px 10px;margin-bottom:8px;
 }
-.wk-gline{flex:1;font-size:calc(16px * var(--zs));font-variant-numeric:tabular-nums;color:var(--ink-sub);}
-.wk-gname{font-size:1.2em;font-weight:700;margin-right:6px;color:var(--ink);}
+.wk-gline{flex:1;min-width:0;}
+.wk-gname{display:block;font-size:calc(20px * var(--zs));font-weight:700;color:var(--ink);line-height:1.25;}
+.wk-gsub{display:block;font-size:calc(15px * var(--zs));font-variant-numeric:tabular-nums;color:var(--ink-sub);margin-top:1px;}
 .wk-gpay{flex:none;font-size:calc(30px * var(--zs));font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--primary);}
 .wk-gpay span{font-size:calc(17px * var(--zs));font-weight:600;margin-left:1px;}
 .wk-warn{background:#fff3cd;color:#7a4b00;border-radius:8px;padding:6px 10px;font-size:calc(16px * var(--zs));font-weight:600;margin-top:6px;line-height:1.5;text-align:left;}
@@ -828,48 +842,55 @@ select.plain{
 /* コピーボタン(人数の行の右端。表示を圧迫しない) */
 .wk-copy{
   flex:none;width:52px;height:56px;padding:0;font-size:calc(24px * var(--zs));line-height:1;
-  background:#fff;border:none;border-radius:12px;cursor:pointer;
+  background:#f4f6f9;border:none;border-radius:12px;cursor:pointer;
 }
-.wk-copy:active{background:#c9dcf3;}
+.wk-copy:active{background:#dbe7f5;}
 
-/* 班カード(白い面。影・太い枠なし) */
-.wk-gcard{background:#fff;border:none;border-left:5px solid #ccc;border-radius:12px;padding:10px;margin-bottom:10px;}
+/* 班カード(白い面に細い枠。左端に班の色) */
+.wk-gcard{background:#fff;border:1px solid #e2e7ee;border-left:5px solid #ccc;border-radius:12px;padding:10px;margin-bottom:10px;}
 .wk-ghead{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .wk-gnbox{flex:none;display:flex;flex-direction:column;line-height:1.2;min-width:4.4em;}
 .wk-gn{font-size:calc(20px * var(--zs));font-weight:700;color:var(--ink);}
-.wk-gsum{font-size:calc(14px * var(--zs));font-weight:600;color:var(--ink-sub);font-variant-numeric:tabular-nums;}
+/* 班カード見出し右のピル(均等割りとの差など、今の状態を短く) */
+.wk-gsum{
+  margin-left:auto;flex:none;font-size:calc(13.5px * var(--zs));font-weight:700;color:#1f5e3a;
+  background:#e7f4ec;padding:3px 10px;border-radius:999px;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.wk-chip{
+  margin-left:auto;flex:none;font-size:calc(13px * var(--zs));font-weight:600;color:var(--ink-sub);
+  background:#e8edf3;padding:3px 10px;border-radius:999px;white-space:nowrap;
+}
 .wk-gcard .wk-sbtn{width:48px;height:48px;font-size:calc(28px * var(--zs));}
 .wk-gcard .wk-val{height:48px;font-size:calc(26px * var(--zs));background:#f1f4f8;}
 .wk-gcard .wk-val-in{font-size:calc(26px * var(--zs));}
 .wk-gcard .wk-seg{margin-bottom:8px;}
 .wk-gcard .wk-seg button{background:#eef1f5;}
-.wk-gcard .wk-seg button.on{background:var(--wk-on);}
 .wk-gcard .wk-row{margin-bottom:0;}
 .wk-del{flex:none;width:44px;height:44px;padding:0;font-size:calc(20px * var(--zs));border:none;background:#fdeceb;border-radius:10px;cursor:pointer;}
 .wk-del:active{background:#f7cfcb;}
-.wk-g1card{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:calc(18px * var(--zs));font-weight:500;}
+.wk-g1card{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:calc(18px * var(--zs));font-weight:500;background:#f4f6f9;}
 .wk-g1card b{font-size:1.15em;}
 .wk-drow{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .wk-base{flex:1;font-size:calc(18px * var(--zs));font-weight:500;}
 .wk-base b{font-size:1.15em;font-weight:700;font-variant-numeric:tabular-nums;}
 .wk-drow .wk-seg{flex:none;width:128px;margin-bottom:0;}
 .wk-add{
-  width:100%;min-height:52px;font-size:calc(20px * var(--zs));font-weight:700;color:#fff;
-  background:#2f7d51;border:none;border-radius:12px;cursor:pointer;
+  width:100%;min-height:52px;font-size:calc(20px * var(--zs));font-weight:700;color:#1f5e3a;
+  background:#eef7f0;border:1.5px solid #2f7d51;border-radius:12px;cursor:pointer;
 }
-.wk-add:active{background:#1f5e3a;}
+.wk-add:active{background:#d9f1e1;}
 /* ページ最下段: 文字サイズ切替 + リセット + 操作音 */
 .wk-bottom{display:flex;align-items:center;gap:8px;}
 .wk-bottom .wk-seg{flex:none;width:124px;}
-.wk-bottom .wk-seg button.on{background:var(--primary);}
+.wk-bottom .wk-seg button.on{background:color-mix(in srgb, var(--primary) 20%, #fff);color:var(--primary);box-shadow:inset 0 0 0 1.5px var(--primary);}
 .wk-reset{
   flex:1;min-width:0;min-height:50px;font-size:calc(17px * var(--zs));font-weight:600;color:var(--ink);
-  background:#fff;border:none;border-radius:12px;cursor:pointer;
+  background:#fff;border:1px solid #dde3ea;border-radius:12px;cursor:pointer;
 }
 .wk-reset.armed{background:#fdeceb;color:var(--danger);}
 .wk-soundbtn{
   flex:none;width:52px;min-height:50px;font-size:calc(22px * var(--zs));line-height:1;
-  background:#fff;border:none;border-radius:12px;cursor:pointer;padding:0;
+  background:#fff;border:1px solid #dde3ea;border-radius:12px;cursor:pointer;padding:0;
 }
 
 /* ========== やらせるToDo 合体ここから ========== */
@@ -1258,7 +1279,7 @@ select.plain{
         <button type="button" class="wk-fold" id="wk-b-head" aria-expanded="false" aria-controls="wk-b-body">
           <span class="wk-fold-main">
             <span class="wk-title">🔧 キリを良くする</span>
-            <span class="wk-fold-sum" id="wk-b-sum"></span>
+            <span class="wk-fold-note">端数の処理</span>
           </span>
           <span class="wk-arrow">▼</span>
         </button>
@@ -1284,6 +1305,7 @@ select.plain{
           </div>
           <p class="wk-desc" id="wk-b-desc"></p>
         </div>
+        <div class="wk-sumrow"><span class="wk-sumrow-label">現在の設定</span><span id="wk-b-sum"></span></div>
       </section>
 
       <!-- (C) 価格差をつける(グループ分け) -->
@@ -8284,12 +8306,16 @@ function wkDiffHtml(c){
   if (c.kanji !== null) return '<div class="wk-diff kanji">幹事 ' + wkFmt(c.kanji) + '円</div>';
   if (c.diff > 0) return '<div class="wk-diff over">余り ' + wkFmt(c.diff) + '円</div>';
   if (c.diff < 0) return '<div class="wk-diff short">不足 ' + wkFmt(-c.diff) + '円</div>';
-  return '<div class="wk-diff even">ちょうど割り切れます</div>';
+  return '<div class="wk-diff even">✓ ちょうど割り切れます</div>';
 }
-function wkFootHtml(c, withTotal){
+function wkFootHtml(c){
   var note = wkNoteText();
-  if (wk.pct > 0) note += '・+' + wk.pct + '%込' + (withTotal ? ' ' + wkFmt(c.T) + '円' : '');
-  return '<div class="wk-res-foot">' + wkDiffHtml(c) + '<span class="wk-res-note">' + note + '</span></div>';
+  if (wk.pct > 0) note += '・+' + wk.pct + '%込';
+  var total = (c.diff === 0 && c.kanji === null)
+    ? '集金 <b>' + wkFmt(c.collected) + '円</b>(支払額と一致)'
+    : '集金 <b>' + wkFmt(c.collected) + '円</b> / 支払額 <b>' + wkFmt(c.T) + '円</b>';
+  return '<div class="wk-res-foot">' + wkDiffHtml(c) + '</div>' +
+    '<div class="wk-res-note2">' + total + ' ・ ' + note + '</div>';
 }
 function wkRenderResult(c){
   var el = document.getElementById('wk-result');
@@ -8302,29 +8328,28 @@ function wkRenderResult(c){
     html = '<div class="wk-res">' +
       '<div class="wk-res-main"><span class="wk-res-label">一人あたり</span>' +
       '<span class="wk-res-big">' + wkFmt(c.pay1) + '<span>円</span></span></div>' +
-      wkFootHtml(c, true) + '</div>';
+      wkFootHtml(c) + '</div>';
   } else {
     var rows = '';
-    /* 1行 = 「班名 + 計算式」(幅に合わせて文字サイズ自動調整) + 一人分の金額 */
-    var row = function(idx, label, formula, pay){
+    /* 1行 = 「班名 / 人数・計」の2段 + 一人分の金額(右に大きく) */
+    var row = function(idx, label, sub, pay){
       return '<div class="wk-grow" style="border-left-color:' + WK_COLORS[idx % WK_COLORS.length] + '">' +
-        '<div class="wk-gline wk-fit"><span class="wk-gname">' + label + '</span>' + formula + '</div>' +
+        '<div class="wk-gline"><span class="wk-gname">' + label + '</span>' +
+        '<span class="wk-gsub">' + sub + '</span></div>' +
         '<div class="wk-gpay">' + wkFmt(pay) + '<span>円</span></div></div>';
     };
     if (c.n1 > 0){
       if (c.kanji !== null){     /* 幹事調整中: 第一班のうち幹事以外の人数で表示(幹事の分は下のピルに出る) */
         var o = c.n1 - 1;
-        rows += row(0, wkGroupName(0), '他' + o + '人×' + wkFmt(c.pay1) + '円=' + wkFmt(o * c.pay1) + '円', c.pay1);
+        rows += row(0, wkGroupName(0), '他' + o + '人 ・ 計 ' + wkFmt(o * c.pay1) + '円', c.pay1);
       } else {
-        rows += row(0, wkGroupName(0), c.n1 + '人×' + wkFmt(c.pay1) + '円=' + wkFmt(c.n1 * c.pay1) + '円', c.pay1);
+        rows += row(0, wkGroupName(0), c.n1 + '人 ・ 計 ' + wkFmt(c.n1 * c.pay1) + '円', c.pay1);
       }
     }
     c.extra.forEach(function(e, i){
-      if (e.n > 0) rows += row(i + 1, wkGroupName(i + 1), e.n + '人×' + wkFmt(e.pay) + '円=' + wkFmt(e.n * e.pay) + '円', e.pay);
+      if (e.n > 0) rows += row(i + 1, wkGroupName(i + 1), e.n + '人 ・ 計 ' + wkFmt(e.n * e.pay) + '円', e.pay);
     });
-    html = '<div class="wk-res">' + rows +
-      '<div class="wk-res-total wk-fit">集金額 <b>' + wkFmt(c.collected) + '円</b> / 支払額 <b>' + wkFmt(c.T) + '円</b></div>' +
-      wkFootHtml(c, false);
+    html = '<div class="wk-res">' + rows + wkFootHtml(c);
     if (c.over) html += '<div class="wk-warn">⚠ 第二班以降だけで支払額を超えています(第一班は0円)</div>';
     if (c.n1 === 0) html += '<div class="wk-warn">⚠ 第一班が0人です</div>';
     html += '</div>';
@@ -8438,7 +8463,7 @@ function wkRenderGroups(){
   box.innerHTML = '';
   var first = wkEl('div', 'wk-gcard wk-g1card');
   first.style.borderLeftColor = WK_COLORS[0];
-  first.innerHTML = '<span class="wk-gn">' + wkGroupName(0) + '</span><span>人数 <b id="wk-g1n">0</b>人(自動計算)</span>';
+  first.innerHTML = '<span class="wk-gn">' + wkGroupName(0) + '</span><span>人数 <b id="wk-g1n">0</b>人(自動計算)</span><span class="wk-chip">表示のみ</span>';
   box.appendChild(first);
   wk.groups.forEach(function(g, i){ box.appendChild(wkBuildGroupCard(g, i)); });
 }
@@ -8447,14 +8472,17 @@ function wkBuildGroupCard(g, i){
   var card = wkEl('div', 'wk-gcard');
   card.style.borderLeftColor = WK_COLORS[(i + 1) % WK_COLORS.length];
 
-  /* 1行目: 班名 + 人数の増減 + 削除(第二班は常に残すため、班が2つ以上ある時だけ削除を出す) */
+  /* 1行目: 班名 + 状態ピル。2行目: 人数の増減 + 削除(班が2つ以上ある時だけ出す) */
   var head = wkEl('div', 'wk-ghead');
   var nbox = wkEl('div', 'wk-gnbox');
   nbox.appendChild(wkEl('span', 'wk-gn', name));
-  var gsum = wkEl('span', 'wk-gsum', '—');
-  nbox.appendChild(gsum);
   head.appendChild(nbox);
-  head.appendChild(wkStepper({
+  var gsum = wkEl('span', 'wk-gsum', '—');
+  head.appendChild(gsum);
+  card.appendChild(head);
+  var srow = wkEl('div', 'wk-row');
+  srow.style.marginBottom = '8px';
+  srow.appendChild(wkStepper({
     suffix: '人', sens: 2,
     get: function(){ return g.n; },
     step: function(){ return 1; },
@@ -8475,9 +8503,9 @@ function wkBuildGroupCard(g, i){
       wk.groups.splice(idx, 1);
       wkRenderGroups(); wkUpdate();
     });
-    head.appendChild(del);
+    srow.appendChild(del);
   }
-  card.appendChild(head);
+  card.appendChild(srow);
 
   /* 2行目: 支払い額の決め方 */
   var seg = wkEl('div', 'wk-seg');
@@ -8521,6 +8549,7 @@ function wkBuildGroupCard(g, i){
     rd.appendChild(bp); rd.appendChild(dseg);
     card.appendChild(rd);
     var ra = wkEl('div', 'wk-row');
+    ra.appendChild(wkEl('span', 'wk-rl s', '差額'));
     ra.appendChild(wkStepper({
       suffix: '円', sens: 1, snap: true,
       get: function(){ return g.amt; },
@@ -8535,7 +8564,10 @@ function wkBuildGroupCard(g, i){
     bDelta.classList.toggle('on', g.pay === 'delta');
     if (baseEl) baseEl.textContent = c.hasTotal ? wkFmt(c.base) : '—';
     if (bLess){ bLess.classList.toggle('on', g.dir === -1); bMore.classList.toggle('on', g.dir === 1); }
-    gsum.textContent = c.hasTotal ? ('→' + wkFmt(c.extra[i].pay) + '円/人') : '—';
+    if (!c.hasTotal) gsum.textContent = '—';
+    else if (g.pay === 'fixed') gsum.textContent = '固定額 ' + wkFmt(g.fixed) + '円';
+    else if (g.amt === 0) gsum.textContent = '均等割りと同額';
+    else gsum.textContent = '均等割りより ' + (g.dir < 0 ? '−' : '+') + wkFmt(g.amt) + '円';
   });
   return card;
 }
