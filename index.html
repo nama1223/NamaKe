@@ -1567,6 +1567,11 @@ select.plain{
       <p class="backup-hint" id="settings-update-status" style="margin:6px 0 0;"></p>
       <button type="button" class="btn-block" id="settings-backup-btn">💾 設定の読み込み・出力</button>
       <button type="button" class="btn-block secondary" id="settings-install-btn">📲 アプリとしてインストール</button>
+      <label class="settings-toggle-row" style="margin-top:14px;">
+        <input type="checkbox" id="settings-tutorial-btn-cb" checked>
+        <span>💬 案内ボタン（チュートリアル）を表示する</span>
+      </label>
+      <p class="backup-hint" style="margin:4px 0 0;">案内ボタンはトップページにだけ出ます。OFFにするとトップページでも出なくなります（この設定からいつでも戻せます）。</p>
       <button type="button" class="btn-block outline" id="settings-camdiag-btn" style="margin-top:18px;font-size:13px;padding:8px;">📷 カメラが使えない時の原因調査(やらせるToDoの生存確認用)</button>
       <div class="is-hidden" id="settings-camdiag-box" style="margin-top:8px;">
         <p class="backup-hint" style="margin:0 0 6px;">カメラが使えない原因を調べるための情報(動いているURL・許可の状態・カメラ取得の結果など)を表示します。映像は保存も送信もしません。結果をコピーして、Claudeなどに貼ってください。</p>
@@ -5239,7 +5244,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 8;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261111-1';
+var APP_BUILD = '20261111-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7039,6 +7044,8 @@ function openSettingsModal(){
   resetOrderBtnReset();
   switchSettingsTab('features');
   document.getElementById('settings-modal').classList.remove('hidden');
+  var tcb = document.getElementById('settings-tutorial-btn-cb');
+  if (tcb && window.NamaTutorial) tcb.checked = window.NamaTutorial.isButtonVisible();
   renderShellInfo();
   refreshShellInfo();
 }
@@ -7046,6 +7053,7 @@ function closeSettingsModal(){
   resetOrderBtnReset();
   document.getElementById('settings-modal').classList.add('hidden');
 }
+document.getElementById('settings-tutorial-btn-cb').addEventListener('change', function(){ if (window.NamaTutorial) window.NamaTutorial.setButtonVisible(this.checked); });
 document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
 document.getElementById('settings-close-btn').addEventListener('click', closeSettingsModal);
 document.getElementById('settings-overlay').addEventListener('click', closeSettingsModal);
@@ -8711,8 +8719,8 @@ if ('serviceWorker' in navigator){
 })();
 
 </script>
-<link rel="stylesheet" href="tutorial/nama-tutorial.css">
-<script src="tutorial/config.js"></script>
-<script src="tutorial/nama-tutorial.js"></script>
+<link rel="stylesheet" href="tutorial/nama-tutorial.css?v=4">
+<script src="tutorial/config.js?v=4"></script>
+<script src="tutorial/nama-tutorial.js?v=4"></script>
 </body>
 </html>

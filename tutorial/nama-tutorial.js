@@ -15,7 +15,8 @@
   var rec = loadRec();
   if (!rec.chapters) rec.chapters = {};
 
-  function poseSrc(pose) { return IMG + 'N_' + pose + '.webp'; }
+  var ASSET_V = '4'; // 素材・キットの版。更新のたびに上げると端末側の古いキャッシュを確実に回避できる
+  function poseSrc(pose) { return IMG + 'N_' + pose + '.webp?v=' + ASSET_V; }
   function chapterById(id) { for (var i = 0; i < cfg.chapters.length; i++) if (cfg.chapters[i].id === id) return cfg.chapters[i]; return null; }
   function isDone(ch) { var r = rec.chapters[ch.id]; return !!(r && r.done && r.version >= (ch.since || 1)); }
   function isNew(ch) { var r = rec.chapters[ch.id]; return (ch.since || 1) > ((r && r.version) || 0); }
@@ -30,7 +31,7 @@
     btn.type = 'button';
     btn.setAttribute('aria-label', 'チュートリアルを開く');
     var bi = document.createElement('img');
-    bi.src = cfg.buttonImage || poseSrc('wave');
+    bi.src = cfg.buttonImage ? cfg.buttonImage + '?v=' + ASSET_V : poseSrc('wave');
     bi.alt = '';
     btn.appendChild(bi);
     var badge = el('span'); badge.className = 'nt-badge'; badge.id = 'nt-badge'; badge.style.display = 'none';
@@ -246,7 +247,7 @@
   }
 
   /* ── プレイヤー ── */
-  var player = { active: false, ch: null, idx: 0, el: null, step: null, watchTimer: null, tapHandler: null, missingSince: 0 };
+  var player = { active: false, ch: null, idx: 0, el: null, step: null, watchTimer: null, tapHandler: null, missingSince: 0, runId: 0, skipped: {} };
 
   function startChapter(id) {
     var ch = chapterById(id);
@@ -257,11 +258,24 @@
     player.active = true;
     player.ch = ch;
     player.idx = 0;
-    showStep(0);
+    player.skipped = {};
+    var rid = ++player.runId;
+    var begin = function () { if (player.active && rid === player.runId) showStep(0); };
+    // 章の開始ページへ先に移動してから始める（別のページで開いても画面と説明が一致するように）
+    if (ch.page && bridge.navigate && bridge.currentPage && bridge.currentPage() !== ch.page) {
+      bridge.navigate(ch.page);
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        if (!player.active || rid !== player.runId) { clearInterval(iv); return; }
+        if (bridge.currentPage() === ch.page || tries >= 20) { clearInterval(iv); begin(); }
+      }, 120);
+    } else begin();
   }
 
   function stopPlayer(restore) {
     gagReset();
+    player.runId++; // 保留中の非同期処理をすべて無効化
     if (player.watchTimer) { clearInterval(player.watchTimer); player.watchTimer = null; }
     if (player.tapHandler && player.el) { player.el.removeEventListener('click', player.tapHandler, true); player.tapHandler = null; }
     player.active = false;
@@ -280,16 +294,22 @@
           if (!vis) target = null;
         }
       }
-      if (target || !step.target || tries >= 12) { done(target); return; }
+      if (target || !step.target || tries >= 6) { done(target); return; }
       tries++;
-      setTimeout(attempt, 130);
+      setTimeout(attempt, 110);
     })();
+  }
+
+  function prevShownIdx() {
+    for (var j = player.idx - 1; j >= 0; j--) if (!player.skipped[j]) return j;
+    return -1;
   }
 
   function showStep(i) {
     if (!player.active) return;
     var ch = player.ch;
     if (i >= ch.steps.length) { finishChapter(); return; }
+    var rid = ++player.runId;
     player.idx = i;
     var step = ch.steps[i];
     player.step = step;
@@ -298,16 +318,39 @@
 
     var go = function () {
       resolveTarget(step, function (target) {
-        if (!player.active) return;
-        if (step.target && !target) { showStep(i + 1); return; } // 対象が無いステップは自動で飛ばす
+        if (!player.active || rid !== player.runId) return;
+        if (step.target && !target) {
+          // 対象が無いステップ: 無言で飛ばさず、一言添えてから進む（戻る時はここを飛ばす）
+          player.skipped[i] = true;
+          renderSkipNote(step);
+          setTimeout(function () { if (player.active && rid === player.runId) showStep(i + 1); }, 550);
+          return;
+        }
         player.el = target;
-        renderStep(step, target);
+        renderStep(step, target, rid);
       });
     };
     if (step.page && bridge.navigate && bridge.currentPage && bridge.currentPage() !== step.page) {
       bridge.navigate(step.page);
-      setTimeout(go, 400);
+      setTimeout(function () { if (rid === player.runId) go(); }, 400);
     } else go();
+  }
+
+  function renderSkipNote(step) {
+    gagReset();
+    showRoot();
+    panel.style.display = 'none';
+    hl.style.display = 'none';
+    root.classList.remove('nt-passthrough');
+    charImg.src = poseSrc('wave');
+    textEl.textContent = '（この項目は今の画面にないので、ここは飛ばすね）';
+    chapNameEl.textContent = player.ch.title;
+    counterEl.textContent = (player.idx + 1) + ' / ' + player.ch.steps.length;
+    actionsEl.innerHTML = '<button type="button" class="nt-tbtn nt-quiet" data-a="quit">✕</button>';
+    wireActions();
+    bubble.style.display = 'block';
+    var bh = bubble.offsetHeight || 190;
+    bubble.style.top = Math.max(12, (window.innerHeight - bh) / 2) + 'px';
   }
 
   function pointPose(rect, bubbleBelow) {
@@ -317,7 +360,7 @@
     return (bubbleBelow ? 'up' : 'down') + h;
   }
 
-  function renderStep(step, target) {
+  function renderStep(step, target, rid) {
     gagReset();
     showRoot();
     panel.style.display = 'none';
@@ -357,17 +400,17 @@
     counterEl.textContent = (player.idx + 1) + ' / ' + player.ch.steps.length;
     renderActions(step);
     requestAnimationFrame(place);
-    setTimeout(place, 380); // スクロール後の位置で合わせ直す
+    setTimeout(function () { if (rid === player.runId) place(); }, 380); // スクロール後の位置で合わせ直す
     root.classList.toggle('nt-passthrough', step.mode === 'tap' && !!target);
 
     if (step.mode === 'tap' && target) {
-      player.tapHandler = function () { setTimeout(function () { showStep(player.idx + 1); }, 60); };
+      player.tapHandler = function () { setTimeout(function () { if (rid === player.runId) showStep(player.idx + 1); }, 60); };
       target.addEventListener('click', player.tapHandler, true);
     }
 
     player.missingSince = 0;
     player.watchTimer = setInterval(function () {
-      if (!player.active) return;
+      if (!player.active || rid !== player.runId) return;
       if (!target) return;
       if (!document.contains(target)) { // 再描画で差し替わったら引き直す
         var fresh = null;
@@ -377,7 +420,7 @@
       var r = target.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) {
         if (!player.missingSince) player.missingSince = Date.now();
-        else if (Date.now() - player.missingSince > 1600) { showStep(player.idx + 1); } // 消えたままなら救済スキップ
+        else if (Date.now() - player.missingSince > 1600) { player.skipped[player.idx] = true; showStep(player.idx + 1); } // 消えたままなら救済スキップ
         return;
       }
       player.missingSince = 0;
@@ -388,21 +431,25 @@
     }, 250);
   }
 
-  function renderActions(step) {
-    var html = '';
-    if (player.idx > 0) html += '<button type="button" class="nt-tbtn" data-a="prev">← もどる</button>';
-    if (step.mode === 'tap') html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">できない・つぎへ</button>';
-    else html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">' + (player.idx >= player.ch.steps.length - 1 ? 'おわる' : 'つぎへ →') + '</button>';
-    html += '<button type="button" class="nt-tbtn nt-quiet" data-a="quit">✕</button>';
-    actionsEl.innerHTML = html;
+  function wireActions() {
     Array.prototype.forEach.call(actionsEl.querySelectorAll('button'), function (b) {
       b.addEventListener('click', function () {
         var a = b.getAttribute('data-a');
         if (a === 'next') showStep(player.idx + 1);
-        else if (a === 'prev') showStep(player.idx - 1);
+        else if (a === 'prev') { var p = prevShownIdx(); if (p >= 0) showStep(p); }
         else if (a === 'quit') requestCloseLayer();
       });
     });
+  }
+
+  function renderActions(step) {
+    var html = '';
+    if (prevShownIdx() >= 0) html += '<button type="button" class="nt-tbtn" data-a="prev">← もどる</button>';
+    if (step.mode === 'tap') html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">できない・つぎへ</button>';
+    else html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">' + (player.idx >= player.ch.steps.length - 1 ? 'おわる' : 'つぎへ →') + '</button>';
+    html += '<button type="button" class="nt-tbtn nt-quiet" data-a="quit">✕</button>';
+    actionsEl.innerHTML = html;
+    wireActions();
   }
 
   function finishChapter() {
@@ -524,7 +571,7 @@
   function gagStartDecay() {
     gag.mode = 'decay';
     if (angerEl) angerEl.style.display = 'none'; // decay中は即非表示（追従更新を待たない）
-    gag.fly.src = poseSrc('decay') + '?t=' + Date.now(); // URLを変えて先頭から再生させる
+    gag.fly.src = poseSrc('decay') + '&t=' + Date.now(); // パラメータを変えて先頭から再生させる
     gag.timer = setTimeout(function () { gagReset(); }, DECAY_MS + 4000); // 消滅後、間を置いてから復帰
   }
 
@@ -536,9 +583,28 @@
     }
   });
 
+  /* ── 呼び出しボタンの表示制御（表示ページ制限＋利用者のON/OFF） ── */
+  function btnShouldShow() {
+    if (rec.btnOff) return false;
+    if (cfg.buttonPages && bridge.currentPage) {
+      try { return cfg.buttonPages.indexOf(bridge.currentPage()) >= 0; } catch (e) { return true; }
+    }
+    return true;
+  }
+  function applyBtn() { if (btn) btn.style.display = btnShouldShow() ? '' : 'none'; }
+
+  // アプリ側（設定画面など）から使う公開API
+  window.NamaTutorial = {
+    open: function () { openPanel(false); },
+    setButtonVisible: function (v) { rec.btnOff = !v; saveRec(); applyBtn(); },
+    isButtonVisible: function () { return !rec.btnOff; }
+  };
+
   /* ── 起動 ── */
   function init() {
     buildDom();
+    applyBtn();
+    setInterval(applyBtn, 400); // ページ移動に追従してボタンの出し分けをする
     if (!rec.introSeen) setTimeout(function () { if (openLayers === 0 && !player.active) openPanel(true); }, 800);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
