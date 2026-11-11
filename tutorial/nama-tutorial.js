@@ -48,7 +48,7 @@
       '<div id="nt-actions"></div>';
     panel = el('div', 'nt-panel');
     angerEl = el('div', 'nt-anger');
-    angerEl.style.cssText = 'position:fixed;z-index:60;pointer-events:none;font-size:19px;display:none;text-shadow:0 1px 3px rgba(0,0,0,0.35);';
+    angerEl.style.cssText = 'position:fixed;z-index:60;pointer-events:none;display:none;';
     root.appendChild(shield); root.appendChild(hl); root.appendChild(bubble); root.appendChild(panel); root.appendChild(angerEl);
     document.body.appendChild(root);
     // メニュー表示中だけ、エリア外タップで閉じる（説明が始まった後は閉じない）
@@ -115,7 +115,7 @@
 
   function hideAll() {
     stopPlayer(false);
-    dropCount = 0; // 落下回数はチュートリアルを閉じたらリセット
+    dropsTotal = 0; dropsShown = 0; angerRendered = -1; // 落下回数はチュートリアルを閉じたらリセット
     if (angerTimer) { clearInterval(angerTimer); angerTimer = 0; }
     if (angerEl) angerEl.style.display = 'none';
     root.classList.remove('nt-open');
@@ -129,26 +129,45 @@
     if (!angerTimer) angerTimer = setInterval(updateAnger, 120);
   }
 
-  /* ── 落下回数で増える 💢 マーク（キャラに重ねて追従） ── */
-  var angerEl = null, angerTimer = 0, dropCount = 0;
+  /* ── 落下回数で増える 💢 マーク（キャラに重ねてバラつかせて表示・追従）
+        回数は落下のたびに数えるが、表示への反映は復活したタイミング。
+        decay再生中は非表示。チュートリアルを閉じるとリセット ── */
+  var angerEl = null, angerTimer = 0, dropsTotal = 0, dropsShown = 0, angerRendered = -1;
+  var ANGER_SPOTS = [
+    { x: 52, y: -12, r: -14, s: 20 }, { x: 76, y: 3, r: 12, s: 17 },
+    { x: 26, y: -18, r: 20, s: 15 }, { x: 86, y: -15, r: -22, s: 21 },
+    { x: 8, y: -3, r: 8, s: 16 }, { x: 63, y: -27, r: -6, s: 18 }
+  ];
   function angerCount() {
-    if (dropCount >= 10) return 6;
-    if (dropCount >= 8) return 3;
-    if (dropCount >= 5) return 2;
-    if (dropCount >= 2) return 1;
+    if (dropsShown >= 10) return 6;
+    if (dropsShown >= 8) return 3;
+    if (dropsShown >= 5) return 2;
+    if (dropsShown >= 2) return 1;
     return 0;
   }
   function updateAnger() {
     if (!angerEl) return;
     var n = angerCount();
     var target = (gag && gag.fly) ? gag.fly : charImg;
-    if (n === 0 || !target || !root.classList.contains('nt-open')) { angerEl.style.display = 'none'; return; }
+    if (n === 0 || !target || !root.classList.contains('nt-open') || (gag && gag.mode === 'decay')) { angerEl.style.display = 'none'; return; }
     if (!gag.fly && charImg.style.visibility === 'hidden') { angerEl.style.display = 'none'; return; }
     var r = target.getBoundingClientRect();
     if (r.width === 0) { angerEl.style.display = 'none'; return; }
-    angerEl.textContent = '💢'.repeat(n);
-    angerEl.style.left = (r.right - 16) + 'px';
-    angerEl.style.top = (r.top - 14) + 'px';
+    if (angerRendered !== n) {
+      angerRendered = n;
+      angerEl.innerHTML = '';
+      for (var i = 0; i < n; i++) {
+        var spot = ANGER_SPOTS[i % ANGER_SPOTS.length];
+        var sp = document.createElement('span');
+        sp.textContent = '💢';
+        sp.style.cssText = 'position:absolute;left:' + spot.x + '%;top:' + spot.y + 'px;font-size:' + spot.s + 'px;transform:rotate(' + spot.r + 'deg);text-shadow:0 1px 3px rgba(0,0,0,0.3);';
+        angerEl.appendChild(sp);
+      }
+    }
+    angerEl.style.left = r.left + 'px';
+    angerEl.style.top = r.top + 'px';
+    angerEl.style.width = r.width + 'px';
+    angerEl.style.height = r.height + 'px';
     angerEl.style.display = 'block';
   }
 
@@ -423,6 +442,7 @@
   var DECAY_MS = 1300; // N_decay.webp = 32コマ × 25fps
 
   function gagReset() {
+    if (gag.mode === 'fall' || gag.mode === 'decay') dropsShown = dropsTotal; // 表示への反映は復活時
     if (gag.raf) cancelAnimationFrame(gag.raf);
     if (gag.timer) clearTimeout(gag.timer);
     gag.raf = 0; gag.timer = 0;
@@ -473,7 +493,7 @@
 
   function gagStartFall() {
     gag.mode = 'fall';
-    dropCount++;
+    dropsTotal++;
     gag.fly.src = poseSrc('panic');
     gag.vy = 0;
     gag.wrapped = false;
@@ -503,8 +523,9 @@
 
   function gagStartDecay() {
     gag.mode = 'decay';
+    if (angerEl) angerEl.style.display = 'none'; // decay中は即非表示（追従更新を待たない）
     gag.fly.src = poseSrc('decay') + '?t=' + Date.now(); // URLを変えて先頭から再生させる
-    gag.timer = setTimeout(function () { gagReset(); }, DECAY_MS + 3000);
+    gag.timer = setTimeout(function () { gagReset(); }, DECAY_MS + 4000); // 消滅後、間を置いてから復帰
   }
 
   window.addEventListener('resize', function () {
