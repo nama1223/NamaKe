@@ -24,10 +24,10 @@ window.NAMA_TUTORIAL_CONFIG = {
       id: 'warikan', page: 'warikan', title: 'ワリカン', desc: '金額と人数を入れるだけ。班ごとの調整も', icon: 'yay', since: 1,
       steps: [
         { page: 'warikan', pose: 'wave', text: 'ワリカンの章ナマ。試しに入力してみても大丈夫ナマ。この案内の間に入れた内容は、終わったら元に戻りナマ。' },
-        { page: 'warikan', target: '#wk-a', pose: 'point', text: 'まず合計金額と人数ナマ。入れるだけで、まず均等割りが下に出ナマ。' },
-        { page: 'warikan', target: '#wk-b', pose: 'point', text: '「キリを良くする」は端数の処理ナマ。500円単位で切り上げたり、端数を幹事が調整して合計ぴったりにしたりできナマ。' },
-        { page: 'warikan', target: '#wk-c', pose: 'point', text: '班ごとに人数や金額を変えたい時はここナマ。第一班・第二班のように分けて、班ごとに多く／少なくできナマ。' },
-        { page: 'warikan', target: '#wk-copy', pose: 'point', text: '結果はこのボタンでコピーして、LINEなどにそのまま貼れナマ。' }
+        { page: 'warikan', target: '#wk-a', mode: 'free', pose: 'point', text: 'まず合計金額と人数ナマ。ここは実際に触って入力できるナマ。試しに入れてみるナマ。入れるだけで、まず均等割りが下に出ナマ。' },
+        { page: 'warikan', target: '#wk-b', mode: 'free', pose: 'point', text: '「キリを良くする」は端数の処理ナマ。ここも実際に切り替えて試せるナマ。500円単位で切り上げたり、端数を幹事が調整して合計ぴったりにしたりできナマ。' },
+        { page: 'warikan', target: '#wk-c', mode: 'free', pose: 'point', text: '班ごとに人数や金額を変えたい時はここナマ。第一班・第二班のように分けて、班ごとに多く／少なくできナマ。ここも実際に触れるナマ。' },
+        { page: 'warikan', target: '#wk-copy', mode: 'tap', pose: 'point', text: '結果はこのボタンでコピーして、LINEなどにそのまま貼れナマ。押してみるナマ。' }
       ]
     },
     {
