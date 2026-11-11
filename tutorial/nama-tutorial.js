@@ -15,7 +15,7 @@
   var rec = loadRec();
   if (!rec.chapters) rec.chapters = {};
 
-  var ASSET_V = '6'; // 素材・キットの版。更新のたびに上げると端末側の古いキャッシュを確実に回避できる
+  var ASSET_V = '7'; // 素材・キットの版。更新のたびに上げると端末側の古いキャッシュを確実に回避できる
   function poseSrc(pose) { return IMG + 'N_' + pose + '.webp?v=' + ASSET_V; }
   function chapterById(id) { for (var i = 0; i < cfg.chapters.length; i++) if (cfg.chapters[i].id === id) return cfg.chapters[i]; return null; }
   function isDone(ch) { var r = rec.chapters[ch.id]; return !!(r && r.done && r.version >= (ch.since || 1)); }
@@ -200,7 +200,7 @@
       '<div class="nt-sub">' + esc(cfg.introText || 'このアプリの使い方を、画面を触りながら案内します。') + '</div>' +
       '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">' +
       '<img src="' + poseSrc('wave') + '" style="width:72px;height:72px;" alt="">' +
-      '<div style="font-size:13px;line-height:1.6;">あとからでも、画面右下の「生」アイコンからいつでも見られるナマ。</div></div>' +
+      '<div style="font-size:13px;line-height:1.6;">あとからでも、画面右下の「生」アイコンからいつでも見られナマ。</div></div>' +
       '<div style="display:flex;gap:8px;">' +
       '<button type="button" class="nt-tbtn nt-primary" id="nt-intro-start">チュートリアルをはじめる</button>' +
       '<button type="button" class="nt-tbtn" id="nt-intro-later">あとで見る</button></div>';
@@ -343,7 +343,7 @@
     hl.style.display = 'none';
     root.classList.remove('nt-passthrough');
     charImg.src = poseSrc('wave');
-    textEl.textContent = '（この項目は今の画面にないので、ここは飛ばすナマ）';
+    textEl.textContent = '（この項目は今の画面にないので、ここは飛ばしナマ）';
     chapNameEl.textContent = player.ch.title;
     counterEl.textContent = (player.idx + 1) + ' / ' + player.ch.steps.length;
     actionsEl.innerHTML = '<button type="button" class="nt-tbtn nt-quiet" data-a="quit">✕</button>';
@@ -468,7 +468,7 @@
     bubble.style.display = 'block';
     bubble.style.top = Math.max(12, (window.innerHeight - 220) / 2) + 'px';
     charImg.src = poseSrc('thumbs_up');
-    textEl.textContent = '「' + ch.title + '」はこれでおしまいナマ。おつかれさまナマ！';
+    textEl.textContent = '「' + ch.title + '」はこれでおしまいナマ。おつかれナマ！';
     chapNameEl.textContent = ch.title;
     counterEl.textContent = '完了';
     actionsEl.innerHTML =
