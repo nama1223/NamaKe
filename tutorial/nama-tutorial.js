@@ -6,7 +6,12 @@
   'use strict';
   var cfg = window.NAMA_TUTORIAL_CONFIG;
   if (!cfg || !cfg.appId) return;
-  var bridge = window[cfg.bridge || 'NamaTutorialBridge'] || {};
+  // 橋渡しは遅延解決する（React製アプリなど、キット読み込み後に橋渡しを登録するアプリにも対応）
+  var _bridge = null;
+  function bridge() {
+    if (!_bridge) { var b = window[cfg.bridge || 'NamaTutorialBridge']; if (b) _bridge = b; }
+    return _bridge || {};
+  }
   var LS_KEY = 'nama_tutorial_v1:' + cfg.appId;
   var IMG = cfg.assetBase || 'tutorial/img/';
 
@@ -80,7 +85,7 @@
   var openLayers = 0;
   function pushLayer() {
     openLayers++;
-    try { history.pushState({ nt: openLayers, page: bridge.currentPage ? bridge.currentPage() : undefined }, ''); } catch (e) {}
+    try { history.pushState({ nt: openLayers, page: bridge().currentPage ? bridge().currentPage() : undefined }, ''); } catch (e) {}
   }
   window.addEventListener('popstate', function () {
     if (openLayers > 0) closeTopLayer(true);
@@ -231,9 +236,9 @@
   var snapshot = null;
   function takeSnapshot() {
     snapshot = null;
-    if (!bridge.snapshotKeys) return;
+    if (!bridge().snapshotKeys) return;
     var keys = [];
-    try { keys = bridge.snapshotKeys() || []; } catch (e) {}
+    try { keys = bridge().snapshotKeys() || []; } catch (e) {}
     snapshot = {};
     keys.forEach(function (k) { snapshot[k] = localStorage.getItem(k); });
   }
@@ -262,13 +267,13 @@
     var rid = ++player.runId;
     var begin = function () { if (player.active && rid === player.runId) showStep(0); };
     // 章の開始ページへ先に移動してから始める（別のページで開いても画面と説明が一致するように）
-    if (ch.page && bridge.navigate && bridge.currentPage && bridge.currentPage() !== ch.page) {
-      bridge.navigate(ch.page);
+    if (ch.page && bridge().navigate && bridge().currentPage && bridge().currentPage() !== ch.page) {
+      bridge().navigate(ch.page);
       var tries = 0;
       var iv = setInterval(function () {
         tries++;
         if (!player.active || rid !== player.runId) { clearInterval(iv); return; }
-        if (bridge.currentPage() === ch.page || tries >= 20) { clearInterval(iv); begin(); }
+        if (bridge().currentPage() === ch.page || tries >= 20) { clearInterval(iv); begin(); }
       }, 120);
     } else begin();
   }
@@ -330,8 +335,8 @@
         renderStep(step, target, rid);
       });
     };
-    if (step.page && bridge.navigate && bridge.currentPage && bridge.currentPage() !== step.page) {
-      bridge.navigate(step.page);
+    if (step.page && bridge().navigate && bridge().currentPage && bridge().currentPage() !== step.page) {
+      bridge().navigate(step.page);
       setTimeout(function () { if (rid === player.runId) go(); }, 400);
     } else go();
   }
@@ -586,8 +591,8 @@
   /* ── 呼び出しボタンの表示制御（表示ページ制限＋利用者のON/OFF） ── */
   function btnShouldShow() {
     if (rec.btnOff) return false;
-    if (cfg.buttonPages && bridge.currentPage) {
-      try { return cfg.buttonPages.indexOf(bridge.currentPage()) >= 0; } catch (e) { return true; }
+    if (cfg.buttonPages && bridge().currentPage) {
+      try { return cfg.buttonPages.indexOf(bridge().currentPage()) >= 0; } catch (e) { return true; }
     }
     return true;
   }
@@ -605,7 +610,16 @@
     buildDom();
     applyBtn();
     setInterval(applyBtn, 400); // ページ移動に追従してボタンの出し分けをする
-    if (!rec.introSeen) setTimeout(function () { if (openLayers === 0 && !player.active) openPanel(true); }, 800);
+    if (!rec.introSeen) {
+      // 初回案内は「ボタンを出してよい画面」でのみ自動で開く（ログイン画面などでは開かず、対象画面に来るまで待つ）
+      var introTries = 0;
+      var introIv = setInterval(function () {
+        introTries++;
+        if (rec.introSeen || introTries > 15) { clearInterval(introIv); return; }
+        if (openLayers > 0 || player.active) return;
+        if (btnShouldShow()) { clearInterval(introIv); openPanel(true); }
+      }, 900);
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
