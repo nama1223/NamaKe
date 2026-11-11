@@ -55,6 +55,7 @@
   ・ガワ(APK)への依頼: 「function callNativeBridge」
   ・APK版かどうかの判定: 「function isApkPlatform」
   ・ページ移動: 「function navigateTo」
+  ・チュートリアル連携(橋渡し): 「window.NamaTutorialBridge」(キット本体は tutorial/ フォルダ)
   ・保存/読込(localStorage): 「function loadJSON」
   ・トースト表示: 「function showToast」
   ・2回タップ確認ボタン: 「function armConfirm」
@@ -5236,9 +5237,9 @@ var todoAlarmSoundOn = loadJSON(TODO_ALARM_SOUND_ON_KEY, true) !== false;
 /* ガワ(APK側の固定ページ)の必要バージョン。これより古いと一部機能が働かない */
 var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
-var NAKA_VERSION = 7;
+var NAKA_VERSION = 8;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261031-1';
+var APP_BUILD = '20261111-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7289,6 +7290,25 @@ var BACKUP_GROUPS = [
     {id:'yr_praise',   label:'褒め言葉の記録',             keys:['yaraseru_v1_praise']}
   ]}
 ];
+/* ============ チュートリアル連携(橋渡し) ============ */
+window.NamaTutorialBridge = {
+  navigate: function(id){ navigateTo(id); },
+  currentPage: function(){
+    var p = document.querySelector('.page.active');
+    return p ? p.id.replace(/^page-/, '') : 'home';
+  },
+  snapshotKeys: function(){
+    var out = [];
+    (function walk(groups){
+      groups.forEach(function(g){
+        if (g.keys) g.keys.forEach(function(k){ if (out.indexOf(k) === -1) out.push(k); });
+        if (g.children) walk(g.children);
+      });
+    })(BACKUP_GROUPS);
+    return out;
+  }
+};
+
 /* 中身が配列であるべきキー(読み込み時の形式チェック用) */
 var BACKUP_ARRAY_KEYS = [ORDER_KEY, CALC_MEMO_KEY, EXPENSES_KEY, TODO_ACTIONS_KEY, TODO_SETS_KEY, TODO_TIMES_KEY, TODO_FULLSETS_KEY];
 
@@ -8689,6 +8709,10 @@ if ('serviceWorker' in navigator){
 }
 
 })();
+
 </script>
+<link rel="stylesheet" href="tutorial/nama-tutorial.css">
+<script src="tutorial/config.js"></script>
+<script src="tutorial/nama-tutorial.js"></script>
 </body>
 </html>

@@ -1,0 +1,525 @@
+/* NamaTutorial キット v1 — 全アプリ共通チュートリアルエンジン
+   使い方: window.NAMA_TUTORIAL_CONFIG を定義した config.js を先に読み込み、
+   次にこのファイルを読み込む。アプリ側は window[cfg.bridge] に
+   { navigate(id), currentPage(), snapshotKeys() } を用意する。 */
+(function () {
+  'use strict';
+  var cfg = window.NAMA_TUTORIAL_CONFIG;
+  if (!cfg || !cfg.appId) return;
+  var bridge = window[cfg.bridge || 'NamaTutorialBridge'] || {};
+  var LS_KEY = 'nama_tutorial_v1:' + cfg.appId;
+  var IMG = cfg.assetBase || 'tutorial/img/';
+
+  function loadRec() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; } }
+  function saveRec() { try { localStorage.setItem(LS_KEY, JSON.stringify(rec)); } catch (e) {} }
+  var rec = loadRec();
+  if (!rec.chapters) rec.chapters = {};
+
+  function poseSrc(pose) { return IMG + 'N_' + pose + '.webp'; }
+  function chapterById(id) { for (var i = 0; i < cfg.chapters.length; i++) if (cfg.chapters[i].id === id) return cfg.chapters[i]; return null; }
+  function isDone(ch) { var r = rec.chapters[ch.id]; return !!(r && r.done && r.version >= (ch.since || 1)); }
+  function isNew(ch) { var r = rec.chapters[ch.id]; return (ch.since || 1) > ((r && r.version) || 0); }
+  function newCount() { return cfg.chapters.filter(isNew).length; }
+
+  /* ── DOM ── */
+  var btn, root, shield, hl, bubble, charImg, textEl, chapNameEl, counterEl, actionsEl, panel;
+  function el(tag, id) { var e = document.createElement(tag); if (id) e.id = id; return e; }
+
+  function buildDom() {
+    btn = el('button', 'nt-btn');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'チュートリアルを開く');
+    var bi = document.createElement('img');
+    bi.src = cfg.buttonImage || poseSrc('wave');
+    bi.alt = '';
+    btn.appendChild(bi);
+    var badge = el('span'); badge.className = 'nt-badge'; badge.id = 'nt-badge'; badge.style.display = 'none';
+    btn.appendChild(badge);
+    btn.addEventListener('click', function () { openPanel(false); });
+    document.body.appendChild(btn);
+
+    root = el('div', 'nt-root');
+    shield = el('div', 'nt-shield');
+    hl = el('div', 'nt-hl');
+    bubble = el('div', 'nt-bubble');
+    bubble.innerHTML =
+      '<div class="nt-row"><img id="nt-char" alt=""><div id="nt-text"></div></div>' +
+      '<div id="nt-meta"><span id="nt-chapter-name"></span><span id="nt-counter"></span></div>' +
+      '<div id="nt-actions"></div>';
+    panel = el('div', 'nt-panel');
+    angerEl = el('div', 'nt-anger');
+    angerEl.style.cssText = 'position:fixed;z-index:60;pointer-events:none;font-size:19px;display:none;text-shadow:0 1px 3px rgba(0,0,0,0.35);';
+    root.appendChild(shield); root.appendChild(hl); root.appendChild(bubble); root.appendChild(panel); root.appendChild(angerEl);
+    document.body.appendChild(root);
+    // メニュー表示中だけ、エリア外タップで閉じる（説明が始まった後は閉じない）
+    shield.addEventListener('click', function () {
+      if (panel.style.display === 'block') {
+        if (panelMode === 'intro') { rec.introSeen = true; saveRec(); }
+        requestCloseAll();
+      }
+    });
+    charImg = bubble.querySelector('#nt-char');
+    initCharGag();
+    textEl = bubble.querySelector('#nt-text');
+    chapNameEl = bubble.querySelector('#nt-chapter-name');
+    counterEl = bubble.querySelector('#nt-counter');
+    actionsEl = bubble.querySelector('#nt-actions');
+    updateBadge();
+  }
+
+  function updateBadge() {
+    var b = document.getElementById('nt-badge');
+    if (!b) return;
+    var n = newCount();
+    b.style.display = n > 0 ? '' : 'none';
+    b.textContent = n > 0 ? String(n) : '';
+  }
+
+  /* ── 履歴（戻るボタン）連携: 層を開くたびに1つ積む ── */
+  var openLayers = 0;
+  function pushLayer() {
+    openLayers++;
+    try { history.pushState({ nt: openLayers, page: bridge.currentPage ? bridge.currentPage() : undefined }, ''); } catch (e) {}
+  }
+  window.addEventListener('popstate', function () {
+    if (openLayers > 0) closeTopLayer(true);
+  });
+  function closeTopLayer(fromPop) {
+    if (player.active) { stopPlayer(true); showPanel(); openLayers = Math.max(0, openLayers - 1); afterLayerClosed(); return; }
+    hideAll();
+    openLayers = 0;
+    afterLayerClosed();
+  }
+  function afterLayerClosed() {
+    if (closingAll > 0) {
+      closingAll--;
+      if (openLayers > 0) { try { history.back(); } catch (e) {} }
+      else closingAll = 0;
+    }
+  }
+  function requestCloseLayer() {
+    var st = null;
+    try { st = history.state; } catch (e) {}
+    if (st && st.nt) { history.back(); } // popstate 側で閉じる
+    else closeTopLayer(false);
+  }
+  function requestCloseAll() {
+    var st = null;
+    try { st = history.state; } catch (e) {}
+    if (st && st.nt && openLayers > 0) {
+      closingAll = openLayers;
+      history.back();
+    } else { hideAll(); openLayers = 0; closingAll = 0; }
+  }
+  var closingAll = 0;
+
+  function hideAll() {
+    stopPlayer(false);
+    dropCount = 0; // 落下回数はチュートリアルを閉じたらリセット
+    if (angerTimer) { clearInterval(angerTimer); angerTimer = 0; }
+    if (angerEl) angerEl.style.display = 'none';
+    root.classList.remove('nt-open');
+    root.classList.remove('nt-passthrough');
+    bubble.style.display = 'none';
+    panel.style.display = 'none';
+    hl.style.display = 'none';
+  }
+  function showRoot() {
+    root.classList.add('nt-open');
+    if (!angerTimer) angerTimer = setInterval(updateAnger, 120);
+  }
+
+  /* ── 落下回数で増える 💢 マーク（キャラに重ねて追従） ── */
+  var angerEl = null, angerTimer = 0, dropCount = 0;
+  function angerCount() {
+    if (dropCount >= 10) return 6;
+    if (dropCount >= 8) return 3;
+    if (dropCount >= 5) return 2;
+    if (dropCount >= 2) return 1;
+    return 0;
+  }
+  function updateAnger() {
+    if (!angerEl) return;
+    var n = angerCount();
+    var target = (gag && gag.fly) ? gag.fly : charImg;
+    if (n === 0 || !target || !root.classList.contains('nt-open')) { angerEl.style.display = 'none'; return; }
+    if (!gag.fly && charImg.style.visibility === 'hidden') { angerEl.style.display = 'none'; return; }
+    var r = target.getBoundingClientRect();
+    if (r.width === 0) { angerEl.style.display = 'none'; return; }
+    angerEl.textContent = '💢'.repeat(n);
+    angerEl.style.left = (r.right - 16) + 'px';
+    angerEl.style.top = (r.top - 14) + 'px';
+    angerEl.style.display = 'block';
+  }
+
+  /* ── パネル（初回案内 / 章メニュー） ── */
+  function openPanel(intro) {
+    stopPlayer(false);
+    showRoot();
+    bubble.style.display = 'none';
+    hl.style.display = 'none';
+    root.classList.remove('nt-passthrough');
+    if (openLayers === 0) pushLayer();
+    if (intro && !rec.introSeen) renderIntro();
+    else renderMenu();
+    panel.style.display = 'block';
+  }
+  function showPanel() { // プレイヤーから戻る時に層を積み直さない表示
+    showRoot();
+    bubble.style.display = 'none';
+    hl.style.display = 'none';
+    root.classList.remove('nt-passthrough');
+    renderMenu();
+    panel.style.display = 'block';
+  }
+  var panelMode = 'menu';
+  function renderIntro() {
+    panelMode = 'intro';
+    panel.innerHTML =
+      '<h2>' + esc(cfg.introTitle || '使い方のご案内') + '</h2>' +
+      '<div class="nt-sub">' + esc(cfg.introText || 'このアプリの使い方を、画面を触りながら案内します。') + '</div>' +
+      '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">' +
+      '<img src="' + poseSrc('wave') + '" style="width:72px;height:72px;" alt="">' +
+      '<div style="font-size:13px;line-height:1.6;">あとからでも、画面右下の「生」アイコンからいつでも見られます。</div></div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button type="button" class="nt-tbtn nt-primary" id="nt-intro-start">チュートリアルをはじめる</button>' +
+      '<button type="button" class="nt-tbtn" id="nt-intro-later">あとで見る</button></div>';
+    panel.querySelector('#nt-intro-start').addEventListener('click', function () { rec.introSeen = true; saveRec(); renderMenu(); });
+    panel.querySelector('#nt-intro-later').addEventListener('click', function () { rec.introSeen = true; saveRec(); requestCloseAll(); });
+  }
+  function renderMenu() {
+    panelMode = 'menu';
+    var html = '<h2>チュートリアル</h2><div class="nt-sub">見たい項目を選んでください。見終わった項目には ✓ が付きます。アプリが更新されると、新しい項目に NEW が付きます。</div>';
+    cfg.chapters.forEach(function (ch) {
+      var done = isDone(ch), nw = isNew(ch) && !done;
+      var chip = done ? '<span class="nt-chip nt-done">✓ 完了</span>' : (nw ? '<span class="nt-chip nt-new">NEW</span>' : '<span class="nt-chip">未見</span>');
+      html += '<button type="button" class="nt-chapter" data-ch="' + ch.id + '">' +
+        '<img src="' + poseSrc(ch.icon || 'wave') + '" alt="">' +
+        '<span class="nt-ch-main"><span class="nt-ch-title">' + esc(ch.title) + '</span>' +
+        '<span class="nt-ch-desc" style="display:block;">' + esc(ch.desc || '') + '</span></span>' + chip + '</button>';
+    });
+    html += '<div id="nt-close-row"><button type="button" class="nt-tbtn" id="nt-menu-close">とじる</button></div>';
+    panel.innerHTML = html;
+    Array.prototype.forEach.call(panel.querySelectorAll('.nt-chapter'), function (b) {
+      b.addEventListener('click', function () { startChapter(b.getAttribute('data-ch')); });
+    });
+    panel.querySelector('#nt-menu-close').addEventListener('click', requestCloseAll);
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  /* ── スナップショット（チュートリアル中の変更を元に戻す） ── */
+  var snapshot = null;
+  function takeSnapshot() {
+    snapshot = null;
+    if (!bridge.snapshotKeys) return;
+    var keys = [];
+    try { keys = bridge.snapshotKeys() || []; } catch (e) {}
+    snapshot = {};
+    keys.forEach(function (k) { snapshot[k] = localStorage.getItem(k); });
+  }
+  function restoreSnapshot() {
+    if (!snapshot) return;
+    Object.keys(snapshot).forEach(function (k) {
+      if (snapshot[k] === null) localStorage.removeItem(k);
+      else localStorage.setItem(k, snapshot[k]);
+    });
+    snapshot = null;
+  }
+
+  /* ── プレイヤー ── */
+  var player = { active: false, ch: null, idx: 0, el: null, step: null, watchTimer: null, tapHandler: null, missingSince: 0 };
+
+  function startChapter(id) {
+    var ch = chapterById(id);
+    if (!ch) return;
+    panel.style.display = 'none';
+    pushLayer();
+    takeSnapshot();
+    player.active = true;
+    player.ch = ch;
+    player.idx = 0;
+    showStep(0);
+  }
+
+  function stopPlayer(restore) {
+    gagReset();
+    if (player.watchTimer) { clearInterval(player.watchTimer); player.watchTimer = null; }
+    if (player.tapHandler && player.el) { player.el.removeEventListener('click', player.tapHandler, true); player.tapHandler = null; }
+    player.active = false;
+    if (restore) restoreSnapshot();
+  }
+
+  function resolveTarget(step, done) {
+    var tries = 0;
+    (function attempt() {
+      var target = null;
+      if (step.target) {
+        try { target = document.querySelector(step.target); } catch (e) {}
+        if (target) {
+          var r = target.getBoundingClientRect();
+          var vis = r.width > 0 && r.height > 0 && getComputedStyle(target).visibility !== 'hidden';
+          if (!vis) target = null;
+        }
+      }
+      if (target || !step.target || tries >= 12) { done(target); return; }
+      tries++;
+      setTimeout(attempt, 130);
+    })();
+  }
+
+  function showStep(i) {
+    if (!player.active) return;
+    var ch = player.ch;
+    if (i >= ch.steps.length) { finishChapter(); return; }
+    player.idx = i;
+    var step = ch.steps[i];
+    player.step = step;
+    if (player.watchTimer) { clearInterval(player.watchTimer); player.watchTimer = null; }
+    if (player.tapHandler && player.el) { player.el.removeEventListener('click', player.tapHandler, true); player.tapHandler = null; }
+
+    var go = function () {
+      resolveTarget(step, function (target) {
+        if (!player.active) return;
+        if (step.target && !target) { showStep(i + 1); return; } // 対象が無いステップは自動で飛ばす
+        player.el = target;
+        renderStep(step, target);
+      });
+    };
+    if (step.page && bridge.navigate && bridge.currentPage && bridge.currentPage() !== step.page) {
+      bridge.navigate(step.page);
+      setTimeout(go, 400);
+    } else go();
+  }
+
+  function pointPose(rect, bubbleBelow) {
+    var cx = rect.left + rect.width / 2;
+    var third = window.innerWidth / 3;
+    var h = cx < third ? '_left' : (cx > third * 2 ? '_right' : '');
+    return (bubbleBelow ? 'up' : 'down') + h;
+  }
+
+  function renderStep(step, target) {
+    gagReset();
+    showRoot();
+    panel.style.display = 'none';
+    var rect = null;
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    var place = function () {
+      if (!player.active) return;
+      rect = target ? target.getBoundingClientRect() : null;
+      var bubbleBelow = true;
+      if (rect) {
+        hl.style.display = 'block';
+        hl.style.left = (rect.left - 6) + 'px';
+        hl.style.top = (rect.top - 6) + 'px';
+        hl.style.width = (rect.width + 12) + 'px';
+        hl.style.height = (rect.height + 12) + 'px';
+        bubbleBelow = (window.innerHeight - rect.bottom) >= 240 || rect.top < 240;
+      } else {
+        hl.style.display = 'none';
+        bubbleBelow = true;
+      }
+      bubble.style.display = 'block';
+      var bh = bubble.offsetHeight || 190;
+      var top;
+      if (!rect) top = Math.max(12, (window.innerHeight - bh) / 2);
+      else if (bubbleBelow) top = Math.min(window.innerHeight - bh - 12, rect.bottom + 14);
+      else top = Math.max(12, rect.top - bh - 14);
+      bubble.style.top = top + 'px';
+      var pose = step.pose || 'wave';
+      if (pose === 'point' && rect) pose = pointPose(rect, bubbleBelow);
+      charImg.src = poseSrc(pose);
+    };
+    charImg.src = poseSrc(step.pose === 'point' ? 'up' : (step.pose || 'wave'));
+    textEl.textContent = step.text || '';
+    chapNameEl.textContent = player.ch.title;
+    counterEl.textContent = (player.idx + 1) + ' / ' + player.ch.steps.length;
+    renderActions(step);
+    requestAnimationFrame(place);
+    setTimeout(place, 380); // スクロール後の位置で合わせ直す
+    root.classList.toggle('nt-passthrough', step.mode === 'tap' && !!target);
+
+    if (step.mode === 'tap' && target) {
+      player.tapHandler = function () { setTimeout(function () { showStep(player.idx + 1); }, 60); };
+      target.addEventListener('click', player.tapHandler, true);
+    }
+
+    player.missingSince = 0;
+    player.watchTimer = setInterval(function () {
+      if (!player.active) return;
+      if (!target) return;
+      if (!document.contains(target)) { // 再描画で差し替わったら引き直す
+        var fresh = null;
+        try { fresh = document.querySelector(player.step.target); } catch (e) {}
+        if (fresh && fresh !== target) { target = fresh; player.el = fresh; place(); return; }
+      }
+      var r = target.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) {
+        if (!player.missingSince) player.missingSince = Date.now();
+        else if (Date.now() - player.missingSince > 1600) { showStep(player.idx + 1); } // 消えたままなら救済スキップ
+        return;
+      }
+      player.missingSince = 0;
+      hl.style.left = (r.left - 6) + 'px';
+      hl.style.top = (r.top - 6) + 'px';
+      hl.style.width = (r.width + 12) + 'px';
+      hl.style.height = (r.height + 12) + 'px';
+    }, 250);
+  }
+
+  function renderActions(step) {
+    var html = '';
+    if (player.idx > 0) html += '<button type="button" class="nt-tbtn" data-a="prev">← もどる</button>';
+    if (step.mode === 'tap') html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">できない・つぎへ</button>';
+    else html += '<button type="button" class="nt-tbtn nt-primary" data-a="next">' + (player.idx >= player.ch.steps.length - 1 ? 'おわる' : 'つぎへ →') + '</button>';
+    html += '<button type="button" class="nt-tbtn nt-quiet" data-a="quit">✕</button>';
+    actionsEl.innerHTML = html;
+    Array.prototype.forEach.call(actionsEl.querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        var a = b.getAttribute('data-a');
+        if (a === 'next') showStep(player.idx + 1);
+        else if (a === 'prev') showStep(player.idx - 1);
+        else if (a === 'quit') requestCloseLayer();
+      });
+    });
+  }
+
+  function finishChapter() {
+    var ch = player.ch;
+    rec.chapters[ch.id] = { done: true, version: ch.since || 1, at: Date.now() };
+    saveRec();
+    updateBadge();
+    if (player.watchTimer) { clearInterval(player.watchTimer); player.watchTimer = null; }
+    if (player.tapHandler && player.el) { player.el.removeEventListener('click', player.tapHandler, true); player.tapHandler = null; }
+    restoreSnapshot();
+    player.finished = true; // 層の管理上はプレイヤーを開いたままにし、戻る操作でメニューへ帰す
+    showRoot();
+    root.classList.remove('nt-passthrough');
+    hl.style.display = 'none';
+    panel.style.display = 'none';
+    bubble.style.display = 'block';
+    bubble.style.top = Math.max(12, (window.innerHeight - 220) / 2) + 'px';
+    charImg.src = poseSrc('thumbs_up');
+    textEl.textContent = '「' + ch.title + '」はこれでおしまい。お疲れさま！';
+    chapNameEl.textContent = ch.title;
+    counterEl.textContent = '完了';
+    actionsEl.innerHTML =
+      '<button type="button" class="nt-tbtn" data-a="menu">メニューへ</button>' +
+      '<button type="button" class="nt-tbtn nt-primary" data-a="close">とじる</button>';
+    Array.prototype.forEach.call(actionsEl.querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        if (b.getAttribute('data-a') === 'menu') requestCloseLayer(); // popstate で stopPlayer 済みの状態からメニューが出る
+        else requestCloseAll();
+      });
+    });
+  }
+
+  /* ── キャラのドラッグ演出: ドラッグで run → 離すと panic で落下 →
+        画面下から上へ回り込んで元の位置へ戻ると decay（アニメWebP）で消滅 →
+        約3秒後に何事もなかったように復帰する ── */
+  var gag = { mode: 'idle', fly: null, raf: 0, timer: 0, origin: null, x: 0, y: 0, vy: 0, last: 0, wrapped: false, grabDX: 0, grabDY: 0 };
+  var DECAY_MS = 1300; // N_decay.webp = 32コマ × 25fps
+
+  function gagReset() {
+    if (gag.raf) cancelAnimationFrame(gag.raf);
+    if (gag.timer) clearTimeout(gag.timer);
+    gag.raf = 0; gag.timer = 0;
+    if (gag.fly) { gag.fly.remove(); gag.fly = null; }
+    gag.mode = 'idle';
+    if (charImg) charImg.style.visibility = '';
+  }
+
+  function initCharGag() {
+    charImg.draggable = false;
+    charImg.style.touchAction = 'none';
+    charImg.style.cursor = 'grab';
+    charImg.addEventListener('pointerdown', function (e) {
+      if (gag.mode !== 'idle') return;
+      if (bubble.style.display === 'none') return;
+      e.preventDefault();
+      var r = charImg.getBoundingClientRect();
+      gag.origin = { left: r.left, top: r.top, width: r.width, height: r.height };
+      gag.x = r.left; gag.y = r.top;
+      gag.grabDX = e.clientX - r.left; gag.grabDY = e.clientY - r.top;
+      var fly = document.createElement('img');
+      fly.id = 'nt-fly';
+      fly.src = poseSrc('run');
+      fly.alt = '';
+      fly.style.cssText = 'position:fixed;z-index:50;pointer-events:none;width:' + r.width + 'px;height:' + r.height + 'px;left:' + r.left + 'px;top:' + r.top + 'px;';
+      root.appendChild(fly);
+      gag.fly = fly;
+      gag.mode = 'drag';
+      charImg.style.visibility = 'hidden';
+      var move = function (ev) {
+        if (gag.mode !== 'drag') return;
+        gag.x = ev.clientX - gag.grabDX;
+        gag.y = ev.clientY - gag.grabDY;
+        fly.style.left = gag.x + 'px';
+        fly.style.top = gag.y + 'px';
+      };
+      var up = function () {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        if (gag.mode === 'drag') gagStartFall();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    });
+  }
+
+  function gagStartFall() {
+    gag.mode = 'fall';
+    dropCount++;
+    gag.fly.src = poseSrc('panic');
+    gag.vy = 0;
+    gag.wrapped = false;
+    gag.last = performance.now();
+    var stepFn = function (now) {
+      if (gag.mode !== 'fall') return;
+      var dt = Math.min(0.05, (now - gag.last) / 1000);
+      gag.last = now;
+      gag.vy += 2600 * dt;
+      gag.y += gag.vy * dt;
+      gag.x += (gag.origin.left - gag.x) * Math.min(1, dt * 3); // 元の位置へ横方向に寄せる
+      if (gag.y > window.innerHeight + 4) { gag.y -= (window.innerHeight + gag.origin.height); gag.wrapped = true; }
+      if (gag.wrapped && gag.y >= gag.origin.top) {
+        gag.y = gag.origin.top;
+        gag.x = gag.origin.left;
+        gag.fly.style.left = gag.x + 'px';
+        gag.fly.style.top = gag.y + 'px';
+        gagStartDecay();
+        return;
+      }
+      gag.fly.style.left = gag.x + 'px';
+      gag.fly.style.top = gag.y + 'px';
+      gag.raf = requestAnimationFrame(stepFn);
+    };
+    gag.raf = requestAnimationFrame(stepFn);
+  }
+
+  function gagStartDecay() {
+    gag.mode = 'decay';
+    gag.fly.src = poseSrc('decay') + '?t=' + Date.now(); // URLを変えて先頭から再生させる
+    gag.timer = setTimeout(function () { gagReset(); }, DECAY_MS + 3000);
+  }
+
+  window.addEventListener('resize', function () {
+    if (player.active && player.el) {
+      var r = player.el.getBoundingClientRect();
+      hl.style.left = (r.left - 6) + 'px'; hl.style.top = (r.top - 6) + 'px';
+      hl.style.width = (r.width + 12) + 'px'; hl.style.height = (r.height + 12) + 'px';
+    }
+  });
+
+  /* ── 起動 ── */
+  function init() {
+    buildDom();
+    if (!rec.introSeen) setTimeout(function () { if (openLayers === 0 && !player.active) openPanel(true); }, 800);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
