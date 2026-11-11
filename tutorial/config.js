@@ -31,14 +31,14 @@ window.NAMA_TUTORIAL_CONFIG = {
       ]
     },
     {
-      id: 'todo', page: 'todo', title: '逆算ToDo', desc: '「食事」を例に、行動の登録から実際にやってみる', icon: 'thinking', since: 2,
+      id: 'todo', page: 'todo', title: '逆算ToDo', desc: '「食事」を例に、行動の登録から実際にやってみる', icon: 'thinking', since: 3,
       steps: [
         { page: 'todo', pose: 'wave', text: '逆算ToDoの章ナマ。「何時に出るか」「何時までに終わらせるか」を決めると、準備の各行動を何時から始めればいいか、逆算して並べてくれナマ。この章では試しに『食事』という行動を作ってみるナマ。作った物は章が終わると元に戻るので、気楽にどうぞナマ。時刻に合わせて通知する機能はAPK版が本領ナマ。' },
         { page: 'todo', target: '#todo-manage-btn', mode: 'tap', pose: 'point', text: '行動そのものの登録は「行動・完了時刻を管理」から。押してみるナマ。' },
-        { page: 'todo', target: '#todo-tab-actions .todo-manage-add-row', mode: 'free', pose: 'point', text: '行動の登録欄ナマ。試しに、名前へ『食事』、右の分の欄へ『30』と入れてみるナマ。入れ終わったら「つぎへ」ナマ。' },
-        { page: 'todo', target: '#todo-new-action-add-btn', mode: 'tap', pose: 'point', text: '入れたら「追加」ボタン。押してみるナマ。上のリストに『食事』が増えナマ。' },
-        { page: 'todo', target: '[data-tab="times"]', mode: 'tap', pose: 'point', text: '今度は上の「完了時刻」タブ。押してみるナマ。' },
-        { page: 'todo', target: '#todo-tab-times .todo-manage-add-row', mode: 'free', pose: 'point', text: '完了時刻は「何時までに終わらせるか」ナマ。食事なら「19時までに食べ終わる」という具合ナマ。時の欄へ『19』、分へ『0』と入れて、「追加」も押してみるナマ。' },
+        { page: 'todo', target: '#todo-tab-actions .todo-manage-add-row', mode: 'free', bubblePos: 'bottom', pose: 'point', text: '行動の登録欄ナマ。試しに、名前へ『食事』、右の分の欄へ『30』と入れてみるナマ。入れ終わったら「つぎへ」ナマ。' },
+        { page: 'todo', target: '#todo-new-action-add-btn', mode: 'tap', bubblePos: 'bottom', pose: 'point', text: '入れたら「追加」ボタン。押してみるナマ。上のリストに『食事』が増えナマ。' },
+        { page: 'todo', target: '[data-tab="times"]', mode: 'tap', bubblePos: 'bottom', pose: 'point', text: '今度は上の「完了時刻」タブ。押してみるナマ。' },
+        { page: 'todo', target: '#todo-tab-times .todo-manage-add-row', mode: 'free', bubblePos: 'bottom', pose: 'point', text: '完了時刻は「何時までに終わらせるか」ナマ。食事なら「19時までに食べ終わる」という具合ナマ。時の欄へ『19』、分へ『0』と入れて、「追加」も押してみるナマ。' },
         { page: 'todo', target: '#todo-manage-close-btn', mode: 'tap', pose: 'point', text: '最後に「閉じる」で戻るナマ。押してみるナマ。' },
         { page: 'todo', target: '#todo-add-action-btn', pose: 'point', text: 'メイン画面では、この「➕ 行動追加」から、登録した行動を並びへ入れていくナマ。並べたら目標の時刻を決めるだけで、各行動の開始時刻が逆算されナマ。よく使う組み合わせは「セット」にまとめると楽ナマ。' }
       ]
