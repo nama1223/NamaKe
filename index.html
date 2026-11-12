@@ -49,7 +49,7 @@
   ・やらせるToDoの通知ID範囲(逆算ToDoの89990〜と重ならない): 「var YR_NOTIF_BASE」 / 予約通知(アプリが閉じていても鳴る分): 「予約通知(アプリが閉じていても鳴らす分。APK版のみ)」
   ・バックアップ対象のキー群: 「var BACKUP_GROUPS」
   ・バックアップ値の形式チェック: 「function validateBackupValue」
-  ・ビルド番号(更新確認用。index.htmlを変えたら手で上げる): 「var APP_BUILD = '2026」
+  ・ビルド番号(更新確認用。index.htmlを変えたら手で上げる): 「APP_BUILD = '2026……'」の書式(日付-連番)
   ・本体バージョン(設定画面の表示用。意味のある変更で上げる): 「var NAKA_VERSION」
   ・ガワの要求バージョン: 「var REQUIRED_SHELL_VERSION」
   ・ガワ(APK)への依頼: 「function callNativeBridge」
@@ -5246,7 +5246,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 8;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261111-14';
+var APP_BUILD = '20261112-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7197,7 +7197,7 @@ function checkForUpdate(){
       return res.text();
     })
     .then(function(html){
-      var m = html.match(/var APP_BUILD = '([^']+)'/);
+      var m = html.match(/var APP_BUILD = '(\d{8}-\d+)'/);
       if (!m){
         done();
         setUpdateStatus('⚠️ 最新版の情報を読み取れませんでした。');
@@ -8721,8 +8721,8 @@ if ('serviceWorker' in navigator){
 })();
 
 </script>
-<link rel="stylesheet" href="tutorial/nama-tutorial.css?v=15">
-<script src="tutorial/config.js?v=15"></script>
-<script src="tutorial/nama-tutorial.js?v=15"></script>
+<link rel="stylesheet" href="tutorial/nama-tutorial.css?v=17">
+<script src="tutorial/config.js?v=17"></script>
+<script src="tutorial/nama-tutorial.js?v=17"></script>
 </body>
 </html>

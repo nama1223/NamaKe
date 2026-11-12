@@ -20,7 +20,7 @@
   var rec = loadRec();
   if (!rec.chapters) rec.chapters = {};
 
-  var ASSET_V = '15'; // 素材・キットの版。更新のたびに上げると端末側の古いキャッシュを確実に回避できる
+  var ASSET_V = '17'; // 素材・キットの版。更新のたびに上げると端末側の古いキャッシュを確実に回避できる
   function poseSrc(pose) { return IMG + 'N_' + pose + '.webp?v=' + ASSET_V; }
   function chapterById(id) { for (var i = 0; i < cfg.chapters.length; i++) if (cfg.chapters[i].id === id) return cfg.chapters[i]; return null; }
   function isDone(ch) { var r = rec.chapters[ch.id]; return !!(r && r.done && r.version >= (ch.since || 1)); }
@@ -42,6 +42,10 @@
     var badge = el('span'); badge.className = 'nt-badge'; badge.id = 'nt-badge'; badge.style.display = 'none';
     btn.appendChild(badge);
     btn.addEventListener('click', function () { if (btnDragged) { btnDragged = false; return; } openPanel(false); });
+    // アプリ別のボタン配置（config）: 大きさ / 右上の初期配置 / 右からの寄せ量。ドラッグや保存位置が優先される
+    if (cfg.buttonSize) { btn.style.width = cfg.buttonSize + 'px'; btn.style.height = cfg.buttonSize + 'px'; }
+    if (cfg.buttonAnchor === 'top-right') { btn.style.bottom = 'auto'; btn.style.top = '14px'; }
+    if (cfg.buttonOffsetRight) { btn.style.right = (14 + cfg.buttonOffsetRight) + 'px'; }
     initBtnDrag();
     document.body.appendChild(btn);
 
