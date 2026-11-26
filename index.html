@@ -5921,6 +5921,12 @@ function renderPage(id){
   if (id === 'counter') { renderCt(); fitCt(); }
   if (id === 'warikan') wkFit();
   if (id === 'yaraseru') yrOnShow();
+  if (id === 'days') updateDaysCalc();
+  if (id === 'year'){ updateAge(); updateAgeReverse(); }
+  if (id === 'timediff') renderTimeDiffAll();
+  if (id === 'budget') renderBudget();
+  if (id === 'warikan'){ wkRenderGroups(); wkUpdate(); }
+  if (id === 'todo'){ renderTodoTargets(); renderTodoSequence(); renderTodoSchedule(); renderTodoAlarmBox(); }
   var backBtn = document.getElementById('btn-back');
   var gearBtn = document.getElementById('btn-settings');
   var titleEl = document.getElementById('page-title');
@@ -7148,7 +7154,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 9;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261126-2';
+var APP_BUILD = '20261126-3';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -9956,12 +9962,6 @@ window.NK_ONLANG = function(){
   var active = document.querySelector('.page.active');
   var cur = active ? active.id.replace(/^page-/, '') : 'home';
   renderPage(cur);
-  if (cur === 'days') updateDaysCalc();
-  if (cur === 'year'){ updateAge(); updateAgeReverse(); }
-  if (cur === 'timediff') renderTimeDiffAll();
-  if (cur === 'budget') renderBudget();
-  if (cur === 'warikan'){ wkRenderGroups(); wkRenderResult(wkCalc()); }
-  if (cur === 'todo'){ renderTodoTargets(); renderTodoSequence(); renderTodoSchedule(); renderTodoAlarmBox(); }
   if (typeof renderSettingsToggles === 'function') renderSettingsToggles();
 };
 renderMenu();
@@ -10171,14 +10171,14 @@ function wkStepper(cfg, refs){
   var plus = wkEl('button', 'wk-sbtn', '＋'); plus.type = 'button'; plus.setAttribute('aria-label', tr('wk_increase'));
   var box = wkEl('div', 'wk-val');
   var txt = wkEl('span', 'wk-val-num');
-  var suf = wkEl('span', 'wk-val-suf', cfg.suffix);
+  var suf = wkEl('span', 'wk-val-suf', cfg.suffixKey ? tr(cfg.suffixKey) : cfg.suffix);
   var inp = wkEl('input', 'wk-val-in is-hidden');
   inp.type = 'number'; inp.inputMode = 'numeric'; inp.min = '0';
   box.appendChild(txt); box.appendChild(suf); box.appendChild(inp);
   wrap.appendChild(minus); wrap.appendChild(box); wrap.appendChild(plus);
   var editing = false;
 
-  function show(){ txt.textContent = wkFmt(cfg.get()); }
+  function show(){ txt.textContent = wkFmt(cfg.get()); if (cfg.suffixKey) suf.textContent = tr(cfg.suffixKey); }
   function bump(dir){
     var cur = cfg.get(), st = cfg.step(), nv;
     if (cfg.snap && cur % st !== 0) nv = dir > 0 ? Math.ceil(cur / st) * st : Math.floor(cur / st) * st;   /* 刻みの区切りの良い数字に揃える */
@@ -10421,7 +10421,7 @@ function wkBuildGroupCard(g, i){
   var srow = wkEl('div', 'wk-row');
   srow.style.marginBottom = '8px';
   srow.appendChild(wkStepper({
-    suffix: tr('wk_people_unit'), sens: 2,
+    suffixKey: 'wk_people_unit', sens: 2,
     get: function(){ return g.n; },
     step: function(){ return 1; },
     set: function(v){
@@ -10472,7 +10472,7 @@ function wkBuildGroupCard(g, i){
     var rf = wkEl('div', 'wk-row');
     rf.appendChild(wkEl('span', 'wk-rl s', tr('wk_per_one')));
     rf.appendChild(wkStepper({
-      suffix: tr('unit_yen'), sens: 1, snap: true,
+      suffixKey: 'unit_yen', sens: 1, snap: true,
       get: function(){ return g.fixed; },
       step: function(){ return wk.step; },
       set: function(v){ g.fixed = Math.max(0, Math.min(WK_MAX_MONEY, v)); wkUpdate(); }
@@ -10493,7 +10493,7 @@ function wkBuildGroupCard(g, i){
     var ra = wkEl('div', 'wk-row');
     ra.appendChild(wkEl('span', 'wk-rl s', tr('wk_diff_label')));
     ra.appendChild(wkStepper({
-      suffix: tr('unit_yen'), sens: 1, snap: true,
+      suffixKey: 'unit_yen', sens: 1, snap: true,
       get: function(){ return g.amt; },
       step: function(){ return wk.step; },
       set: function(v){ g.amt = Math.max(0, Math.min(WK_MAX_MONEY, v)); wkUpdate(); }
@@ -10536,7 +10536,7 @@ function initWarikan(){
 
   /* 合計人数: 減らして第二班以降の合計を下回る時は、後ろの班から減らして収める */
   document.getElementById('wk-people-slot').appendChild(wkStepper({
-    suffix: tr('wk_people_unit'), sens: 2,
+    suffixKey: 'wk_people_unit', sens: 2,
     get: function(){ return wk.people; },
     step: function(){ return 1; },
     set: function(v){
