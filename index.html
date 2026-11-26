@@ -1637,6 +1637,15 @@ select.plain{
   </div>
 </div>
 
+<div class="modal hidden" id="nk-confirm-modal">
+  <div class="modal-overlay" id="nk-confirm-overlay"></div>
+  <div class="modal-box">
+    <p id="nk-confirm-msg" style="margin:2px 0 16px;line-height:1.65;"></p>
+    <button type="button" class="btn-block danger" id="nk-confirm-ok">削除する</button>
+    <button type="button" class="btn-block muted" id="nk-confirm-cancel" data-i18n="com_cancel">やめる</button>
+  </div>
+</div>
+
 <div class="modal hidden modal-top" id="backup-modal">
   <div class="modal-overlay" id="backup-overlay"></div>
   <div class="modal-box">
@@ -2683,6 +2692,7 @@ window.NKI = (function(){
     "y_vib_sent": "試しの通知を出しました",
     "y_vib_try_fail": "試せませんでした: {err}",
     "y_tap_again": "もう一度タップ",
+    "com_delete": "削除する",
 /*@@JA@@*/
   }, en: {
     "menu_uncat": "Uncategorized",
@@ -3554,6 +3564,7 @@ window.NKI = (function(){
     "y_vib_sent": "A test notification was sent",
     "y_vib_try_fail": "Could not test: {err}",
     "y_tap_again": "Tap again",
+    "com_delete": "Delete",
 /*@@EN@@*/
   } };
   function tr(key){
@@ -3600,7 +3611,29 @@ window.NKI = (function(){
     if (en) en.addEventListener('click', function(){ setLang('en'); });
     syncPill();
   }
-  return { tr: tr, trf: trf, applyStatic: applyStatic, initPill: initPill, setLang: setLang,
+  var confirmResolve = null;
+  function confirmDone(v){
+    var modal = document.getElementById('nk-confirm-modal');
+    if (modal) modal.classList.add('hidden');
+    if (confirmResolve){ var r = confirmResolve; confirmResolve = null; r(v); }
+  }
+  function confirmDlg(msg){
+    return new Promise(function(res){
+      var modal = document.getElementById('nk-confirm-modal');
+      if (!modal){ res(false); return; }
+      document.getElementById('nk-confirm-msg').textContent = msg;
+      document.getElementById('nk-confirm-ok').textContent = tr('com_delete');
+      confirmResolve = res;
+      modal.classList.remove('hidden');
+    });
+  }
+  (function(){
+    var ok = document.getElementById('nk-confirm-ok'), cancel = document.getElementById('nk-confirm-cancel'), ov = document.getElementById('nk-confirm-overlay');
+    if (ok) ok.addEventListener('click', function(){ confirmDone(true); });
+    if (cancel) cancel.addEventListener('click', function(){ confirmDone(false); });
+    if (ov) ov.addEventListener('click', function(){ confirmDone(false); });
+  })();
+  return { tr: tr, trf: trf, applyStatic: applyStatic, initPill: initPill, setLang: setLang, confirmDlg: confirmDlg,
            getLang: function(){ return lang; }, STRINGS: STRINGS };
 })();
 </script>
@@ -5589,7 +5622,7 @@ function mount(root, opts){
         e.startAt = s2 || null; e.limitAt = l2 || null;
         nudge.last = 0; persist(); closeModal(); render(); break;
       }
-      case 'del-item': if (el.closest('.yr-modal') || global.confirm(tr('y_confirm_delete'))) removeItem(id); break;
+      case 'del-item': if (el.closest('.yr-modal')) { removeItem(id); } else { global.NKI.confirmDlg(tr('y_confirm_delete')).then(function(ok){ if (ok) removeItem(id); }); } break;
       case 'pick-backlog': openPick(); break;
       case 'pick-add': {
         var b2 = findBacklog(id); if (!b2) break;
@@ -6660,11 +6693,12 @@ document.getElementById('expense-add-row-btn').addEventListener('click', functio
 document.getElementById('expense-clear-btn').addEventListener('click', function(){
   var hasAny = expenses.some(function(v){ return typeof v === 'number' && isFinite(v); });
   if (!hasAny) return;
-  if (window.confirm(tr('bud_clear_confirm'))){
+  NKI.confirmDlg(tr('bud_clear_confirm')).then(function(ok){
+    if (!ok) return;
     expenses = [];
     while (expenses.length < BUDGET_MIN_ROWS) expenses.push(null);
     renderBudget();
-  }
+  });
 });
 
 /* ============ (4) LINE用外部ブラウザURL ============ */
@@ -7114,7 +7148,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 9;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261126-1';
+var APP_BUILD = '20261126-2';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
@@ -7742,12 +7776,13 @@ function attachStockDrag(item, listId, onDrop){
 }
 document.getElementById('todo-sequence-clear-btn').addEventListener('click', function(){
   if (todoSequence.length === 0) return;
-  if (window.confirm(tr('todo_clear_confirm'))){
+  NKI.confirmDlg(tr('todo_clear_confirm')).then(function(ok){
+    if (!ok) return;
     todoSequence = [];
     saveTodoCurrent();
     renderTodoSequence();
     renderTodoSchedule();
-  }
+  });
 });
 var todoCollapsed = false;
 document.getElementById('todo-collapse-header').addEventListener('click', function(){
@@ -10400,11 +10435,15 @@ function wkBuildGroupCard(g, i){
     var del = wkEl('button', 'wk-del', '🗑'); del.type = 'button';
     del.setAttribute('aria-label', trf('wk_del_aria', {name: name}));
     del.addEventListener('click', function(){
-      if (g.n > 0 && !window.confirm(trf('wk_del_confirm', {name: name, n: g.n}))) return;
-      var idx = wk.groups.indexOf(g);
-      if (idx === -1) return;
-      wk.groups.splice(idx, 1);
-      wkRenderGroups(); wkUpdate();
+      var doDelete = function(){
+        var idx = wk.groups.indexOf(g);
+        if (idx === -1) return;
+        wk.groups.splice(idx, 1);
+        wkRenderGroups(); wkUpdate();
+      };
+      if (g.n > 0){
+        NKI.confirmDlg(trf('wk_del_confirm', {name: name, n: g.n})).then(function(ok){ if (ok) doDelete(); });
+      } else doDelete();
     });
     srow.appendChild(del);
   }
