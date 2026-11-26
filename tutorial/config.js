@@ -54,4 +54,54 @@ window.NAMA_TUTORIAL_CONFIG = {
       ]
     }
   ]
+,
+  en: {
+    introTitle: 'How to Use NamaKe',
+    introText: "I'll show you how to use this app, right on the real screens, nama. It takes about a minute, nama.",
+    chapters: [
+      {
+        id: 'home', page: 'home', title: 'Getting Started', desc: 'The home screen, and how this guide works', icon: 'wave', since: 1,
+        steps: [
+          { pose: 'wave', text: "Hello, hello! I am Nama, a living creature [Namamono], and I'll be your guide for this app, nama. One thing first: you can quit this guide anytime with the ✕ button, and after quitting you can still reopen it from the button at the {{btnPos}} of the screen, nama. So just relax, nama. Let's start with the home screen, nama." },
+          { target: '#menu-card', pose: 'point', text: "This is the list of tools, nama. Tap one to open it, nama. You can drag the handle on the left edge to reorder them, and you can also sort them into categories or hide ones you don't use, nama. Feel free to arrange them your way, nama. This guide is built to work fine no matter how the list is arranged, nama." },
+          { target: '.menu-item[data-id="todo"]', pose: 'point', text: '"Reverse Calculation To-Do" works backward from your departure time and lines up when to start each thing you need to do, nama. Counting its notifications, the APK version is where it really shines, nama. I\'ll guide you through it in the middle chapter, nama.' },
+          { target: '#btn-settings', pose: 'point', text: 'The gear at the top right is Settings, nama. You can switch which items are shown, and import or export your data (backups) there, nama.' },
+          { target: '#nt-btn', pose: 'thumbs_up', text: 'You can reopen this guide anytime from this button at the {{btnPos}}, nama. When new guides are added, a red mark appears on it, nama.' }
+        ]
+      },
+      {
+        id: 'warikan', page: 'warikan', title: 'Split Bill', desc: 'Just the amount and the headcount. Per-group adjustments too', icon: 'yay', since: 1,
+        steps: [
+          { page: 'warikan', pose: 'wave', text: 'This is the Split Bill chapter, nama. Feel free to try entering numbers — anything you enter during this guide is put back when it ends, nama.' },
+          { page: 'warikan', target: '#wk-a', mode: 'free', pose: 'point', text: 'First, the total amount and the number of people, nama. You can actually enter them here, nama. Go ahead and try, nama. Just entering them brings up the even split below, nama.' },
+          { page: 'warikan', target: '#wk-b', mode: 'free', pose: 'point', text: '"Round It Nicely" decides what happens to the remainder, nama. You can switch this one for real too, nama. Round up in 500-yen steps, or have the organizer adjust the remainder so the total comes out exact, nama.' },
+          { page: 'warikan', target: '#wk-c', mode: 'free', pose: 'point', text: "If you want different headcounts or amounts for each group, this is the place, nama. Split everyone into Group 1, Group 2, and so on, and charge each group more or less, nama. You can touch this one too, nama." },
+          { page: 'warikan', target: '#wk-copy', mode: 'tap', pose: 'point', text: 'You can copy the result with this button and paste it straight into LINE or anywhere else, nama. Give it a tap, nama.' }
+        ]
+      },
+      {
+        id: 'todo', page: 'todo', title: 'Reverse Calculation To-Do', desc: 'Building an action and trying it out, with "Eating" as the example', icon: 'thinking', since: 3,
+        steps: [
+          { page: 'todo', pose: 'wave', text: 'The Reverse Calculation To-Do chapter, nama. Give it a time — when you head out, or when something must be finished — and it works backward to line up when each preparation should start, nama. In this chapter, we will make an action called "Eating" as a trial, nama. Anything you make is put back when the chapter ends, so take it easy, nama. The notifications that fire at the right times are where the APK version really shines, nama.' },
+          { page: 'todo', target: '#todo-manage-btn', mode: 'tap', pose: 'point', text: 'Registering the actions themselves is done from "Manage Actions & Completion Times," nama. Give it a tap, nama.' },
+          { page: 'todo', target: '#todo-tab-actions .todo-manage-add-row', mode: 'free', bubblePos: 'bottom', pose: 'point', text: 'This is the action entry row, nama. Try typing "Eating" in the name field, and "30" in the minutes field on the right, nama. When you are done, go to "Next," nama.' },
+          { page: 'todo', target: '#todo-new-action-add-btn', mode: 'tap', bubblePos: 'bottom', pose: 'point', text: 'Once you have typed it in, press the "Add" button, nama. Give it a tap, nama. "Eating" appears in the list above, nama.' },
+          { page: 'todo', target: '[data-tab="times"]', mode: 'tap', bubblePos: 'bottom', pose: 'point', text: 'Now the "Completion Times" tab at the top, nama. Give it a tap, nama.' },
+          { page: 'todo', target: '#todo-tab-times .todo-manage-add-row', mode: 'free', bubblePos: 'bottom', pose: 'point', text: 'A completion time is when something has to be finished by, nama. For eating, think "finish eating by 19:00," nama. Enter "19" in the hour field and "0" in the minutes field, and press "Add" too, nama.' },
+          { page: 'todo', target: '#todo-manage-close-btn', mode: 'tap', pose: 'point', text: 'Lastly, "Close" takes you back, nama. Give it a tap, nama.' },
+          { page: 'todo', target: '#todo-add-action-btn', pose: 'point', text: 'On the main screen, you place registered actions into your sequence with this "➕ Add Action" button, nama. Once they are lined up, just set the target time and the start time of each action is worked out backward for you, nama. Combinations you use often are worth saving as an "Action Set," nama.' }
+        ]
+      },
+      {
+        id: 'others', page: 'budget', title: 'Other Tools', desc: 'Budget Calculator, Namasu, the LINE URL helper, and more. Tools not on your home screen are skipped automatically', icon: 'question', since: 1,
+        steps: [
+          { page: 'home', pose: 'wave', text: "I'll introduce the other tools all together, nama. Explanations for tools you don't show on your home screen are skipped automatically, so no need to worry, nama." },
+          { page: 'home', target: '.menu-item[data-id="budget"]', pose: 'point', text: 'The Budget Calculator, nama. Enter a budget and your expenses, and see how much is left, nama.' },
+          { page: 'home', target: '.menu-item[data-id="stopwatch"]', pose: 'point', text: 'NamaStopwatch, "Namasu," nama. A stopwatch for timing each piece of music, nama.' },
+          { page: 'home', target: '.menu-item[data-id="line"]', pose: 'point', text: 'The External Browser URL for LINE, nama. A helper for when you want a link inside LINE to open in an external browser, nama.' },
+          { page: 'home', target: '.fav-tile', pose: 'point', text: 'Tools you have marked as Favorites can also be opened from tiles like these, nama.' }
+        ]
+      }
+    ]
+  }
 };
