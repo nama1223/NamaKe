@@ -5904,7 +5904,8 @@ function fitSwFrame(){
 }
 function openStopwatchFrame(){
   var f = document.getElementById('sw-frame');
-  if (!f.getAttribute('src')) f.src = location.origin + '/NamaStopwatch/?embedded=1&lang=' + ((window.NKI && NKI.getLang) ? NKI.getLang() : 'ja');
+  var want = location.origin + '/NamaStopwatch/?embedded=1&lang=' + ((window.NKI && NKI.getLang) ? NKI.getLang() : 'ja');
+    if (f.getAttribute('src') !== want) f.src = want;
   fitSwFrame();
 }
 window.addEventListener('resize', fitSwFrame);
@@ -7154,7 +7155,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 9;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261126-4';
+var APP_BUILD = '20261126-5';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
