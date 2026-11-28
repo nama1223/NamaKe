@@ -5902,12 +5902,20 @@ function fitSwFrame(){
   var top = f.getBoundingClientRect().top + window.scrollY;
   f.style.height = Math.max(420, window.innerHeight - top - 60) + 'px';
 }
+function swLangNow(){ return (window.NKI && NKI.getLang) ? NKI.getLang() : 'ja'; }
+function postSwLang(){
+  var f = document.getElementById('sw-frame');
+  if (!f || !f.getAttribute('src') || !f.contentWindow) return;
+  try { f.contentWindow.postMessage({__namaHostLang: swLangNow()}, location.origin); } catch(e){}
+}
 function openStopwatchFrame(){
   var f = document.getElementById('sw-frame');
-  var want = location.origin + '/NamaStopwatch/?embedded=1&lang=' + ((window.NKI && NKI.getLang) ? NKI.getLang() : 'ja');
-    if (f.getAttribute('src') !== want) f.src = want;
+  /* 初回だけ src をセットする。以後は src を書き換えると履歴が積まれて「戻る」が効かなくなるため、言語は postMessage で送る */
+  if (!f.getAttribute('src')) f.src = location.origin + '/NamaStopwatch/?embedded=1&lang=' + swLangNow();
+  else postSwLang();
   fitSwFrame();
 }
+document.getElementById('sw-frame').addEventListener('load', postSwLang);
 window.addEventListener('resize', fitSwFrame);
 
 /* 画面の表示切替のみを行う(履歴操作はしない) */
@@ -7155,7 +7163,7 @@ var REQUIRED_SHELL_VERSION = 13;
 /* 本体(index.html)側のバージョン。意味のある変更をするたびに手動で1つ上げる運用。 */
 var NAKA_VERSION = 9;
 /* 本体の版数。index.htmlを更新するたびに手で変える(「更新チェック」が新旧の比較に使う) */
-var APP_BUILD = '20261126-6';
+var APP_BUILD = '20261128-1';
 var nativeShellInfo = null;
 var TODO_ALARM_ID_COUNTER_KEY = 'namacalc_todo_alarm_id_counter_v1';
 /* 通知IDを再同期のたびに使い回さず、常に新しい番号を払い出す。
